@@ -24,8 +24,8 @@ LLM_CONFIGS = {
         "description": "Model for inferring headers when none are detected",
         "output_format": {
             "type": "json_array",
-            "description": "Array of inferred header names",
-            "example": "[\"id\", \"name\", \"age\", \"email\"]"
+            "description": "Array of inferred header names, should have the same length as the number of columns in the CSV file",
+            "example": "[\"col1\", \"col2\", \"col3\", ...]"
         },
         "auto_load": True,  # Whether to automatically load this model when the state starts
         "auto_unload": True  # Whether to automatically unload this model when the state ends
@@ -76,7 +76,7 @@ LLM_CONFIGS = {
 }
 
 # Fallback settings (if LMStudio is not available)
-OPENAI_MODEL_NAME = "gpt-3.5-turbo"
+#OPENAI_MODEL_NAME = "gpt-3.5-turbo"
 
 # CSV Processing Settings
 MAX_SAMPLE_ROWS = 10  # Maximum number of rows to include in LLM prompts
