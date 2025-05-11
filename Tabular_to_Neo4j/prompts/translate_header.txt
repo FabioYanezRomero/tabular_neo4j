@@ -1,9 +1,14 @@
-You are a data analysis assistant. I have a CSV file with the following headers:
+Your task is to translate column headers to a target language if needed. You will receive a 'METADATA' section containing information about the headers and target language, and a 'DATA' section with the current headers.
+
+METADATA:
+- File: {file_name}
+- Purpose: Translate column headers to target language if needed
+- Target language: {target_language}
+
+DATA:
 {headers}
 
-The target language for these headers is: {target_language}
-
-Please determine if these headers are already predominantly in {target_language}. If not, or if they are mixed, translate all headers to {target_language}.
+Based on the METADATA and DATA sections, determine if the headers in the DATA section are already predominantly in {target_language}. If not, or if they are mixed, translate all headers to {target_language}.
 
 Return your analysis as JSON with the following structure:
 {
@@ -15,5 +20,6 @@ If the headers are already in the target language, set "is_in_target_language" t
 If translation is needed, set "is_in_target_language" to false and provide the translated headers in "translated_header".
 
 When translating, maintain the same formatting style (snake_case) and ensure the translations accurately reflect the meaning of the original headers.
+The translated_header list MUST have the same length as the original headers list.
 
 JSON response:

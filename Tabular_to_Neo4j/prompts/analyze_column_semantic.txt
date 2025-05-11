@@ -1,17 +1,20 @@
-You are a data modeling expert specializing in Neo4j graph databases. I need your help analyzing a column from a CSV dataset to determine its role in a potential Neo4j graph model.
+Your task is to analyze a column from a CSV dataset to determine its role in a potential Neo4j graph model. You will receive a 'METADATA' section with column information and a 'DATA' section with sample values and statistics.
 
-Context: Analyzing column '{column_name}' from a dataset likely representing '{table_subject}'.
+METADATA:
+- File: {file_name}
+- Column: {column_name}
+- Table Subject: {table_subject}
+- Purpose: Determine the semantic meaning and Neo4j role of this column
 
-Sample Values: {sample_values}
-
-Statistical Profile:
+DATA:
+- Sample Values: {sample_values}
 - Uniqueness Ratio: {uniqueness_ratio} (proportion of unique values)
 - Cardinality: {cardinality} (number of distinct values)
 - Data Type: {data_type}
 - Missing Values: {missing_percentage}%
 - Detected Patterns: {patterns}
 
-Based on this information, classify this column for Neo4j graph modeling:
+Based on the METADATA and DATA sections, classify this column for Neo4j graph modeling:
 
 1. What is its likely semantic type (e.g., Person Name, City, Product ID, Price, Status, Description, Date, Email Address, Unique Row Identifier)?
 
@@ -20,7 +23,7 @@ Based on this information, classify this column for Neo4j graph modeling:
    b. A descriptive property of the primary entity '{table_subject}' (e.g., age for a :Customer node)?
    c. Values that should become separate nodes of a new type, linked to the primary entity (e.g., a 'City' column might become :City nodes linked to :Customer nodes)? If so, what would be the new node label?
    d. A property of a newly identified linked node type (if applicable from previous point)?
-   e. (Advanced) A property of a relationship between the primary entity and a linked node?
+   e. A property of a relationship between the primary entity and a linked node?
 
 Return your analysis as JSON with the following structure:
 {

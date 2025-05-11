@@ -1,11 +1,16 @@
-You are a data analysis assistant. I have a CSV file without headers.
+Your task is to infer appropriate column headers for a table without headers. You will receive a 'METADATA' section containing information about the table and a 'TABLE' section with sample data.
 
-Below are the first few rows of data:
+METADATA:
+- File: {file_name}
+- Purpose: Infer appropriate headers for a CSV file without headers
+- Number of columns: {num_columns}
+
+TABLE:
 {data_sample}
 
-Please infer appropriate column headers for this data. Consider the data types and patterns in each column.
+Based on the METADATA and TABLE sections, infer appropriate column headers for this data. Consider the data types and patterns in each column.
 
-Return your response as a JSON list of strings, where each string is a header name for the corresponding column.
+Return your response as a JSON array of strings, where each string is a header name for the corresponding column.
 For example: ["customer_id", "name", "email", "purchase_date", "amount"]
 
 Make sure the headers are:
@@ -14,5 +19,7 @@ Make sure the headers are:
 3. Using snake_case format (lowercase with underscores)
 4. No spaces or special characters
 5. Singular nouns (e.g., "customer_id" not "customers_ids")
+
+The response MUST be a JSON array with exactly {num_columns} elements, one for each column in the table.
 
 JSON response:
