@@ -1,0 +1,18 @@
+You are a data analysis assistant. I have a CSV file without headers.
+
+Below are the first few rows of data:
+{data_sample}
+
+Please infer appropriate column headers for this data. Consider the data types and patterns in each column.
+
+Return your response as a JSON list of strings, where each string is a header name for the corresponding column.
+For example: ["customer_id", "name", "email", "purchase_date", "amount"]
+
+Make sure the headers are:
+1. Descriptive of the column content
+2. In English
+3. Using snake_case format (lowercase with underscores)
+4. No spaces or special characters
+5. Singular nouns (e.g., "customer_id" not "customers_ids")
+
+JSON response:

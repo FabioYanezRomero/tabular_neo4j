@@ -1,0 +1,19 @@
+You are a data analysis assistant. I have a CSV file with the following headers:
+{headers}
+
+The target language for these headers is: {target_language}
+
+Please determine if these headers are already predominantly in {target_language}. If not, or if they are mixed, translate all headers to {target_language}.
+
+Return your analysis as JSON with the following structure:
+{
+    "is_in_target_language": true/false,
+    "translated_header": ["header1", "header2", ...]
+}
+
+If the headers are already in the target language, set "is_in_target_language" to true and keep "translated_header" the same as the input.
+If translation is needed, set "is_in_target_language" to false and provide the translated headers in "translated_header".
+
+When translating, maintain the same formatting style (snake_case) and ensure the translations accurately reflect the meaning of the original headers.
+
+JSON response:

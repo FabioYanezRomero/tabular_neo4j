@@ -1,0 +1,11 @@
+customer_id,name,email,signup_date,city,country,loyalty_points,last_order_date,total_spent
+1001,John Smith,john.smith@example.com,2022-01-15,New York,USA,120,2023-05-20,1250.75
+1002,Maria Garcia,maria.g@example.com,2022-02-03,Madrid,Spain,85,2023-04-12,876.30
+1003,Hiroshi Tanaka,h.tanaka@example.jp,2022-01-30,Tokyo,Japan,210,2023-06-01,2340.50
+1004,Emma Wilson,emma.w@example.co.uk,2022-03-12,London,UK,65,2023-03-28,540.25
+1005,Ahmed Hassan,a.hassan@example.eg,2022-02-28,Cairo,Egypt,95,2023-05-15,780.60
+1006,Sophie Dubois,sophie.d@example.fr,2022-04-05,Paris,France,150,2023-06-10,1560.90
+1007,Li Wei,li.wei@example.cn,2022-03-20,Shanghai,China,180,2023-05-25,1890.40
+1008,Carlos Rodriguez,carlos.r@example.mx,2022-02-10,Mexico City,Mexico,110,2023-04-30,920.15
+1009,Priya Patel,p.patel@example.in,2022-04-18,Mumbai,India,75,2023-03-15,680.70
+1010,Anna Kowalski,anna.k@example.pl,2022-03-05,Warsaw,Poland,130,2023-05-05,1420.85

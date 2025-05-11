@@ -1,0 +1,22 @@
+You are a data analysis assistant. I have a CSV file with the following headers:
+{headers}
+
+Below are the first few rows of data with these headers applied:
+{data_sample}
+
+Please evaluate if these headers accurately describe the data in each column. Consider:
+1. Do the headers match the data types and content?
+2. Are the headers descriptive and clear?
+3. Are there any inconsistencies or errors?
+
+Return your analysis as JSON with the following structure:
+{
+    "is_correct": true/false,
+    "validated_header": ["header1", "header2", ...],
+    "suggestions": "Your explanation of any issues found and suggestions for improvement"
+}
+
+If the headers are correct, set "is_correct" to true and keep "validated_header" the same as the input.
+If you find issues, set "is_correct" to false and provide improved headers in "validated_header".
+
+JSON response:
