@@ -4,11 +4,16 @@ Header processing nodes for the LangGraph CSV analysis pipeline.
 
 from typing import Dict, Any, List
 import pandas as pd
+import logging
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output, call_llm_with_state
 from Tabular_to_Neo4j.utils.csv_utils import df_to_string_sample
+from Tabular_to_Neo4j.utils.language_utils import verify_header_language
 from Tabular_to_Neo4j.config import TARGET_HEADER_LANGUAGE, MAX_SAMPLE_ROWS
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 def infer_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphState:
     """
@@ -124,6 +129,7 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
 def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphState:
     """
     Use LLM to translate headers to the target language if needed.
+    First verifies the language using automated detection, then uses LLM if translation is needed.
     
     Args:
         state: The current graph state
@@ -137,27 +143,54 @@ def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> Grap
         return state
     
     try:
+        # First, verify the language using our language detection utility
+        headers = state['final_header']
+        file_name = state.get('file_name', 'unknown.csv')
+        
+        logger.info(f"Verifying language of headers: {headers}")
+        verification_result = verify_header_language(headers, TARGET_HEADER_LANGUAGE)
+        
+        # Store verification results in state for debugging/analysis
+        state['language_verification'] = verification_result
+        
+        # If headers are already in target language, no need to translate
+        if verification_result['is_in_target_language']:
+            logger.info(f"Headers already in {TARGET_HEADER_LANGUAGE}, no translation needed")
+            state['is_header_in_target_language'] = True
+            state['translated_header'] = headers
+            return state
+        
+        # If we get here, translation is needed
+        logger.info(f"Headers not in {TARGET_HEADER_LANGUAGE}, translation needed")
+        logger.info(f"Detected languages: {verification_result['detected_languages']}")
+        
         # Format the prompt with the headers and target language
         prompt = format_prompt('translate_header.txt', 
-                              headers=state['final_header'],
+                              file_name=file_name,
+                              headers=headers,
                               target_language=TARGET_HEADER_LANGUAGE)
         
         # Call the LLM for the translate_header state and parse the JSON response
         response = call_llm_with_json_output(prompt, state_name="translate_header")
         
         # Extract the translation results
-        is_in_target_language = response.get('is_in_target_language', True)
-        translated_header = response.get('translated_header', state['final_header'])
+        translated_header = response.get('translated_header', headers)
+        
+        # Verify the translated headers are actually in the target language
+        translated_verification = verify_header_language(translated_header, TARGET_HEADER_LANGUAGE)
+        state['translated_verification'] = translated_verification
+        
+        if not translated_verification['is_in_target_language']:
+            logger.warning(f"Translated headers still not in {TARGET_HEADER_LANGUAGE}")
+            logger.warning(f"Detected languages after translation: {translated_verification['detected_languages']}")
         
         # Update the state
-        state['is_header_in_target_language'] = is_in_target_language
+        state['is_header_in_target_language'] = False  # We know it needed translation
         state['translated_header'] = translated_header
-        
-        # If translation was needed, update the final header
-        if not is_in_target_language:
-            state['final_header'] = translated_header
+        state['final_header'] = translated_header
         
     except Exception as e:
+        logger.error(f"Error translating headers: {str(e)}")
         state['error_messages'].append(f"Error translating headers: {str(e)}")
         # Keep the existing headers
         state['is_header_in_target_language'] = True
