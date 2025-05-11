@@ -24,6 +24,7 @@ run:
 		-p 7474:7474 -p 7687:7687 \
 		$(IMAGE_NAME)
 	@echo "Container started. Access shell with 'make shell'"
+	@docker ps | grep $(CONTAINER_NAME) || echo "Warning: Container may have stopped. Check logs with 'docker logs $(CONTAINER_NAME)'"
 
 # Open a shell in the running container
 shell:

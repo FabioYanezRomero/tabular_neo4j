@@ -7,7 +7,7 @@ import pandas as pd
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.analytics_utils import analyze_all_columns
-from Tabular_to_Neo4j.utils.llm_utils import format_prompt, call_llm_with_json_output
+from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output, call_llm_with_state
 from Tabular_to_Neo4j.utils.csv_utils import get_primary_entity_from_filename
 from Tabular_to_Neo4j.config import MAX_SAMPLE_ROWS
 
@@ -88,8 +88,8 @@ def llm_semantic_column_analysis_node(state: GraphState, config: RunnableConfig)
                                   missing_percentage=column_analytics.get('missing_percentage', 0) * 100,
                                   patterns=patterns_str)
             
-            # Call the LLM and parse the JSON response
-            response = call_llm_with_json_output(prompt)
+            # Call the LLM for the semantic_analysis state and parse the JSON response
+            response = call_llm_with_json_output(prompt, state_name="semantic_analysis")
             
             # Store the semantic analysis result
             state['llm_column_semantics'][column_name] = {

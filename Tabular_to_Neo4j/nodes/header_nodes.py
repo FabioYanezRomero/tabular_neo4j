@@ -6,7 +6,7 @@ from typing import Dict, Any, List
 import pandas as pd
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
-from Tabular_to_Neo4j.utils.llm_utils import format_prompt, call_llm_with_json_output
+from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output, call_llm_with_state
 from Tabular_to_Neo4j.utils.csv_utils import df_to_string_sample
 from Tabular_to_Neo4j.config import TARGET_HEADER_LANGUAGE, MAX_SAMPLE_ROWS
 
@@ -33,8 +33,8 @@ def infer_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphSta
         # Format the prompt with the data sample
         prompt = format_prompt('infer_header.txt', data_sample=data_sample)
         
-        # Call the LLM and parse the JSON response
-        response = call_llm_with_json_output(prompt)
+        # Call the LLM for the infer_header state and parse the JSON response
+        response = call_llm_with_json_output(prompt, state_name="infer_header")
         
         # Check if the response is a list
         if isinstance(response, list):
@@ -95,8 +95,8 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
                               headers=state['final_header'],
                               data_sample=data_sample)
         
-        # Call the LLM and parse the JSON response
-        response = call_llm_with_json_output(prompt)
+        # Call the LLM for the validate_header state and parse the JSON response
+        response = call_llm_with_json_output(prompt, state_name="validate_header")
         
         # Extract the validation results
         is_correct = response.get('is_correct', True)
@@ -142,8 +142,8 @@ def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> Grap
                               headers=state['final_header'],
                               target_language=TARGET_HEADER_LANGUAGE)
         
-        # Call the LLM and parse the JSON response
-        response = call_llm_with_json_output(prompt, is_translation=True)
+        # Call the LLM for the translate_header state and parse the JSON response
+        response = call_llm_with_json_output(prompt, state_name="translate_header")
         
         # Extract the translation results
         is_in_target_language = response.get('is_in_target_language', True)

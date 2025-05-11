@@ -35,5 +35,5 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --upgrade pip && \
     pip install -e .
 
-# Set the default command
-CMD ["bash"]
+# Set the default command to keep container running
+CMD ["tail", "-f", "/dev/null"]
