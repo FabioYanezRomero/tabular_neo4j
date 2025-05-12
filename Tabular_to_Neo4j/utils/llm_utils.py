@@ -13,10 +13,6 @@ import re
 
 # Import configuration
 from Tabular_to_Neo4j.config import (
-
-# Configure logging
-logger = get_logger(__name__)
-
     LLM_API_KEY, 
     LLM_PROVIDER, 
     LLM_MODEL_NAME_GENERAL,
@@ -25,8 +21,8 @@ logger = get_logger(__name__)
     HUGGINGFACE_MODEL_ID
 )
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+logger = get_logger(__name__)
 
 
 def load_prompt_template(template_name: str) -> str:
@@ -79,44 +75,6 @@ def extract_json_from_llm_response(response: str) -> Dict[str, Any]:
         logger.error(f"Failed to parse JSON from LLM response: {e}")
         logger.debug(f"Response was: {response}")
         return {"error": "Failed to parse JSON", "raw_response": response}
-
-def call_openai_api(prompt: str, model: str = LLM_MODEL_NAME_GENERAL, max_retries: int = 3) -> str:
-    """
-    Call the OpenAI API with retry logic.
-    
-    Args:
-        prompt: The prompt to send to the API
-        model: The model to use
-        max_retries: Maximum number of retries on failure
-        
-    Returns:
-        The LLM response as a string
-    """
-    import openai
-    
-    # Use API key from environment if not in config
-    api_key = LLM_API_KEY or os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OpenAI API key not found. Set it in config.py or as an environment variable.")
-    
-    openai.api_key = api_key
-    
-    for attempt in range(max_retries):
-        try:
-            response = openai.ChatCompletion.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,  # Low temperature for more deterministic responses
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            if attempt < max_retries - 1:
-                wait_time = 2 ** attempt  # Exponential backoff
-                logger.warning(f"OpenAI API call failed: {e}. Retrying in {wait_time}s...")
-                time.sleep(wait_time)
-            else:
-                logger.error(f"OpenAI API call failed after {max_retries} attempts: {e}")
-                raise
 
 def call_lmstudio_api(prompt: str, model: str = None, max_retries: int = 3) -> str:
     """
@@ -195,7 +153,7 @@ def call_huggingface_api(prompt: str, model: str = HUGGINGFACE_MODEL_ID, max_ret
 
 def call_llm(prompt: str, model: str = None, is_translation: bool = False) -> str:
     """
-    Call the configured LLM provider.
+    Call LM Studio for LLM interactions.
     
     Args:
         prompt: The prompt to send to the LLM
@@ -208,14 +166,11 @@ def call_llm(prompt: str, model: str = None, is_translation: bool = False) -> st
     if not model:
         model = LLM_MODEL_NAME_TRANSLATE if is_translation else LLM_MODEL_NAME_GENERAL
     
-    if LLM_PROVIDER.lower() == "openai":
-        return call_openai_api(prompt, model)
-    elif LLM_PROVIDER.lower() == "lmstudio":
-        return call_lmstudio_api(prompt, model)
-    elif LLM_PROVIDER.lower() == "huggingface":
-        return call_huggingface_api(prompt, model)
-    else:
-        raise ValueError(f"Unsupported LLM provider: {LLM_PROVIDER}")
+    # Always use LM Studio regardless of the configured provider
+    if LLM_PROVIDER.lower() != "lmstudio":
+        logger.warning(f"Provider '{LLM_PROVIDER}' is not supported. Using LM Studio instead.")
+    
+    return call_lmstudio_api(prompt, model)
 
 def format_prompt(template_name: str, **kwargs) -> str:
     """

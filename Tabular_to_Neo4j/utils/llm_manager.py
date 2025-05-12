@@ -26,18 +26,42 @@ from Tabular_to_Neo4j.config import (
     LMSTUDIO_BASE_URL
 )
 
-# Define fallback model name if not in config
-try:
-    from Tabular_to_Neo4j.config import OPENAI_MODEL_NAME
-except ImportError:
-    OPENAI_MODEL_NAME = 'gpt-3.5-turbo'
-
 # Configure logging
 logger = get_logger(__name__)
 
 # Global tracking of loaded models in LMStudio
 # This will store information about which models are currently loaded in LMStudio
 _LOADED_MODELS = {}
+
+def _is_model_loaded(model_name: str) -> bool:
+    """
+    Check if a model is loaded in LMStudio.
+    
+    Args:
+        model_name: Name of the model to check
+        
+    Returns:
+        True if the model is loaded, False otherwise
+    """
+    # First check our local tracking
+    if model_name in _LOADED_MODELS:
+        return True
+        
+    # Then check with LMStudio API
+    try:
+        models = get_lmstudio_models()
+        for model in models:
+            if model.get('id') == model_name and model.get('status') == 'loaded':
+                # Update our local tracking
+                _LOADED_MODELS[model_name] = {
+                    'loaded_at': time.time(),
+                    'loaded_by': 'external'
+                }
+                return True
+        return False
+    except Exception as e:
+        logger.warning(f"Error checking if model '{model_name}' is loaded: {e}")
+        return False
 
 def set_seed(seed: int) -> None:
     """
@@ -79,45 +103,7 @@ def extract_json_from_llm_response(response: str) -> Dict[str, Any]:
         logger.debug(f"Response was: {response}")
         return {"error": "Failed to parse JSON", "raw_response": response}
 
-def call_openai_api(prompt: str, temperature: float = 0.0, model: str = OPENAI_MODEL_NAME, max_retries: int = 3) -> str:
-    """
-    Call the OpenAI API with retry logic.
-    
-    Args:
-        prompt: The prompt to send to the API
-        temperature: Temperature setting (0.0 for deterministic results)
-        model: The model to use
-        max_retries: Maximum number of retries on failure
-        
-    Returns:
-        The LLM response as a string
-    """
-    import openai
-    
-    # Use API key from environment if not in config
-    api_key = LLM_API_KEY or os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OpenAI API key not found. Set it in config.py or as an environment variable.")
-    
-    openai.api_key = api_key
-    
-    for attempt in range(max_retries):
-        try:
-            response = openai.ChatCompletion.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=temperature,
-                seed=DEFAULT_SEED  # Use consistent seed for reproducibility
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            if attempt < max_retries - 1:
-                wait_time = 2 ** attempt  # Exponential backoff
-                logger.warning(f"OpenAI API call failed: {e}. Retrying in {wait_time}s...")
-                time.sleep(wait_time)
-            else:
-                logger.error(f"OpenAI API call failed after {max_retries} attempts: {e}")
-                raise
+# OpenAI API function removed - using LM Studio exclusively
 
 def get_lmstudio_models() -> List[Dict[str, Any]]:
     """
@@ -278,47 +264,89 @@ def call_lmstudio_api(prompt: str, model_name: str = None, temperature: float = 
     Returns:
         The LLM response as a string
     """
+    import requests
+    import time
+    import json
+    from Tabular_to_Neo4j.config import DEFAULT_LMSTUDIO_MODEL
+    
+    # Set the seed for reproducibility
+    set_seed(seed)
+    
+    # Get the base URL for LMStudio
     base_url = LMSTUDIO_BASE_URL
-    state_info = f" for state '{state_name}'" if state_name else ""
     
-    # Ensure the model is loaded
-    if model_name and model_name not in _LOADED_MODELS:
-        logger.warning(f"⚠️ Model '{model_name}' is not tracked as loaded{state_info}. Attempting to load it now.")
-        if not load_model_in_lmstudio(model_name, state_name):
-            raise ValueError(f"Failed to load model '{model_name}' in LMStudio{state_info}")
+    # If no model name is provided, use the default model
+    if not model_name:
+        model_name = DEFAULT_LMSTUDIO_MODEL
+        logger.info(f"No model specified, using default model: {model_name}")
     
-    # Log the API call
-    truncated_prompt = prompt[:50] + "..." if len(prompt) > 50 else prompt
-    logger.info(f"💬 Sending prompt to model '{model_name}'{state_info} (temp={temperature}, seed={seed})")
+    # Check if the model is loaded, and load it if not
+    if not _is_model_loaded(model_name):
+        logger.info(f"Model '{model_name}' not loaded in LMStudio, attempting to load it")
+        success = load_model_in_lmstudio(model_name, state_name)
+        
+        # If loading fails, try to get any available model
+        if not success:
+            logger.warning(f"Failed to load model '{model_name}', trying to find an available model")
+            available_models = get_lmstudio_models()
+            
+            if available_models:
+                # Use the first available model
+                model_name = available_models[0].get('id')
+                logger.info(f"Using available model: {model_name}")
+            else:
+                logger.error("No models available in LM Studio. Please ensure LM Studio is running and has models loaded.")
+                raise ValueError("No models available in LM Studio")
     
-    start_time = time.time()
+    # Prepare the request payload
+    payload = {
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant that specializes in data analysis and Neo4j graph modeling."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": temperature,
+        "seed": seed,
+        "model": model_name
+    }
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    # Make the API call with retries
     for attempt in range(max_retries):
         try:
+            logger.debug(f"Calling LMStudio API with model '{model_name}', attempt {attempt+1}/{max_retries}")
+            
             response = requests.post(
                 f"{base_url}/chat/completions",
-                json={
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": temperature,
-                    "seed": seed
-                },
-                headers={"Content-Type": "application/json"},
+                headers=headers,
+                data=json.dumps(payload),
+                timeout=120  # 2-minute timeout
             )
-            response.raise_for_status()
-            content = response.json()["choices"][0]["message"]["content"]
             
-            # Log success
-            response_time = time.time() - start_time
-            truncated_response = content[:50] + "..." if len(content) > 50 else content
-            logger.info(f"💬 Received response from model '{model_name}'{state_info} in {response_time:.2f} seconds")
+            response.raise_for_status()  # Raise an exception for HTTP errors
             
-            return content
-        except Exception as e:
+            response_data = response.json()
+            return response_data["choices"][0]["message"]["content"]
+            
+        except requests.exceptions.ConnectionError:
+            logger.error(f"Connection error: Could not connect to LM Studio at {base_url}")
+            logger.error("Please ensure LM Studio is running and accessible at the configured URL")
             if attempt < max_retries - 1:
-                wait_time = 2 ** attempt
-                logger.warning(f"⚠️ LMStudio API call failed{state_info}: {e}. Retrying in {wait_time}s...")
+                wait_time = 2 ** attempt  # Exponential backoff
+                logger.warning(f"Retrying in {wait_time}s...")
                 time.sleep(wait_time)
             else:
-                logger.error(f"❌ LMStudio API call failed{state_info} after {max_retries} attempts: {e}")
+                raise ValueError(f"Could not connect to LM Studio after {max_retries} attempts. Please ensure LM Studio is running at {base_url}")
+                
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # Exponential backoff
+                logger.warning(f"LMStudio API call failed: {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                logger.error(f"LMStudio API call failed after {max_retries} attempts: {e}")
                 raise
 
 def call_huggingface_api(prompt: str, model_id: str, temperature: float = 0.0, seed: int = DEFAULT_SEED, max_retries: int = 3) -> str:
@@ -413,15 +441,12 @@ def load_llm_for_state(state_name: str):
         # Set seed for reproducibility
         set_seed(seed)
         
-        if provider == "openai":
-            return call_openai_api(prompt, temperature)
-        elif provider == "lmstudio":
-            return call_lmstudio_api(prompt, model_name, temperature, seed, state_name)
-        elif provider == "huggingface":
-            # Fallback to Hugging Face API
-            return call_huggingface_api(prompt, model_name, temperature, seed)
-        else:
-            raise ValueError(f"Unsupported LLM provider: {provider}")
+        # Always use LM Studio as the provider
+        if provider != "lmstudio":
+            logger.warning(f"Provider '{provider}' is not supported. Using LM Studio instead.")
+            provider = "lmstudio"
+            
+        return call_lmstudio_api(prompt, model_name, temperature, seed, state_name)
     
     try:
         # Yield the function to call the LLM
@@ -501,14 +526,41 @@ def call_llm_with_json_output(prompt: str, state_name: str = None, is_translatio
         state_name = next(iter(LLM_CONFIGS.keys()), None)
     
     # Add explicit JSON formatting instruction
-    json_instruction = "\n\nPlease respond with valid JSON only."
-    full_prompt = prompt + json_instruction
+    if not is_translation:  # Skip for translation tasks as they have special formatting
+        prompt += "\n\nIMPORTANT: Your response must be valid JSON. Do not include any explanations or markdown formatting, just the raw JSON object."
     
-    # Call the LLM for the specified state
-    response = call_llm_with_state(state_name, full_prompt)
+    # Call the LLM
+    response = call_llm_with_state(state_name, prompt)
     
     # Parse the response as JSON
-    return extract_json_from_llm_response(response)
+    try:
+        result = extract_json_from_llm_response(response)
+        logger.debug(f"Successfully parsed JSON response from LM Studio")
+        return result
+    except Exception as e:
+        logger.error(f"Error parsing JSON response: {e}")
+        logger.error(f"Raw response: {response}")
+        
+        # Try to fix common JSON formatting issues that might occur with LM Studio models
+        try:
+            # Sometimes LLMs add extra text before or after the JSON
+            # Try to extract just the JSON part
+            import re
+            json_pattern = r'\{[\s\S]*\}|\[[\s\S]*\]'
+            match = re.search(json_pattern, response)
+            if match:
+                json_str = match.group(0)
+                result = json.loads(json_str)
+                logger.info(f"Successfully extracted JSON after cleanup")
+                return result
+        except Exception as cleanup_error:
+            logger.error(f"JSON cleanup failed: {cleanup_error}")
+        
+        # Return a dictionary with the error and raw response
+        return {
+            "error": str(e),
+            "raw_response": response
+        }
 
 def get_model_info(state_name: str) -> Dict[str, Any]:
     """

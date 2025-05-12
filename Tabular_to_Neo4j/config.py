@@ -3,9 +3,9 @@ Configuration settings for the Tabular to Neo4j converter.
 """
 
 # General LLM Configuration
-LLM_API_KEY = ""  # Set your API key here or use environment variables
+LLM_API_KEY = ""  # Not used with LM Studio but kept for compatibility
 TARGET_HEADER_LANGUAGE = "English"  # Target language for headers
-DEFAULT_LLM_PROVIDER = "lmstudio"  # Using LMStudio for GGUF models
+DEFAULT_LLM_PROVIDER = "lmstudio"  # Using LMStudio exclusively for all LLM interactions
 DEFAULT_SEED = 42  # Default seed for reproducibility
 DEFAULT_TEMPERATURE = 0.0  # Default temperature (0.0 for deterministic results)
 
@@ -160,8 +160,8 @@ LLM_CONFIGS = {
     }
 }
 
-# Fallback settings (if LMStudio is not available)
-#OPENAI_MODEL_NAME = "gpt-3.5-turbo"
+# Default model to use if not specified in LLM_CONFIGS
+DEFAULT_LMSTUDIO_MODEL = "Mistral-7B-Instruct-v0.2-GGUF"  # Default model for LM Studio
 
 # CSV Processing Settings
 MAX_SAMPLE_ROWS = 10  # Maximum number of rows to include in LLM prompts

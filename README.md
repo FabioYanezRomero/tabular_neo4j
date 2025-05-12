@@ -140,13 +140,19 @@ The system processes your CSV file through a series of steps using LangGraph:
    - Infers relationships between entities
    - Suggests property assignments for nodes and relationships
 
-## LLM Provider Support
+## LLM Provider
 
-The system supports multiple LLM providers:
-- OpenAI
-- LMStudio (local inference)
-- Hugging Face
-- (Easily extensible to other providers)
+The system exclusively uses LM Studio for all LLM interactions:
+- **LM Studio**: Local inference server for running GGUF models
+- **Setup Required**: You need to have LM Studio running locally at http://localhost:1234
+- **Models**: The application is configured to use various GGUF models for different tasks (Mistral, Llama2, etc.)
+
+### LM Studio Setup
+
+1. Download and install [LM Studio](https://lmstudio.ai/)
+2. Launch LM Studio and load your preferred GGUF models
+3. Start the local inference server (click on 'Local Inference Server' in LM Studio)
+4. Ensure it's running on port 1234 (default)
 
 ## Configuration
 
@@ -154,8 +160,8 @@ You can customize the system behavior in `config.py`:
 
 ```python
 # LLM Configuration
-LLM_API_KEY = ""  # Your API key
-LLM_PROVIDER = "openai"  # LLM provider
+LLM_API_KEY = ""  # Not used with LM Studio but kept for compatibility
+LLM_PROVIDER = "lmstudio"  # Using LM Studio exclusively
 TARGET_HEADER_LANGUAGE = "English"  # Target language for headers
 
 # Analysis Settings
