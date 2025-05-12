@@ -4,7 +4,7 @@ Header processing nodes for the LangGraph CSV analysis pipeline.
 
 from typing import Dict, Any, List
 import pandas as pd
-import logging
+from Tabular_to_Neo4j.utils.logging_config import get_logger
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output, call_llm_with_state
@@ -13,7 +13,11 @@ from Tabular_to_Neo4j.utils.language_utils import verify_header_language, detect
 from Tabular_to_Neo4j.config import TARGET_HEADER_LANGUAGE, MAX_SAMPLE_ROWS
 
 # Configure logging
-logger = logging.getLogger(__name__)
+
+
+
+# Configure logging
+logger = get_logger(__name__)
 
 def infer_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphState:
     """

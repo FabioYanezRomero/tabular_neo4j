@@ -5,8 +5,11 @@ Utility functions for CSV file handling.
 import os
 import pandas as pd
 from typing import Tuple, List, Optional
-import logging
+from Tabular_to_Neo4j.utils.logging_config import get_logger
 from Tabular_to_Neo4j.config import CSV_ENCODING, CSV_DELIMITER
+
+# Configure logging
+logger = get_logger(__name__)
 
 def get_primary_entity_from_filename(csv_file_path: str) -> str:
     """
@@ -48,26 +51,91 @@ def load_csv_safely(file_path: str, header=None) -> Tuple[Optional[pd.DataFrame]
     errors = []
     df = None
     
+    logger.debug(f"Attempting to load CSV file: {file_path}")
+    logger.debug(f"Using configured encoding: {CSV_ENCODING}, delimiter: {CSV_DELIMITER}")
+    
     if not os.path.exists(file_path):
-        errors.append(f"File not found: {file_path}")
+        error_msg = f"File not found: {file_path}"
+        logger.error(error_msg)
+        errors.append(error_msg)
         return None, errors
     
+    # Log file size and basic info
+    file_size = os.path.getsize(file_path) / 1024  # KB
+    logger.debug(f"CSV file size: {file_size:.2f} KB")
+    
+    # Try to detect file type based on extension
+    _, ext = os.path.splitext(file_path)
+    if ext.lower() != '.csv':
+        logger.warning(f"File has non-CSV extension: {ext}. Will attempt to load anyway.")
+    
     try:
+        logger.debug(f"Attempting to load CSV with primary encoding: {CSV_ENCODING}")
         df = pd.read_csv(file_path, header=header, encoding=CSV_ENCODING, delimiter=CSV_DELIMITER)
-    except UnicodeDecodeError:
+        logger.info(f"Successfully loaded CSV file with primary encoding: {CSV_ENCODING}")
+    except UnicodeDecodeError as e:
+        logger.warning(f"Unicode decode error with {CSV_ENCODING}: {str(e)}")
+        logger.info("Attempting to load with alternative encodings")
+        
         # Try with different encodings
         encodings = ['latin1', 'iso-8859-1', 'cp1252']
         for encoding in encodings:
             try:
+                logger.debug(f"Trying encoding: {encoding}")
                 df = pd.read_csv(file_path, header=header, encoding=encoding, delimiter=CSV_DELIMITER)
+                logger.info(f"Successfully loaded CSV file with encoding: {encoding}")
                 break
             except Exception as e:
+                logger.warning(f"Failed to load CSV with encoding {encoding}: {str(e)}")
                 continue
         
         if df is None:
-            errors.append(f"Failed to decode file with attempted encodings: utf-8, latin1, iso-8859-1, cp1252")
+            error_msg = f"Failed to decode file with attempted encodings: {CSV_ENCODING}, latin1, iso-8859-1, cp1252"
+            logger.error(error_msg)
+            errors.append(error_msg)
+    except pd.errors.EmptyDataError as e:
+        error_msg = f"CSV file is empty: {str(e)}"
+        logger.error(error_msg)
+        errors.append(error_msg)
+    except pd.errors.ParserError as e:
+        error_msg = f"CSV parsing error (malformed CSV): {str(e)}"
+        logger.error(error_msg)
+        errors.append(error_msg)
+        
+        # Try with different delimiters as fallback
+        if CSV_DELIMITER == ',':
+            alt_delimiters = [';', '\t', '|']
+            logger.info(f"Attempting to load with alternative delimiters")
+            
+            for delimiter in alt_delimiters:
+                try:
+                    logger.debug(f"Trying delimiter: '{delimiter}'")
+                    df = pd.read_csv(file_path, header=header, encoding=CSV_ENCODING, delimiter=delimiter)
+                    logger.info(f"Successfully loaded CSV file with delimiter: '{delimiter}'")
+                    break
+                except Exception as e:
+                    logger.debug(f"Failed with delimiter '{delimiter}': {str(e)}")
+                    continue
     except Exception as e:
-        errors.append(f"Error loading CSV: {str(e)}")
+        error_msg = f"Error loading CSV: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        errors.append(error_msg)
+    
+    # Log dataframe info if successfully loaded
+    if df is not None:
+        logger.info(f"Successfully loaded CSV with {len(df)} rows and {len(df.columns)} columns")
+        
+        # Check for potential issues
+        if len(df.columns) == 1:
+            logger.warning("CSV has only one column. This might indicate delimiter issues.")
+            errors.append("CSV has only one column. This might indicate delimiter issues.")
+            
+        # Check for missing values
+        missing_count = df.isna().sum().sum()
+        if missing_count > 0:
+            logger.debug(f"CSV contains {missing_count} missing values")
+    else:
+        logger.error("Failed to load CSV file after all attempts")
     
     return df, errors
 

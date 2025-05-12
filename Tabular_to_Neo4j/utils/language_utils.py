@@ -1,16 +1,20 @@
 """
 Utility functions for language detection and validation.
 """
-import logging
+from Tabular_to_Neo4j.utils.logging_config import get_logger
 from typing import List, Dict, Tuple, Optional
 from langdetect import detect, LangDetectException
 from langdetect.detector_factory import DetectorFactory
 
 # Set seed for reproducibility
+
+# Configure logging
+logger = get_logger(__name__)
+
 DetectorFactory.seed = 42
 
 # Configure logging
-logger = logging.getLogger(__name__)
+
 
 # ISO language code mapping (add more as needed)
 ISO_LANGUAGE_CODES = {

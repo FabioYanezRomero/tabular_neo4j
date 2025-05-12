@@ -8,10 +8,11 @@ import json
 import time
 import random
 import gc
+import logging
 from typing import Dict, Any, Optional, List, Union, Tuple, Callable
 import requests
 from pathlib import Path
-import logging
+from Tabular_to_Neo4j.utils.logging_config import get_logger
 import re
 from contextlib import contextmanager
 
@@ -22,19 +23,17 @@ from Tabular_to_Neo4j.config import (
     DEFAULT_SEED,
     DEFAULT_TEMPERATURE,
     LLM_CONFIGS,
-    LMSTUDIO_BASE_URL,
-    OPENAI_MODEL_NAME
+    LMSTUDIO_BASE_URL
 )
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()  # Output to terminal
-    ]
-)
-logger = logging.getLogger(__name__)
+# Define fallback model name if not in config
+try:
+    from Tabular_to_Neo4j.config import OPENAI_MODEL_NAME
+except ImportError:
+    OPENAI_MODEL_NAME = 'gpt-3.5-turbo'
+
+# Configure logging
+logger = get_logger(__name__)
 
 # Global tracking of loaded models in LMStudio
 # This will store information about which models are currently loaded in LMStudio

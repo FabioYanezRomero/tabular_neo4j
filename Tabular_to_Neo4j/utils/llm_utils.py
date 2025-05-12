@@ -8,11 +8,15 @@ import time
 from typing import Dict, Any, Optional, List, Union
 import requests
 from pathlib import Path
-import logging
+from Tabular_to_Neo4j.utils.logging_config import get_logger
 import re
 
 # Import configuration
 from Tabular_to_Neo4j.config import (
+
+# Configure logging
+logger = get_logger(__name__)
+
     LLM_API_KEY, 
     LLM_PROVIDER, 
     LLM_MODEL_NAME_GENERAL,
@@ -23,7 +27,7 @@ from Tabular_to_Neo4j.config import (
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
 
 def load_prompt_template(template_name: str) -> str:
     """

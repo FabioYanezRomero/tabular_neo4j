@@ -7,9 +7,9 @@ import pandas as pd
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.csv_utils import load_csv_safely
-import logging
+from Tabular_to_Neo4j.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def load_csv_node(state: GraphState, config: RunnableConfig) -> GraphState:
@@ -27,26 +27,66 @@ def load_csv_node(state: GraphState, config: RunnableConfig) -> GraphState:
     if 'error_messages' not in state:
         state['error_messages'] = []
     
+    csv_path = state['csv_file_path']
+    logger.info(f"Loading CSV file: {csv_path}")
+    
+    # Check if file exists
+    import os
+    if not os.path.exists(csv_path):
+        error_msg = f"CSV file not found: {csv_path}"
+        logger.error(error_msg)
+        state['error_messages'].append(error_msg)
+        state['raw_dataframe'] = None
+        state['header_row_if_present'] = []
+        return state
+    
+    # Log file size
+    file_size = os.path.getsize(csv_path) / 1024  # KB
+    logger.debug(f"CSV file size: {file_size:.2f} KB")
+    
     # Load the CSV file
-    df, errors = load_csv_safely(state['csv_file_path'], header=None)
+    logger.debug(f"Attempting to load CSV file with automatic encoding detection")
+    df, errors = load_csv_safely(csv_path, header=None)
     
     # Add any errors to the state
     if errors:
+        for error in errors:
+            logger.warning(f"CSV loading issue: {error}")
         state['error_messages'].extend(errors)
         
     if df is not None:
+        # Log basic dataframe info
+        row_count = len(df)
+        col_count = len(df.columns)
+        logger.info(f"Successfully loaded CSV with {row_count} rows and {col_count} columns")
+        logger.debug(f"DataFrame memory usage: {df.memory_usage(deep=True).sum() / 1024:.2f} KB")
+        
+        # Check for missing values
+        missing_values = df.isna().sum().sum()
+        if missing_values > 0:
+            logger.warning(f"CSV contains {missing_values} missing values")
+            state['error_messages'].append(f"CSV contains {missing_values} missing values")
+        
         # Store the raw dataframe
         state['raw_dataframe'] = df
         
         # Store the first row separately as potential header
-        if len(df) > 0:
-            state['header_row_if_present'] = df.iloc[0].tolist()
+        if row_count > 0:
+            header_row = df.iloc[0].tolist()
+            state['header_row_if_present'] = header_row
+            logger.debug(f"Potential header row: {header_row}")
+            
+            # Check for empty header values
+            empty_headers = sum(1 for h in header_row if pd.isna(h) or str(h).strip() == '')
+            if empty_headers > 0:
+                logger.warning(f"Potential header row contains {empty_headers} empty values")
         else:
+            logger.warning("CSV file is empty (0 rows)")
             state['header_row_if_present'] = []
             state['error_messages'].append("CSV file is empty")
     else:
         # If loading failed, set empty values
-        logger.error("Failed to load CSV file: %s", state['csv_file_path'])
+        logger.error(f"Failed to load CSV file: {csv_path}")
         state['raw_dataframe'] = None
         state['header_row_if_present'] = []
     

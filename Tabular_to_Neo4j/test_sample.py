@@ -5,7 +5,7 @@ Test script to demonstrate the Tabular to Neo4j converter with a sample CSV file
 
 import os
 import sys
-import logging
+from Tabular_to_Neo4j.utils.logging_config import get_logger
 from pathlib import Path
 
 # Add the parent directory to the path to import the module
@@ -14,12 +14,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from Tabular_to_Neo4j.main import run_analysis
 
 # Set up logging
+
+# Configure logging
+logger = get_logger(__name__)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[logging.StreamHandler(sys.stdout)]
 )
-logger = logging.getLogger(__name__)
+
 
 def main():
     """

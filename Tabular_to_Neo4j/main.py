@@ -5,39 +5,48 @@ Main script for the Tabular to Neo4j converter using LangGraph.
 import argparse
 import json
 import os
+import time
+import logging
 from typing import Dict, Any
 from pathlib import Path
-import logging
+from Tabular_to_Neo4j.utils.logging_config import get_logger, setup_logging
 import sys
+
+# Initialize logging with default configuration
+setup_logging()
+
+# Get a logger for this module
+logger = get_logger(__name__)
 
 # Load environment variables from .env file if present
 try:
     from dotenv import load_dotenv
     load_dotenv()
-    logging.info("Loaded environment variables from .env file")
+    logger.info("Loaded environment variables from .env file")
 except ImportError:
-    logging.warning("python-dotenv not installed, skipping .env loading")
+    logger.warning("python-dotenv not installed, skipping .env loading")
 except Exception as e:
-    logging.warning(f"Failed to load .env file: {e}")
+    logger.warning(f"Failed to load .env file: {e}")
 
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
 
-from app_state import GraphState
-from nodes.input_nodes import load_csv_node, detect_header_heuristic_node
-from nodes.header_nodes import (
+from Tabular_to_Neo4j.app_state import GraphState
+from Tabular_to_Neo4j.nodes.input_nodes import load_csv_node, detect_header_heuristic_node
+from Tabular_to_Neo4j.nodes.header_nodes import (
     infer_header_llm_node, 
     validate_header_llm_node, 
     detect_header_language_node,
     translate_header_llm_node, 
     apply_header_node
 )
-from nodes.analysis_nodes import (
+from Tabular_to_Neo4j.nodes.analysis_nodes import (
     perform_column_analytics_node, 
     llm_semantic_column_analysis_node
 )
-from nodes.schema_synthesis_nodes import (
+# Import schema synthesis nodes from the new modular structure
+from Tabular_to_Neo4j.nodes.schema_synthesis_main import (
     classify_entities_properties_node,
     reconcile_entity_property_node,
     map_properties_to_entities_node,
@@ -46,13 +55,8 @@ from nodes.schema_synthesis_nodes import (
     synthesize_final_schema_node
 )
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
-logger = logging.getLogger(__name__)
+# Get a logger for this module
+logger = get_logger(__name__)
 
 def create_graph() -> StateGraph:
     """
@@ -219,55 +223,103 @@ def run_analysis(csv_file_path: str, output_file: str = None, verbose: bool = Fa
     Returns:
         The final graph state
     """
+    # Log analysis start with file details
+    logger.info(f"Starting analysis of CSV file: {csv_file_path}")
+    if not os.path.exists(csv_file_path):
+        logger.error(f"CSV file not found: {csv_file_path}")
+        raise FileNotFoundError(f"CSV file not found: {csv_file_path}")
+    
+    # Log file size and basic info
+    file_size = os.path.getsize(csv_file_path) / 1024  # KB
+    logger.info(f"File size: {file_size:.2f} KB")
+    
     # Create the graph
+    logger.debug("Creating state graph")
     graph = create_graph()
     
     # Compile the graph
+    logger.debug("Compiling state graph")
     app = graph.compile()
     
     # Set up the initial state
+    logger.debug("Initializing state")
     initial_state = GraphState(
         csv_file_path=csv_file_path,
         error_messages=[]
     )
     
     # Run the graph
-    logger.info(f"Starting analysis of {csv_file_path}")
-    final_state = app.invoke(initial_state)
+    logger.info(f"Executing analysis pipeline")
+    start_time = time.time()
+    try:
+        final_state = app.invoke(initial_state)
+        execution_time = time.time() - start_time
+        logger.info(f"Analysis completed in {execution_time:.2f} seconds")
+    except Exception as e:
+        logger.error(f"Analysis failed: {str(e)}", exc_info=True)
+        raise
     
-    # Print the results
+    # Log the results
+    if final_state.get('error_messages'):
+        error_count = len(final_state.get('error_messages', []))
+        logger.warning(f"Analysis completed with {error_count} errors/warnings")
+        for i, error in enumerate(final_state.get('error_messages', [])):
+            logger.warning(f"Error/Warning {i+1}: {error}")
+    else:
+        logger.info("Analysis completed successfully with no errors")
+    
+    # Log schema information
+    if final_state.get('inferred_neo4j_schema'):
+        schema = final_state['inferred_neo4j_schema']
+        primary_entity = schema.get('primary_entity_label', 'Unknown')
+        column_count = len(schema.get('columns_classification', []))
+        logger.info(f"Inferred schema with primary entity '{primary_entity}' and {column_count} classified columns")
+        
+        # Count column roles
+        roles = {}
+        for col in schema.get('columns_classification', []):
+            role = col.get('role', 'UNKNOWN')
+            roles[role] = roles.get(role, 0) + 1
+        
+        for role, count in roles.items():
+            logger.debug(f"Role '{role}': {count} columns")
+    else:
+        logger.warning("No schema was inferred")
+    
+    # Save results to file if requested
+    if output_file:
+        try:
+            logger.info(f"Saving results to {output_file}")
+            with open(output_file, 'w') as f:
+                if final_state.get('inferred_neo4j_schema'):
+                    schema_output = format_schema_output(final_state['inferred_neo4j_schema'])
+                    f.write(schema_output)
+                else:
+                    f.write("No schema inferred.\n")
+                    
+                if final_state.get('error_messages'):
+                    f.write("\nErrors/Warnings:\n")
+                    for error in final_state.get('error_messages', []):
+                        f.write(f"  - {error}\n")
+            logger.info(f"Results saved to {output_file}")
+        except Exception as e:
+            logger.error(f"Failed to save results to {output_file}: {str(e)}")
+    
+    # Print the results if verbose
     if verbose:
-        logger.info("Analysis complete.")
+        logger.info("Displaying analysis results")
         
         # Print any errors
         if final_state.get('error_messages'):
-            logger.warning("Errors encountered during analysis:")
+            print("\nErrors/Warnings encountered during analysis:")
             for error in final_state.get('error_messages', []):
-                logger.warning(f"  - {error}")
+                print(f"  - {error}")
         
         # Print the inferred schema
         if final_state.get('inferred_neo4j_schema'):
             schema_output = format_schema_output(final_state['inferred_neo4j_schema'])
-            print("\nINFERRED NEO4J SCHEMA:")
+            print("\nInferred Neo4j Schema:")
             print(schema_output)
-    
-    # Save the results to a file if specified
-    if output_file:
-        output_path = Path(output_file)
-        
-        # Create the output directory if it doesn't exist
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Save the results
-        with open(output_path, 'w') as f:
-            # Extract the relevant parts of the state to save
-            results = {
-                'inferred_neo4j_schema': final_state.get('inferred_neo4j_schema'),
-                'error_messages': final_state.get('error_messages', [])
-            }
-            json.dump(results, f, indent=2)
-        
-        logger.info(f"Results saved to {output_file}")
     
     return final_state
 
