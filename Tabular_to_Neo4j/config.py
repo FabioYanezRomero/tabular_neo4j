@@ -59,7 +59,7 @@ LLM_CONFIGS = {
         "auto_unload": True
     },
     # Analysis states
-    "semantic_analysis": {
+    "analyze_column_semantics": {
         "provider": "lmstudio",
         "model_name": "Llama-2-13B-Chat-GGUF",  # Name of the model in LMStudio
         "temperature": 0.0,
@@ -102,7 +102,7 @@ LLM_CONFIGS = {
         "auto_load": True,
         "auto_unload": True
     },
-    "map_properties_to_entities": {
+    "map_properties_to_entity": {
         "provider": "lmstudio",
         "model_name": "Llama-2-13B-Chat-GGUF",  # Name of the model in LMStudio
         "temperature": 0.0,
