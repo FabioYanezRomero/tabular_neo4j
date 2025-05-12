@@ -33,20 +33,30 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
 
 from Tabular_to_Neo4j.app_state import GraphState
-from Tabular_to_Neo4j.nodes.input_nodes import load_csv_node, detect_header_heuristic_node
-from Tabular_to_Neo4j.nodes.header_nodes import (
+
+# Import input nodes
+from Tabular_to_Neo4j.nodes.input import (
+    load_csv_node,
+    detect_header_heuristic_node
+)
+
+# Import header processing nodes
+from Tabular_to_Neo4j.nodes.header_processing import (
     infer_header_llm_node, 
     validate_header_llm_node, 
     detect_header_language_node,
     translate_header_llm_node, 
     apply_header_node
 )
-from Tabular_to_Neo4j.nodes.analysis_nodes import (
+
+# Import analysis nodes
+from Tabular_to_Neo4j.nodes.analysis import (
     perform_column_analytics_node, 
     llm_semantic_column_analysis_node
 )
-# Import schema synthesis nodes from the new modular structure
-from Tabular_to_Neo4j.nodes.schema_synthesis_main import (
+
+# Import schema synthesis nodes
+from Tabular_to_Neo4j.nodes.schema_synthesis import (
     classify_entities_properties_node,
     reconcile_entity_property_node,
     map_properties_to_entities_node,

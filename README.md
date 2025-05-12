@@ -12,6 +12,8 @@ A Python repository using LangGraph to analyze CSV files and infer Neo4j graph d
   - Property assignment
   - Related entity detection
   - Relationship modeling
+- **Modular Architecture**: Well-organized codebase with clear separation of concerns
+- **Comprehensive Logging**: Detailed logging for debugging and monitoring
 - **Docker Support**: Run the application in an isolated environment with all dependencies
 
 ## Installation
@@ -59,6 +61,36 @@ The project includes a Makefile to simplify Docker operations:
 - `make stop`: Stop and remove the running container
 - `make clean`: Remove both the container and image
 - `make restart`: Rebuild and restart the container
+
+## Architecture
+
+The codebase follows a modular architecture with clear separation of concerns:
+
+### Input Package
+- **csv_loader**: Handles loading CSV files into pandas DataFrames
+- **header_detection**: Applies heuristics to detect headers
+
+### Header Processing Package
+- **header_inference**: Uses LLM to infer headers when none are detected
+- **header_validation**: Validates and improves headers
+- **language_detection**: Detects the language of headers
+- **header_translation**: Translates headers to the target language
+- **header_application**: Applies headers to the DataFrame
+
+### Analysis Package
+- **column_analytics**: Performs statistical and pattern analysis on columns
+- **semantic_analysis**: Uses LLM to analyze semantic meaning of columns
+
+### Schema Synthesis Package
+- **entity_classification**: Classifies columns as entities or properties
+- **entity_reconciliation**: Reconciles different classification approaches
+- **property_mapping**: Maps properties to their respective entities
+- **relationship_inference**: Infers relationships between entity types
+- **cypher_generation**: Generates Cypher query templates
+- **schema_finalization**: Combines all results into the final Neo4j schema
+
+### Alternative Synthesis Package
+- Provides an alternative implementation of schema synthesis
 
 ## Usage
 
