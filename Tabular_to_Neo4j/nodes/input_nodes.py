@@ -7,6 +7,10 @@ import pandas as pd
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.csv_utils import load_csv_safely
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def load_csv_node(state: GraphState, config: RunnableConfig) -> GraphState:
     """
@@ -42,6 +46,7 @@ def load_csv_node(state: GraphState, config: RunnableConfig) -> GraphState:
             state['error_messages'].append("CSV file is empty")
     else:
         # If loading failed, set empty values
+        logger.error("Failed to load CSV file: %s", state['csv_file_path'])
         state['raw_dataframe'] = None
         state['header_row_if_present'] = []
     

@@ -29,6 +29,7 @@ from nodes.input_nodes import load_csv_node, detect_header_heuristic_node
 from nodes.header_nodes import (
     infer_header_llm_node, 
     validate_header_llm_node, 
+    detect_header_language_node,
     translate_header_llm_node, 
     apply_header_node
 )
@@ -36,7 +37,14 @@ from nodes.analysis_nodes import (
     perform_column_analytics_node, 
     llm_semantic_column_analysis_node
 )
-from nodes.synthesis_nodes import synthesize_schema_node
+from nodes.schema_synthesis_nodes import (
+    classify_entities_properties_node,
+    reconcile_entity_property_node,
+    map_properties_to_entities_node,
+    infer_entity_relationships_node,
+    generate_cypher_templates_node,
+    synthesize_final_schema_node
+)
 
 # Set up logging
 logging.basicConfig(
@@ -61,11 +69,20 @@ def create_graph() -> StateGraph:
     graph.add_node("detect_header", detect_header_heuristic_node)
     graph.add_node("infer_header", infer_header_llm_node)
     graph.add_node("validate_header", validate_header_llm_node)
+    graph.add_node("detect_header_language", detect_header_language_node)
     graph.add_node("translate_header", translate_header_llm_node)
     graph.add_node("apply_header", apply_header_node)
     graph.add_node("analyze_columns", perform_column_analytics_node)
     graph.add_node("semantic_analysis", llm_semantic_column_analysis_node)
-    graph.add_node("synthesize_schema", synthesize_schema_node)
+    
+    
+    # Schema synthesis nodes
+    graph.add_node("classify_entities_properties", classify_entities_properties_node)
+    graph.add_node("reconcile_entity_property", reconcile_entity_property_node)
+    graph.add_node("map_properties_to_entities", map_properties_to_entities_node)
+    graph.add_node("infer_entity_relationships", infer_entity_relationships_node)
+    graph.add_node("generate_cypher_templates", generate_cypher_templates_node)
+    graph.add_node("synthesize_final_schema", synthesize_final_schema_node)
     
     # Define the edges
     # Start with loading the CSV
@@ -84,17 +101,35 @@ def create_graph() -> StateGraph:
     # Continue the flow from infer_header to validate_header
     graph.add_edge("infer_header", "validate_header")
     
-    # Continue with header validation and translation
-    graph.add_edge("validate_header", "translate_header")
+    # Add language detection after header validation
+    graph.add_edge("validate_header", "detect_header_language")
+    
+    # Conditional edge from detect_header_language based on is_header_in_target_language
+    graph.add_conditional_edges(
+        "detect_header_language",
+        lambda state: "same_language" if state.get("is_header_in_target_language", False) else "different_language",
+        {
+            "same_language": "apply_header",       # If header already in target language, skip translation
+            "different_language": "translate_header" # If header in different language, translate it
+        }
+    )
+    
+    # Continue with header translation (if needed) and application
     graph.add_edge("translate_header", "apply_header")
     
     # Column analysis
     graph.add_edge("apply_header", "analyze_columns")
     graph.add_edge("analyze_columns", "semantic_analysis")
-    graph.add_edge("semantic_analysis", "synthesize_schema")
+    # Schema synthesis pipeline
+    graph.add_edge("semantic_analysis", "classify_entities_properties")
+    graph.add_edge("classify_entities_properties", "reconcile_entity_property")
+    graph.add_edge("reconcile_entity_property", "map_properties_to_entities")
+    graph.add_edge("map_properties_to_entities", "infer_entity_relationships")
+    graph.add_edge("infer_entity_relationships", "generate_cypher_templates")
+    graph.add_edge("generate_cypher_templates", "synthesize_final_schema")
     
     # End the graph after schema synthesis
-    graph.add_edge("synthesize_schema", END)
+    graph.add_edge("synthesize_final_schema", END)
     
     # Set the entry point
     graph.set_entry_point("load_csv")

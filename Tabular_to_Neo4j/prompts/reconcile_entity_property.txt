@@ -1,0 +1,36 @@
+Your task is to reconcile different classification approaches for a column in a CSV dataset to create a consensus model for Neo4j graph modeling. You will receive a 'METADATA' section with column information and a 'DATA' section with different classification results.
+
+METADATA:
+- File: {file_name}
+- Column: {column_name}
+- Primary Entity: {primary_entity}
+- Purpose: Reconcile analytics-based and LLM-based classifications to create a consensus model
+
+DATA:
+- Initial Classification: {initial_classification}
+- Analytics Classification: {analytics_classification}
+- LLM Classification: {llm_classification}
+- Sample Values: {sample_values}
+- Entity Types in Dataset: {entity_types}
+
+Based on the METADATA and DATA sections, create a consensus classification that considers both the statistical properties of the data and the semantic meaning:
+
+1. If the classifications agree, use that classification
+2. If they disagree, determine which is more appropriate based on:
+   - The uniqueness and cardinality of the values
+   - The semantic meaning of the column
+   - The relationship to other columns and entities
+   - The overall structure of the graph model
+
+Return your consensus classification as JSON with the following structure:
+{
+    "column_name": "{column_name}",
+    "consensus_classification": "entity_identifier" | "entity_property" | "new_entity_type" | "secondary_entity_property" | "relationship_property",
+    "entity_type": "...",
+    "relationship_to_primary": "...",
+    "neo4j_property_key": "...",
+    "confidence": 0.0-1.0,
+    "reasoning": "..."
+}
+
+JSON response:

@@ -1,4 +1,4 @@
-from typing import TypedDict, List, Dict, Any, Optional
+from typing import TypedDict, List, Dict, Any, Optional, Set, Tuple
 import pandas as pd
 
 class GraphState(TypedDict):
@@ -21,6 +21,13 @@ class GraphState(TypedDict):
     column_analytics: Optional[Dict[str, Dict[str, Any]]]  # {col_name: {uniqueness: 0.9, ...}}
     llm_column_semantics: Optional[Dict[str, Dict[str, Any]]]  # {col_name: {semantic_type: "City", neo4j_role: "POTENTIAL_LINKED_NODE", ...}}
 
+    # Schema synthesis intermediate states
+    entity_property_classification: Optional[Dict[str, Dict[str, Any]]]  # Classification of columns as entities or properties
+    entity_property_consensus: Optional[Dict[str, Dict[str, Any]]]  # Consensus between analytics and LLM classification
+    entity_relationships: Optional[List[Dict[str, Any]]]  # Relationships between entity types
+    property_entity_mapping: Optional[Dict[str, str]]  # Mapping of properties to their entity types
+    cypher_query_templates: Optional[List[Dict[str, Any]]]  # Template Cypher queries for the schema
+    
     # Final output
     inferred_neo4j_schema: Optional[Dict[str, Any]]  # { "primary_entity_label": "inferred_from_filename", "columns": [{ "name": "col_A", "role": "NODE_PROPERTY", "neo4j_property": "propA"}, ...]}
     error_messages: List[str]

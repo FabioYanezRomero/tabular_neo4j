@@ -1,0 +1,36 @@
+Your task is to classify a column from a CSV dataset as either an entity or a property for a Neo4j graph model. You will receive a 'METADATA' section with column information and a 'DATA' section with sample values and analytics.
+
+METADATA:
+- File: {file_name}
+- Column: {column_name}
+- Primary Entity: {primary_entity}
+- Purpose: Determine if this column represents an entity or a property in a Neo4j graph model
+
+DATA:
+- Sample Values: {sample_values}
+- Uniqueness Ratio: {uniqueness_ratio} (proportion of unique values)
+- Cardinality: {cardinality} (number of distinct values)
+- Data Type: {data_type}
+- Missing Values: {missing_percentage}%
+- Semantic Type: {semantic_type}
+- LLM Suggested Role: {llm_role}
+
+Based on the METADATA and DATA sections, classify this column as one of the following:
+
+1. Entity Identifier: A unique identifier for the primary entity (e.g., CustomerID for a :Customer node)
+2. Entity Property: A descriptive property of the primary entity (e.g., age for a :Customer node)
+3. New Entity Type: Values that should become separate nodes of a new type (e.g., a 'City' column might become :City nodes)
+4. Secondary Entity Property: A property of a non-primary entity type
+5. Relationship Property: A property of a relationship between entities
+
+Return your analysis as JSON with the following structure:
+{
+    "column_name": "{column_name}",
+    "classification": "entity_identifier" | "entity_property" | "new_entity_type" | "secondary_entity_property" | "relationship_property",
+    "entity_type": "...",
+    "relationship_to_primary": "...",
+    "neo4j_property_key": "...",
+    "reasoning": "..."
+}
+
+JSON response:

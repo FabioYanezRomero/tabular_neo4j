@@ -1,0 +1,50 @@
+Your task is to synthesize all the intermediate analysis results into a final Neo4j schema for a CSV dataset. You will receive a 'METADATA' section with context information and a 'DATA' section with all the intermediate analysis results.
+
+METADATA:
+- File: {file_name}
+- Primary Entity: {primary_entity}
+- Purpose: Synthesize a comprehensive Neo4j schema from all intermediate analysis results
+
+DATA:
+- Entity-Property Classifications: {entity_property_classifications}
+- Entity-Property Consensus: {entity_property_consensus}
+- Property-Entity Mapping: {property_entity_mapping}
+- Entity Relationships: {entity_relationships}
+- Cypher Templates: {cypher_templates}
+
+Based on the METADATA and DATA sections, synthesize a comprehensive Neo4j schema that:
+
+1. Defines all entity types with their properties
+2. Specifies primary identifiers for each entity type
+3. Defines all relationships between entities with their properties
+4. Includes appropriate Cypher templates for loading and querying
+5. Resolves any conflicts or inconsistencies in the intermediate results
+
+Return your final schema as JSON with the following structure:
+{
+    "primary_entity_label": "{primary_entity}",
+    "columns_classification": [
+        {
+            "original_column_name": "...",
+            "role": "PRIMARY_ENTITY_IDENTIFIER" | "PRIMARY_ENTITY_PROPERTY" | "NEW_NODE_TYPE_VALUES" | "NEW_NODE_PROPERTY" | "RELATIONSHIP_PROPERTY",
+            "neo4j_property_key": "...",
+            "semantic_type": "...",
+            "new_node_label": "...",
+            "relationship_to_primary": "...",
+            "associated_new_node_label": "...",
+            "associated_relationship": "...",
+            "source_node_label": "...",
+            "target_node_label": "..."
+        },
+        ...
+    ],
+    "cypher_templates": [
+        {
+            "purpose": "...",
+            "query": "..."
+        },
+        ...
+    ]
+}
+
+JSON response:
