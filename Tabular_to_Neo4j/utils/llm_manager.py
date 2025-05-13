@@ -505,28 +505,26 @@ def call_llm_with_state(state_name: str, prompt: str) -> str:
     with load_llm_for_state(state_name) as llm_func:
         return llm_func(prompt)
 
-def call_llm_with_json_output(prompt: str, state_name: str = None, is_translation: bool = False) -> Dict[str, Any]:
+def call_llm_with_json_output(prompt: str, state_name: str = None) -> Dict[str, Any]:
     """
     Call the LLM and parse the response as JSON.
     
     Args:
         prompt: The prompt to send to the LLM
         state_name: The name of the state to use the LLM for
-        is_translation: Whether this is a translation task
         
     Returns:
         The parsed JSON response as a dictionary
     """
-    # If translation is requested, use the translate_header state
-    if is_translation and state_name is None:
-        state_name = "translate_header"
-    
     # If no state is specified, use a default state
     if state_name is None:
         state_name = next(iter(LLM_CONFIGS.keys()), None)
     
-    # Add explicit JSON formatting instruction
-    if not is_translation:  # Skip for translation tasks as they have special formatting
+    # Get the LLM configuration for this state
+    state_config = LLM_CONFIGS.get(state_name, {})
+    
+    # Add explicit JSON formatting instruction unless the configuration says to skip it
+    if not state_config.get("skip_json_instruction", False):
         prompt += "\n\nIMPORTANT: Your response must be valid JSON. Do not include any explanations or markdown formatting, just the raw JSON object."
     
     # Call the LLM

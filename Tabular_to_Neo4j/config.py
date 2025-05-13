@@ -55,6 +55,7 @@ LLM_CONFIGS = {
             "description": "Object with translation results",
             "example": "{\"is_in_target_language\": false, \"translated_header\": [\"id\", \"name\", \"age\", \"email\"]}"
         },
+        "skip_json_instruction": True,  # Skip adding the standard JSON formatting instruction
         "auto_load": True,
         "auto_unload": True
     },
