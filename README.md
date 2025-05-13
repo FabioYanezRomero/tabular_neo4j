@@ -7,11 +7,12 @@ A Python repository using LangGraph to analyze CSV files and infer Neo4j graph d
 - **Intelligent Header Processing**: Detects, infers, validates, and translates CSV headers
 - **Column Analysis**: Performs statistical and pattern-based analysis on each column
 - **Semantic Understanding**: Uses LLMs to understand the meaning and relationships in your data
+- **Entity-Relation-Entity Approach**: Maps properties to entities and creates relationships using a triple-based approach
 - **Neo4j Schema Inference**: Suggests how to model your data in Neo4j, including:
-  - Primary entity identification
-  - Property assignment
-  - Related entity detection
-  - Relationship modeling
+  - Entity identification and property mapping
+  - Relationship inference between entities
+  - UUID-based entity identification
+  - Cypher query generation for entity creation and relationships
 - **Modular Architecture**: Well-organized codebase with clear separation of concerns
 - **Comprehensive Logging**: Detailed logging for debugging and monitoring
 - **Docker Support**: Run the application in an isolated environment with all dependencies
@@ -73,7 +74,7 @@ The codebase follows a modular architecture with clear separation of concerns:
 ### Header Processing Package
 - **header_inference**: Uses LLM to infer headers when none are detected
 - **header_validation**: Validates and improves headers
-- **language_detection**: Detects the language of headers
+- **language_detection**: Detects the language of headers from metadata files
 - **header_translation**: Translates headers to the target language
 - **header_application**: Applies headers to the DataFrame
 
@@ -81,16 +82,15 @@ The codebase follows a modular architecture with clear separation of concerns:
 - **column_analytics**: Performs statistical and pattern analysis on columns
 - **semantic_analysis**: Uses LLM to analyze semantic meaning of columns
 
-### Schema Synthesis Package
+### Entity Inference Package
 - **entity_classification**: Classifies columns as entities or properties
 - **entity_reconciliation**: Reconciles different classification approaches
-- **property_mapping**: Maps properties to their respective entities
-- **relationship_inference**: Infers relationships between entity types
-- **cypher_generation**: Generates Cypher query templates
-- **schema_finalization**: Combines all results into the final Neo4j schema
+- **property_mapping**: Maps properties to their respective entities using LLM
+- **relationship_inference**: Infers relationships between entity types using Entity-Relation-Entity triples
 
-### Alternative Synthesis Package
-- Provides an alternative implementation of schema synthesis
+### Database Schema Package
+- **cypher_generation**: Generates Cypher query templates with UUID-based entity identification
+- **schema_finalization**: Combines all results into the final Neo4j schema
 
 ## Usage
 
@@ -124,9 +124,11 @@ The system processes your CSV file through a series of steps using LangGraph:
 1. **CSV Loading and Header Detection**:
    - Loads the CSV file and determines if it has headers
    - If no headers are found, uses an LLM to infer appropriate headers
+   - Reads metadata from corresponding JSON files in the metadata directory
 
 2. **Header Processing**:
    - Validates headers for accuracy and descriptiveness
+   - Detects language from metadata files
    - Translates headers to the target language if needed
 
 3. **Column Analysis**:
@@ -134,11 +136,17 @@ The system processes your CSV file through a series of steps using LangGraph:
    - Detects patterns and data types
    - Uses LLM for semantic understanding of each column
 
-4. **Schema Synthesis**:
-   - Identifies primary entity and its properties
-   - Detects columns that should become separate nodes
-   - Infers relationships between entities
-   - Suggests property assignments for nodes and relationships
+4. **Entity Inference**:
+   - Classifies columns as entities or properties
+   - Maps properties to their respective entities using the LLM
+   - Provides analytics data to enhance LLM context for mapping
+   - Infers relationships between entities using Entity-Relation-Entity triples
+
+5. **Database Schema Generation**:
+   - Generates Cypher templates for entity creation with UUID-based identification
+   - Creates relationship templates based on the inferred Entity-Relation-Entity triples
+   - Adds uniqueness constraints on UUID properties
+   - Provides example queries for retrieving data from the graph
 
 ## LLM Provider
 
@@ -178,19 +186,42 @@ tabular_neo4j/
 │   ├── main.py             # Main script to run the LangGraph flow
 │   ├── app_state.py        # Defines the TypedDict for LangGraph state
 │   ├── nodes/              # Directory for LangGraph node functions
-│   │   ├── input_nodes.py  # Nodes for loading and initial CSV parsing
-│   │   ├── header_nodes.py # Nodes for header detection, inference, validation, translation
-│   │   ├── analysis_nodes.py # Nodes for statistical and LLM-based column analysis
-│   │   └── synthesis_nodes.py # Node for combining results and inferring schema
+│   │   ├── input/          # Input processing nodes
+│   │   │   ├── csv_loader.py  # CSV loading and parsing
+│   │   │   └── header_detection.py # Header detection logic
+│   │   ├── header/         # Header processing nodes
+│   │   │   ├── header_inference.py  # Infer headers with LLM
+│   │   │   ├── header_validation.py # Validate headers
+│   │   │   ├── language_detection.py # Detect language from metadata
+│   │   │   └── header_translation.py # Translate headers
+│   │   ├── analysis/       # Data analysis nodes
+│   │   │   ├── column_analytics.py  # Statistical analysis
+│   │   │   └── semantic_analysis.py # LLM-based semantic analysis
+│   │   ├── entity_inference/ # Entity inference nodes
+│   │   │   ├── entity_classification.py # Classify entities
+│   │   │   ├── entity_reconciliation.py # Reconcile classifications
+│   │   │   ├── property_mapping.py # Map properties to entities
+│   │   │   └── relationship_inference.py # Infer entity relationships
+│   │   └── db_schema/      # Database schema nodes
+│   │       ├── cypher_generation.py # Generate Cypher templates
+│   │       └── schema_finalization.py # Finalize Neo4j schema
 │   ├── utils/              # Utility functions
 │   │   ├── csv_utils.py    # CSV parsing helpers
-│   │   ├── llm_utils.py    # LLM interaction helpers
+│   │   ├── llm_manager.py  # LLM interaction helpers
+│   │   ├── logging_config.py # Logging configuration
 │   │   └── analytics_utils.py # Column statistical analysis functions
 │   ├── prompts/            # Directory for storing LLM prompt templates
 │   │   ├── infer_header.txt
 │   │   ├── validate_header.txt
 │   │   ├── translate_header.txt
-│   │   └── analyze_column_semantic.txt
+│   │   ├── analyze_column_semantic.txt
+│   │   ├── classify_entity.txt
+│   │   ├── map_properties.txt
+│   │   ├── infer_relationships.txt
+│   │   └── generate_cypher_templates.txt
+│   ├── sample_data/        # Sample data directory
+│   │   ├── csv/            # CSV files for testing
+│   │   └── metadata/       # Metadata JSON files with same filenames
 │   ├── config.py           # Configuration settings
 │   ├── requirements.txt
 │   └── README.md
