@@ -98,84 +98,6 @@ def detect_data_type(column: pd.Series) -> str:
     # Default to string
     return 'string'
 
-def detect_patterns(column: pd.Series) -> Dict[str, float]:
-    """
-    Detect common patterns in the column values.
-    
-    Args:
-        column: Pandas Series representing a column
-        
-    Returns:
-        Dictionary mapping pattern names to confidence scores (0-1)
-    """
-    patterns = {
-        'email': 0.0,
-        'url': 0.0,
-        'phone': 0.0,
-        'zipcode': 0.0,
-        'id': 0.0,
-        'name': 0.0,
-        'address': 0.0
-    }
-    
-    # Clean column by dropping NaN values and converting to string
-    clean_column = column.dropna().astype(str)
-    
-    if len(clean_column) == 0:
-        return patterns
-    
-    # Sample values for pattern detection
-    sample = clean_column.sample(min(100, len(clean_column)))
-    
-    # Email pattern
-    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    email_matches = sum(sample.str.match(email_pattern))
-    patterns['email'] = email_matches / len(sample) if email_matches > 0 else 0.0
-    
-    # URL pattern
-    url_pattern = r'^(http|https)://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/.*)?$'
-    url_matches = sum(sample.str.match(url_pattern))
-    patterns['url'] = url_matches / len(sample) if url_matches > 0 else 0.0
-    
-    # Phone pattern (simple)
-    phone_pattern = r'^\+?[\d\s\(\)-]{7,20}$'
-    phone_matches = sum(sample.str.match(phone_pattern))
-    patterns['phone'] = phone_matches / len(sample) if phone_matches > 0 else 0.0
-    
-    # Zipcode pattern (simple)
-    zipcode_pattern = r'^\d{5}(-\d{4})?$'
-    zipcode_matches = sum(sample.str.match(zipcode_pattern))
-    patterns['zipcode'] = zipcode_matches / len(sample) if zipcode_matches > 0 else 0.0
-    
-    # ID pattern (alphanumeric with possible separators)
-    id_pattern = r'^[A-Za-z0-9_\-]{3,20}$'
-    id_matches = sum(sample.str.match(id_pattern))
-    
-    # Adjust ID confidence if column name contains 'id' or 'ID'
-    column_name = column.name if column.name else ""
-    id_name_match = re.search(r'id|ID|Id', str(column_name)) is not None
-    
-    patterns['id'] = (id_matches / len(sample) + (0.3 if id_name_match else 0)) / (1.3 if id_name_match else 1)
-    
-    # Name pattern (words with spaces, no numbers)
-    name_pattern = r'^[A-Za-z\s\.\-\']{2,50}$'
-    name_matches = sum(sample.str.match(name_pattern))
-    
-    # Adjust name confidence if column name contains 'name' or 'Name'
-    name_name_match = re.search(r'name|Name', str(column_name)) is not None
-    
-    patterns['name'] = (name_matches / len(sample) + (0.3 if name_name_match else 0)) / (1.3 if name_name_match else 1)
-    
-    # Address pattern (longer strings with numbers and words)
-    address_pattern = r'^[\d\s\w\.,#\-\']{10,100}$'
-    address_matches = sum(sample.str.match(address_pattern))
-    
-    # Adjust address confidence if column name contains 'address' or 'Address'
-    address_name_match = re.search(r'address|Address', str(column_name)) is not None
-    
-    patterns['address'] = (address_matches / len(sample) + (0.3 if address_name_match else 0)) / (1.3 if address_name_match else 1)
-    
-    return patterns
 
 def analyze_column(column: pd.Series) -> Dict[str, Any]:
     """
@@ -193,10 +115,8 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
         'cardinality': calculate_cardinality(column),
         'data_type': detect_data_type(column),
         'missing_percentage': calculate_missing_percentage(column),
-        'patterns': detect_patterns(column),
         'sample_values': column.dropna().sample(min(5, len(column.dropna()))).tolist() if len(column.dropna()) > 0 else []
     }
-    
     return analysis
 
 def analyze_all_columns(df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
