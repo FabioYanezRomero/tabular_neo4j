@@ -5,10 +5,12 @@ This module handles validating and improving headers.
 
 from typing import Dict, Any, List
 import pandas as pd
+import os
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
-from Tabular_to_Neo4j.utils.csv_utils import df_to_string_sample
+from Tabular_to_Neo4j.utils.csv_utils import df_to_json_sample
+from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
 from Tabular_to_Neo4j.config import MAX_SAMPLE_ROWS
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
@@ -40,14 +42,23 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
         
         # Get a sample of the data for the LLM
         sample_rows = min(MAX_SAMPLE_ROWS, len(df))
-        data_sample = df_to_string_sample(df, sample_rows)
+        data_sample = df_to_json_sample(df, sample_rows)
         
-        # Format the prompt with the data sample and current header
+        # Get file name for the prompt
+        file_name = os.path.basename(state.get('csv_file_path', 'unknown.csv'))
+        
+        # Get metadata for the CSV file
+        metadata = get_metadata_for_state(state)
+        metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
+        
+        # Format the prompt with the data sample, current header, and metadata
         prompt = format_prompt('validate_header.txt',
+                              file_name=file_name,
                               data_sample=data_sample,
                               current_header=current_header,
                               column_count=len(df.columns),
-                              row_count=len(df))
+                              row_count=len(df),
+                              metadata_text=metadata_text)
         
         # Call the LLM to validate headers
         logger.debug("Calling LLM for header validation")

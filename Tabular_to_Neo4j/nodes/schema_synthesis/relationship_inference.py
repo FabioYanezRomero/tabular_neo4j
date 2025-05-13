@@ -9,6 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.csv_utils import get_primary_entity_from_filename
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
+from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
 # Configure logging
@@ -97,12 +98,21 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
                 'source_columns': source_columns
             })
         
-        # Format the prompt with entity information
+        # Get file name for the prompt
+        file_name = os.path.basename(state.get('csv_file_path', 'unknown.csv'))
+        
+        # Get metadata for the CSV file
+        metadata = get_metadata_for_state(state)
+        metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
+        
+        # Format the prompt with entity information and metadata
         prompt = format_prompt('infer_entity_relationships.txt',
+                              file_name=file_name,
                               entity_info=str(entity_info),
                               primary_entity=primary_entity,
                               existing_relationships=str(existing_relationships),
-                              consensus_data=str(consensus))
+                              consensus_data=str(consensus),
+                              metadata_text=metadata_text)
         
         # Call the LLM for relationship inference
         logger.debug("Calling LLM for relationship inference")

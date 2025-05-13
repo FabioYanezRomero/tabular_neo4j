@@ -9,6 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.csv_utils import get_primary_entity_from_filename
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
+from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
 from Tabular_to_Neo4j.config import UNIQUENESS_THRESHOLD
 from Tabular_to_Neo4j.nodes.schema_synthesis.utils import to_neo4j_property_name
 from Tabular_to_Neo4j.utils.logging_config import get_logger
@@ -106,7 +107,11 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
             
             processed_columns += 1
             
-            # Format the prompt with column information
+            # Get metadata for the CSV file
+            metadata = get_metadata_for_state(state)
+            metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
+            
+            # Format the prompt with column information and metadata
             prompt = format_prompt('classify_entities_properties.txt',
                                   file_name=file_name,
                                   column_name=column_name,
@@ -117,7 +122,8 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                                   data_type=analytics.get('data_type', 'unknown'),
                                   missing_percentage=analytics.get('missing_percentage', 0) * 100,
                                   semantic_type=semantics.get('semantic_type', 'Unknown'),
-                                  llm_role=semantics.get('neo4j_role', 'UNKNOWN'))
+                                  llm_role=semantics.get('neo4j_role', 'UNKNOWN'),
+                                  metadata_text=metadata_text)
             
             # Call the LLM for entity/property classification
             logger.debug(f"Calling LLM for entity/property classification of column '{column_name}'")

@@ -5,10 +5,12 @@ This module handles semantic analysis of columns using LLM.
 
 from typing import Dict, Any, List
 import pandas as pd
+import os
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
 from Tabular_to_Neo4j.utils.csv_utils import get_primary_entity_from_filename
+from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
 # Configure logging
@@ -59,15 +61,24 @@ def llm_semantic_column_analysis_node(state: GraphState, config: RunnableConfig)
                 min(5, len(df[column_name].dropna()))
             ).tolist() if len(df[column_name].dropna()) > 0 else []
             
-            # Format the prompt with column information
+            # Get file name for the prompt
+            file_name = os.path.basename(state.get('csv_file_path', 'unknown.csv'))
+            
+            # Get metadata for the CSV file
+            metadata = get_metadata_for_state(state)
+            metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
+            
+            # Format the prompt with column information and metadata
             prompt = format_prompt('analyze_column_semantics.txt',
+                                  file_name=file_name,
                                   column_name=column_name,
                                   data_type=column_analytics.get('data_type', 'unknown'),
                                   sample_values=str(sample_values),
                                   uniqueness=column_analytics.get('uniqueness', 0),
                                   cardinality=column_analytics.get('cardinality', 0),
                                   primary_entity=primary_entity,
-                                  patterns=column_analytics.get('patterns', []))
+                                  patterns=column_analytics.get('patterns', []),
+                                  metadata_text=metadata_text)
             
             # Call the LLM for semantic analysis
             try:

@@ -1,14 +1,15 @@
 """
 Header translation module for the Tabular to Neo4j converter.
-This module handles translating headers to the target language.
+This module handles translating headers to match the metadata language.
 """
 
 from typing import Dict, Any, List
 import pandas as pd
+import os
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
-from Tabular_to_Neo4j.config import TARGET_HEADER_LANGUAGE
+from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
 # Configure logging
@@ -16,7 +17,7 @@ logger = get_logger(__name__)
 
 def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphState:
     """
-    Use LLM to translate headers to the target language if needed.
+    Use LLM to translate headers to match the metadata language.
     This node is only called if the detect_header_language_node determined translation is needed.
     
     Args:
@@ -32,17 +33,29 @@ def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> Grap
         state['error_messages'].append(error_msg)
         return state
     
-    logger.info(f"Using LLM to translate headers to {TARGET_HEADER_LANGUAGE}")
+    # Get the header language and metadata language
+    header_language = state.get('header_language', 'Unknown')
+    metadata_language = state.get('metadata_language', 'English')
+    
+    logger.info(f"Using LLM to translate headers from {header_language} to {metadata_language}")
     
     try:
         header = state['final_header']
-        source_language = state.get('header_language', 'Unknown')
         
-        # Format the prompt with the header and language information
+        # Get file name for the prompt
+        file_name = os.path.basename(state.get('csv_file_path', 'unknown.csv'))
+        
+        # Get metadata for the CSV file
+        metadata = get_metadata_for_state(state)
+        metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
+        
+        # Format the prompt with the header, language information, and metadata
         prompt = format_prompt('translate_header.txt',
+                              file_name=file_name,
                               header=header,
-                              source_language=source_language,
-                              target_language=TARGET_HEADER_LANGUAGE)
+                              source_language=header_language,
+                              target_language=metadata_language,
+                              metadata_text=metadata_text)
         
         # Call the LLM to translate headers
         logger.debug("Calling LLM for header translation")

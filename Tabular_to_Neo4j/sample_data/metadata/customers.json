@@ -1,0 +1,29 @@
+{
+  "language": "english",
+  "description": "Customer data including names, addresses, and contact information",
+  "primary_entity": "Customer",
+  "date_created": "2025-01-15",
+  "version": "1.0",
+  "columns": {
+    "id": {
+      "description": "Unique customer identifier",
+      "type": "string"
+    },
+    "name": {
+      "description": "Customer's full name",
+      "type": "string"
+    },
+    "email": {
+      "description": "Customer's email address",
+      "type": "string"
+    },
+    "city": {
+      "description": "Customer's city of residence",
+      "type": "string"
+    },
+    "country": {
+      "description": "Customer's country of residence",
+      "type": "string"
+    }
+  }
+}
