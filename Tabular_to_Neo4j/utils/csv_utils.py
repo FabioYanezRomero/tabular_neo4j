@@ -1,7 +1,7 @@
 """
 Utility functions for CSV file handling.
 """
-
+import json
 import os
 import pandas as pd
 from typing import Tuple, List, Optional
@@ -223,37 +223,43 @@ def fallback_encoding(file_path: str, df: pd.DataFrame, encoding: str, confidenc
     return df
 
 
+
 def get_sample_rows(df: pd.DataFrame, n: int = 10) -> pd.DataFrame:
-    """
-    Get a sample of rows from a DataFrame for LLM analysis.
-    
-    Args:
-        df: The DataFrame to sample from
-        n: Number of rows to sample
-        
-    Returns:
-        A DataFrame with the sampled rows
-    """
     if len(df) <= n:
         return df
-    
-    # Take first, last, and some middle rows for a representative sample
-    first = df.iloc[:n//3]
-    middle = df.iloc[len(df)//2 - n//6:len(df)//2 + n//6]
-    last = df.iloc[-n//3:]
-    
-    return pd.concat([first, middle, last]).head(n)
+    n_each_third = max(1, n // 3) # Ensure at least 1 row from each section if n is small
+    n_middle_half = max(1, n // 6)
 
-def df_to_string_sample(df: pd.DataFrame, n: int = 10) -> str:
-    """
-    Convert a DataFrame to a string representation suitable for LLM prompts.
+    first_count = n_each_third
+    last_count = n_each_third
+    middle_count = n - first_count - last_count
+
+    if middle_count <= 0: # Adjust if n is too small for 3 parts
+        first_count = (n + 1) // 2
+        last_count = n // 2
+        middle_count = 0
+        middle = pd.DataFrame()
     
-    Args:
-        df: The DataFrame to convert
-        n: Maximum number of rows to include
-        
-    Returns:
-        A string representation of the DataFrame
+    first = df.iloc[:first_count]
+    
+    if middle_count > 0:
+        middle_start_idx = max(0, len(df)//2 - middle_count//2)
+        middle_end_idx = middle_start_idx + middle_count
+        middle = df.iloc[middle_start_idx:middle_end_idx]
+    
+    last = df.iloc[-last_count:]
+    
+    # Make sure we don't have too many rows due to small df or rounding
+    # and also handle potential overlaps if df is very small
+    combined = pd.concat([first, middle, last]).drop_duplicates().head(n)
+    return combined
+
+
+def df_to_json_sample(df: pd.DataFrame, n: int = 10) -> str:
     """
-    sample = get_sample_rows(df, n)
-    return sample.to_string(index=False)
+    Convert a DataFrame sample to a JSON string (list of lists).
+    Each inner list represents a row of data values.
+    """
+    sample_df = get_sample_rows(df, n)
+    list_of_lists = sample_df.values.tolist() # Converts df data to list of lists
+    return json.dumps(list_of_lists) # No indent for LLM, it's more compact

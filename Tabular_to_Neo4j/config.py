@@ -164,7 +164,7 @@ LLM_CONFIGS = {
 DEFAULT_LMSTUDIO_MODEL = "Mistral-7B-Instruct-v0.2-GGUF"  # Default model for LM Studio
 
 # CSV Processing Settings
-MAX_SAMPLE_ROWS = 10  # Maximum number of rows to include in LLM prompts
+MAX_SAMPLE_ROWS = 5  # Maximum number of rows to include in LLM prompts
 CSV_ENCODING = "utf-8"  # Default encoding for CSV files
 CSV_DELIMITER = ","  # Default delimiter for CSV files
 

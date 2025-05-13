@@ -39,7 +39,7 @@ def infer_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphSta
         
         # Get a sample of the data for the LLM
         sample_rows = min(MAX_SAMPLE_ROWS, len(df))
-        data_sample = df_to_string_sample(df, sample_rows)
+        data_sample = df_to_json_sample(df, sample_rows)
         
         # Format the prompt with the data sample
         prompt = format_prompt('infer_header.txt',
