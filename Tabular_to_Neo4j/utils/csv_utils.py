@@ -11,32 +11,6 @@ from Tabular_to_Neo4j.config import CSV_ENCODING, CSV_DELIMITER
 # Configure logging
 logger = get_logger(__name__)
 
-def get_primary_entity_from_filename(csv_file_path: str) -> str:
-    """
-    Extract a potential primary entity name from the CSV filename.
-    
-    Args:
-        csv_file_path: Path to the CSV file
-        
-    Returns:
-        A string representing a potential entity name (singular form)
-    """
-    filename = os.path.basename(csv_file_path)
-    entity_name = os.path.splitext(filename)[0]
-    
-    # Basic singularization (very simple approach)
-    if entity_name.lower().endswith('s'):
-        entity_name = entity_name[:-1]
-    
-    # Convert snake_case or kebab-case to CamelCase for Neo4j convention
-    if '_' in entity_name or '-' in entity_name:
-        parts = entity_name.replace('-', '_').split('_')
-        entity_name = ''.join(part.capitalize() for part in parts)
-    else:
-        entity_name = entity_name.capitalize()
-    
-    return entity_name
-
 def load_csv_safely(file_path: str, header=None) -> Tuple[Optional[pd.DataFrame], Optional[List], Optional[str]]:
     """
     Safely load a CSV file with error handling.

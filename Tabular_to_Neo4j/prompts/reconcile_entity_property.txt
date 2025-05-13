@@ -1,34 +1,32 @@
-Your task is to reconcile different classification approaches for a column in a CSV dataset to create a consensus model for Neo4j graph modeling. You will receive a 'METADATA' section with column information and a 'DATA' section with different classification results.
+Your task is to determine whether a column in a CSV dataset represents an entity or a property for Neo4j graph modeling. You will receive information about the column and previous classification results.
 
 METADATA:
-- File: {file_name}
 - Column: {column_name}
-- Primary Entity: {primary_entity}
-- Purpose: Reconcile analytics-based and LLM-based classifications to create a consensus model
+- Purpose: Determine if this column represents an entity or a property
 
 DATA:
 - Initial Classification: {initial_classification}
 - Analytics Classification: {analytics_classification}
 - LLM Classification: {llm_classification}
 - Sample Values: {sample_values}
-- Entity Types in Dataset: {entity_types}
 
-Based on the METADATA and DATA sections, create a consensus classification that considers both the statistical properties of the data and the semantic meaning:
+Based on the METADATA and DATA sections, determine whether this column represents an entity or a property:
 
-1. If the classifications agree, use that classification
-2. If they disagree, determine which is more appropriate based on:
-   - The uniqueness and cardinality of the values
-   - The semantic meaning of the column
-   - The relationship to other columns and entities
-   - The overall structure of the graph model
+1. Entity: A distinct object or concept that can stand on its own (e.g., Person, Product, Location)
+2. Property: An attribute that describes an entity (e.g., name, age, price)
 
-Return your consensus classification as JSON with the following structure:
+Consider:
+- The uniqueness and cardinality of the values
+- The semantic meaning of the column
+- The sample values provided
+
+Return your classification as JSON with the following structure:
 {
     "column_name": "{column_name}",
-    "consensus_classification": "entity_identifier" | "entity_property" | "new_entity_type" | "secondary_entity_property" | "relationship_property",
-    "entity_type": "...",
-    "relationship_to_primary": "...",
-    "neo4j_property_key": "...",
+    "consensus_classification": "entity" | "property",
+    "entity_type": "..." (if entity, provide the entity type; if property, leave empty),
+    "property_of": "..." (if property, provide the entity it belongs to; if entity, leave empty),
+    "neo4j_property_key": "..." (if property, provide the suggested property name),
     "confidence": 0.0-1.0,
     "reasoning": "..."
 }

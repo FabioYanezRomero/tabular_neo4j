@@ -1,0 +1,27 @@
+Your task is to determine which properties belong to a specific entity type in a Neo4j graph model.
+
+ENTITY TYPE:
+{entity_type}
+
+PROPERTIES:
+{properties}
+
+Based on the entity type and properties list, determine which properties truly belong to this entity type. Consider:
+1. Semantic relationship between the property and entity
+2. Naming patterns and conventions
+3. Data type compatibility
+4. Domain knowledge
+
+Return your analysis as JSON with the following structure:
+{
+    "properties": [
+        {
+            "column_name": "original_column_name",
+            "property_key": "neo4j_property_name"
+        },
+        ...
+    ],
+    "reasoning": "Brief explanation of your property assignment decisions"
+}
+
+JSON response:

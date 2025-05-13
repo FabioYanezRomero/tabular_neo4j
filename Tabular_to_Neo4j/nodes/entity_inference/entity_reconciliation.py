@@ -3,18 +3,12 @@ Entity reconciliation module for entity inference in the Tabular to Neo4j conver
 This module handles reconciling different classification approaches.
 """
 
-from typing import Dict, Any, Set
-import os
+from typing import Dict, Any
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
-from Tabular_to_Neo4j.utils.csv_utils import get_primary_entity_from_filename
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
 from Tabular_to_Neo4j.config import UNIQUENESS_THRESHOLD
-from Tabular_to_Neo4j.nodes.entity_inference.utils import (
-    to_neo4j_property_name,
-    find_associated_entity_type,
-    find_associated_relationship
-)
+from Tabular_to_Neo4j.nodes.entity_inference.utils import to_neo4j_property_name
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
 # Configure logging
@@ -45,19 +39,9 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
     try:
         # Get the initial classification
         classification = state['entity_property_classification']
-        file_name = os.path.basename(state['csv_file_path'])
-        primary_entity = get_primary_entity_from_filename(state['csv_file_path'])
         
         # Initialize consensus dictionary
         consensus = {}
-        
-        # Track entity types for later use
-        entity_types = set([primary_entity])
-        
-        # First pass: identify all entity types
-        for column_name, info in classification.items():
-            if info['classification'] in ['new_entity_type']:
-                entity_types.add(info['entity_type'])
         
         # Process each column using LLM for reconciliation
         for column_name, info in classification.items():
@@ -91,94 +75,66 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
             
             # Format the prompt with column information
             prompt = format_prompt('reconcile_entity_property.txt',
-                                  file_name=file_name,
                                   column_name=column_name,
-                                  primary_entity=primary_entity,
                                   initial_classification=str(info),
                                   analytics_classification=analytics_classification,
                                   llm_classification=semantics.get('neo4j_role', 'UNKNOWN'),
-                                  sample_values=str(sample_values),
-                                  entity_types=str(list(entity_types)))
+                                  sample_values=str(sample_values))
             
             # Call the LLM for reconciliation
             try:
                 response = call_llm_with_json_output(prompt, state_name="reconcile_entity_property")
                 
                 # Extract the reconciliation results
-                consensus_classification = response.get('consensus_classification', info['classification'])
-                entity_type = response.get('entity_type', info.get('entity_type', primary_entity))
-                relationship_to_primary = response.get('relationship_to_primary', info.get('relationship_to_primary', ''))
-                neo4j_property_key = response.get('neo4j_property_key', info.get('neo4j_property_key', to_neo4j_property_name(column_name)))
+                consensus_classification = response.get('consensus_classification', 'property')  # Default to property
+                entity_type = response.get('entity_type', '')
+                property_of = response.get('property_of', '')
+                neo4j_property_key = response.get('neo4j_property_key', to_neo4j_property_name(column_name))
                 confidence = response.get('confidence', 0.5)
-                reasoning = response.get('reasoning', '')
+                reasoning = response.get('reasoning', 'No reasoning provided')
                 
                 # Create consensus entry
                 consensus[column_name] = {
                     'column_name': column_name,
                     'classification': consensus_classification,
-                    'entity_type': entity_type,
-                    'relationship_to_primary': relationship_to_primary,
-                    'neo4j_property_key': neo4j_property_key,
+                    'entity_type': entity_type if consensus_classification == 'entity' else '',
+                    'property_of': property_of if consensus_classification == 'property' else '',
+                    'neo4j_property_key': neo4j_property_key if consensus_classification == 'property' else '',
                     'semantic_type': info.get('semantic_type', 'Unknown'),
                     'confidence': confidence,
                     'reasoning': reasoning
                 }
                 
-                # Add additional fields based on classification type
-                if consensus_classification == 'entity_identifier':
+                # Add uniqueness information for entities to help with later processing
+                if consensus_classification == 'entity':
                     consensus[column_name]['uniqueness_ratio'] = analytics.get('uniqueness_ratio', 0)
-                
-                elif consensus_classification == 'new_entity_type':
-                    # Ensure we have a relationship type
-                    if not relationship_to_primary:
-                        consensus[column_name]['relationship_to_primary'] = f"HAS_{entity_type.upper()}"
-                    
-                    consensus[column_name]['primary_entity'] = primary_entity
-                
-                # Add entity type to our set if it's a new one
-                if consensus_classification == 'new_entity_type':
-                    entity_types.add(entity_type)
                 
             except Exception as e:
                 logger.error(f"Error reconciling column {column_name}: {str(e)}")
                 consensus[column_name] = info  # Use initial classification as fallback
         
-        # Second pass: resolve secondary entity properties
+        # Second pass: for properties without a clear entity association, try to infer which entity they belong to
         for column_name, info in consensus.items():
-            if info['classification'] == 'secondary_entity_property':
-                # Try to find the associated entity type
-                associated_entity = find_associated_entity_type(
-                    column_name, 
-                    info,
-                    consensus
-                )
+            if info['classification'] == 'property' and (not info.get('property_of') or info.get('property_of') == ''):
+                # Try to find the associated entity
+                associated_entity = None
+                
+                # Look for entities with similar naming patterns
+                column_parts = column_name.split('_')
+                for entity_col, entity_info in consensus.items():
+                    if entity_info['classification'] == 'entity':
+                        entity_name = entity_info['entity_type'].lower()
+                        # Check if any part of the column name matches the entity name
+                        if any(part.lower() == entity_name for part in column_parts):
+                            associated_entity = entity_info
+                            break
                 
                 if associated_entity:
-                    info['entity_type'] = associated_entity['entity_type']
+                    info['property_of'] = associated_entity['entity_type']
+                    logger.info(f"Associated property '{column_name}' with entity '{associated_entity['entity_type']}' based on naming pattern")
                 else:
-                    # If we can't find an association, default to primary entity
-                    info['entity_type'] = primary_entity
-                    info['note'] = "No clear entity association found, defaulted to primary entity"
-        
-        # Third pass: resolve relationship properties
-        for column_name, info in consensus.items():
-            if info['classification'] == 'relationship_property':
-                # Try to find the associated relationship
-                relationship_info = find_associated_relationship(
-                    column_name,
-                    info,
-                    consensus
-                )
-                
-                if relationship_info:
-                    info['relationship_type'] = relationship_info['relationship_type']
-                    info['source_entity'] = relationship_info['source_entity']
-                    info['target_entity'] = relationship_info['target_entity']
-                else:
-                    # If we can't find an association, convert to primary entity property
-                    info['classification'] = 'entity_property'
-                    info['entity_type'] = primary_entity
-                    info['note'] = "Originally classified as relationship property but no association found"
+                    # If we can't find an association, leave property_of empty
+                    info['note'] = "No clear entity association found"
         
         # Update the state
         state['entity_property_consensus'] = consensus

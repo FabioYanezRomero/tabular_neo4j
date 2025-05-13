@@ -4,10 +4,8 @@ This module handles combining all intermediate results into the final Neo4j sche
 """
 
 from typing import Dict, Any, List
-import os
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
-from Tabular_to_Neo4j.utils.csv_utils import get_primary_entity_from_filename
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
@@ -48,8 +46,11 @@ def synthesize_final_schema_node(state: GraphState, config: RunnableConfig) -> G
         mapping = state['property_entity_mapping']
         relationships = state['entity_relationships']
         cypher_templates = state['cypher_query_templates']
-        primary_entity = get_primary_entity_from_filename(state['csv_file_path'])
-        file_name = os.path.basename(state['csv_file_path'])
+        
+        # Determine the main entity from the mapping (if any)
+        entity_types = [item['entity_type'] for key, item in mapping.items() if item.get('type') == 'entity']
+        main_entity = entity_types[0] if entity_types else 'Node'
+        logger.info(f"Using {main_entity} as the main entity for schema finalization")
         
         # Extract entity types and their properties
         entities = {}
@@ -65,8 +66,7 @@ def synthesize_final_schema_node(state: GraphState, config: RunnableConfig) -> G
         
         # Format the prompt with all schema information
         prompt = format_prompt('synthesize_final_schema.txt',
-                              file_name=file_name,
-                              primary_entity=primary_entity,
+                              main_entity=main_entity,
                               entities=str(entities),
                               relationships=str(relationships),
                               cypher_templates=str(cypher_templates))

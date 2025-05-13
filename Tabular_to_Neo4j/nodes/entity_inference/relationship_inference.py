@@ -4,10 +4,8 @@ This module handles inferring relationships between entity types.
 """
 
 from typing import Dict, Any, List
-import os
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
-from Tabular_to_Neo4j.utils.csv_utils import get_primary_entity_from_filename
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
 from Tabular_to_Neo4j.utils.logging_config import get_logger
@@ -39,7 +37,6 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
     try:
         # Get the property-entity mapping
         mapping = state['property_entity_mapping']
-        primary_entity = get_primary_entity_from_filename(state['csv_file_path'])
         
         # Extract entity types
         entity_types = [
@@ -47,6 +44,13 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
             for key, item in mapping.items() 
             if item.get('type') == 'entity'
         ]
+        
+        logger.info(f"Found {len(entity_types)} entity types for relationship inference: {', '.join(entity_types)}")
+        
+        if not entity_types:
+            logger.warning("No entity types found for relationship inference")
+            state['entity_relationships'] = []
+            return state
         
         # Extract existing relationships
         existing_relationships = [
@@ -84,7 +88,6 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
             
             entity_info.append({
                 'entity_type': entity_type,
-                'is_primary': entity_type == primary_entity,
                 'properties': properties
             })
         
@@ -110,18 +113,13 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
                 if 'source_column' in rel:
                     consensus[key]['source_columns'].append(rel['source_column'])
         
-        # Get file name for the prompt
-        file_name = os.path.basename(state.get('csv_file_path', 'unknown.csv'))
-        
         # Get metadata for the CSV file
         metadata = get_metadata_for_state(state)
         metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
         
         # Format the prompt with entity information and metadata
         prompt = format_prompt('infer_entity_relationships.txt',
-                              file_name=file_name,
                               entity_info=str(entity_info),
-                              primary_entity=primary_entity,
                               existing_relationships=str(existing_relationships),
                               consensus_data=str(consensus),
                               metadata_text=metadata_text)
@@ -137,18 +135,23 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
             if not inferred_relationships and not existing_relationships:
                 logger.warning("No relationships inferred by LLM and no existing relationships found")
                 
-                # Create default relationships from primary entity to other entities
-                for entity_type in entity_types:
-                    if entity_type != primary_entity:
+                # Create default relationships between all entity types
+                if len(entity_types) > 1:
+                    # Use the first entity as a source for simplicity
+                    source_entity = entity_types[0]
+                    logger.info(f"Creating default relationships from {source_entity} to other entities")
+                    
+                    for target_entity in entity_types[1:]:
+                        relationship_type = f"RELATED_TO_{target_entity.upper()}"
                         inferred_relationships.append({
-                            'source_entity': primary_entity,
-                            'relationship_type': f"HAS_{entity_type.upper()}",
-                            'target_entity': entity_type,
+                            'source_entity': source_entity,
+                            'relationship_type': relationship_type,
+                            'target_entity': target_entity,
                             'properties': [],
-                            'cardinality': "ONE_TO_MANY"
+                            'cardinality': "MANY_TO_MANY"
                         })
                         
-                        logger.info(f"Created default relationship: {primary_entity} HAS_{entity_type.upper()} {entity_type}")
+                        logger.info(f"Created default relationship: {source_entity} {relationship_type} {target_entity}")
             
             # Combine with existing relationships
             all_relationships = existing_relationships.copy()
