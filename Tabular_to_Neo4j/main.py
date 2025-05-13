@@ -55,12 +55,16 @@ from Tabular_to_Neo4j.nodes.analysis import (
     llm_semantic_column_analysis_node
 )
 
-# Import schema synthesis nodes
-from Tabular_to_Neo4j.nodes.schema_synthesis import (
+# Import entity inference nodes
+from Tabular_to_Neo4j.nodes.entity_inference import (
     classify_entities_properties_node,
     reconcile_entity_property_node,
     map_properties_to_entities_node,
-    infer_entity_relationships_node,
+    infer_entity_relationships_node
+)
+
+# Import database schema generation nodes
+from Tabular_to_Neo4j.nodes.db_schema import (
     generate_cypher_templates_node,
     synthesize_final_schema_node
 )
@@ -79,22 +83,32 @@ def create_graph() -> StateGraph:
     graph = StateGraph(GraphState)
     
     # Add nodes to the graph
+
+    # Input nodes
     graph.add_node("load_csv", load_csv_node)
     graph.add_node("detect_header", detect_header_heuristic_node)
+    
+    # Header processing nodes
     graph.add_node("infer_header", infer_header_llm_node)
     graph.add_node("validate_header", validate_header_llm_node)
     graph.add_node("detect_header_language", detect_header_language_node)
     graph.add_node("translate_header", translate_header_llm_node)
     graph.add_node("apply_header", apply_header_node)
+    
+    # Analysis nodes
     graph.add_node("analyze_columns", perform_column_analytics_node)
     graph.add_node("semantic_analysis", llm_semantic_column_analysis_node)
     
     
-    # Schema synthesis nodes
+    # Schema synthesis nodes - Group 1: Entity and Relationship Inference
+    # These nodes analyze the data to identify entities, properties, and their relationships
     graph.add_node("classify_entities_properties", classify_entities_properties_node)
     graph.add_node("reconcile_entity_property", reconcile_entity_property_node)
     graph.add_node("map_properties_to_entities", map_properties_to_entities_node)
     graph.add_node("infer_entity_relationships", infer_entity_relationships_node)
+    
+    # Schema synthesis nodes - Group 2: Database Schema Generation
+    # These nodes generate database-specific artifacts like Cypher templates and final schema
     graph.add_node("generate_cypher_templates", generate_cypher_templates_node)
     graph.add_node("synthesize_final_schema", synthesize_final_schema_node)
     
