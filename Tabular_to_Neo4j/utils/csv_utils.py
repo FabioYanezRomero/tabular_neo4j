@@ -37,7 +37,7 @@ def get_primary_entity_from_filename(csv_file_path: str) -> str:
     
     return entity_name
 
-def load_csv_safely(file_path: str, header=None) -> Tuple[Optional[pd.DataFrame], List[str]]:
+def load_csv_safely(file_path: str, header=None) -> Tuple[Optional[pd.DataFrame], Optional[List], Optional[str]]:
     """
     Safely load a CSV file with error handling.
     
@@ -46,10 +46,14 @@ def load_csv_safely(file_path: str, header=None) -> Tuple[Optional[pd.DataFrame]
         header: Header parameter for pd.read_csv
         
     Returns:
-        Tuple of (DataFrame or None, list of error messages)
+        Tuple of (DataFrame or None, potential_header or None, encoding_used or None)
     """
+    import chardet
+    
     errors = []
     df = None
+    potential_header = None
+    encoding_used = None
     
     logger.debug(f"Attempting to load CSV file: {file_path}")
     logger.debug(f"Using configured encoding: {CSV_ENCODING}, delimiter: {CSV_DELIMITER}")
@@ -58,73 +62,78 @@ def load_csv_safely(file_path: str, header=None) -> Tuple[Optional[pd.DataFrame]
         error_msg = f"File not found: {file_path}"
         logger.error(error_msg)
         errors.append(error_msg)
-        return None, errors
+        return None, None, None
     
     # Log file size and basic info
-    file_size = os.path.getsize(file_path) / 1024  # KB
-    logger.debug(f"CSV file size: {file_size:.2f} KB")
+    if logger.getEffectiveLevel() == logging.DEBUG: 
+        file_size = os.path.getsize(file_path) / 1024  # KB
+        logger.debug(f"CSV file size: {file_size:.2f} KB")
     
-    # Try to detect file type based on extension
-    _, ext = os.path.splitext(file_path)
-    if ext.lower() != '.csv':
-        logger.warning(f"File has non-CSV extension: {ext}. Will attempt to load anyway.")
+    # Detect file encoding
+    encoding, confidence = file_encoding_detection(file_path)
+    
+    # Try different delimiters if the default fails
+    delimiter = delimiter_detection(file_path)
     
     try:
-        logger.debug(f"Attempting to load CSV with primary encoding: {CSV_ENCODING}")
-        df = pd.read_csv(file_path, header=header, encoding=CSV_ENCODING, delimiter=CSV_DELIMITER)
-        logger.info(f"Successfully loaded CSV file with primary encoding: {CSV_ENCODING}")
-    except UnicodeDecodeError as e:
-        logger.warning(f"Unicode decode error with {CSV_ENCODING}: {str(e)}")
-        logger.info("Attempting to load with alternative encodings")
+        # First try to read a few rows to check for header
+        temp_df = pd.read_csv(
+            file_path, 
+            delimiter=delimiter, 
+            nrows=5,
+            encoding=encoding,
+            low_memory=False,
+            on_bad_lines='warn'
+        )
         
-        # Try with different encodings
-        encodings = ['latin1', 'iso-8859-1', 'cp1252']
-        for encoding in encodings:
-            try:
-                logger.debug(f"Trying encoding: {encoding}")
-                df = pd.read_csv(file_path, header=header, encoding=encoding, delimiter=CSV_DELIMITER)
-                logger.info(f"Successfully loaded CSV file with encoding: {encoding}")
-                break
-            except Exception as e:
-                logger.warning(f"Failed to load CSV with encoding {encoding}: {str(e)}")
-                continue
+        # Check if first row looks like a header
+        first_row = temp_df.iloc[0]
+        rest_rows = temp_df.iloc[1:]
         
-        if df is None:
-            error_msg = f"Failed to decode file with attempted encodings: {CSV_ENCODING}, latin1, iso-8859-1, cp1252"
-            logger.error(error_msg)
-            errors.append(error_msg)
-    except pd.errors.EmptyDataError as e:
-        error_msg = f"CSV file is empty: {str(e)}"
-        logger.error(error_msg)
-        errors.append(error_msg)
-    except pd.errors.ParserError as e:
-        error_msg = f"CSV parsing error (malformed CSV): {str(e)}"
-        logger.error(error_msg)
-        errors.append(error_msg)
+        # Heuristic: If first row has different data types than the rest,
+        # or contains string values while other rows are numeric,
+        # it's likely a header
+        is_header = False
         
-        # Try with different delimiters as fallback
-        if CSV_DELIMITER == ',':
-            alt_delimiters = [';', '\t', '|']
-            logger.info(f"Attempting to load with alternative delimiters")
+        # Check if first row contains mostly strings while rest are numeric
+        if len(temp_df) > 1:
+            first_row_str_count = sum(1 for val in first_row if isinstance(val, str))
+            rest_rows_str_count = sum(1 for row in rest_rows.itertuples(index=False) 
+                                        for val in row if isinstance(val, str))
             
-            for delimiter in alt_delimiters:
-                try:
-                    logger.debug(f"Trying delimiter: '{delimiter}'")
-                    df = pd.read_csv(file_path, header=header, encoding=CSV_ENCODING, delimiter=delimiter)
-                    logger.info(f"Successfully loaded CSV file with delimiter: '{delimiter}'")
-                    break
-                except Exception as e:
-                    logger.debug(f"Failed with delimiter '{delimiter}': {str(e)}")
-                    continue
+            # If first row has more strings than average of rest rows, likely a header
+            if first_row_str_count > rest_rows_str_count / len(rest_rows):
+                is_header = True
+                potential_header = list(first_row)
+                
+        # Now read the full file with appropriate header setting
+        df = pd.read_csv(
+            file_path, 
+            delimiter=delimiter, 
+            header=0 if is_header else None,
+            encoding=encoding,
+            low_memory=False,
+            on_bad_lines='warn'
+        )
+            
+        # If we didn't detect a header but header=None, the first row is in the data
+        # Store it anyway as potential_header for later use
+        if not is_header and header is None and len(df) > 0:
+            potential_header = list(df.iloc[0])
+            
+        encoding_used = encoding
+        logger.debug(f"Successfully loaded CSV with delimiter: {delimiter}")
+        break
     except Exception as e:
-        error_msg = f"Error loading CSV: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        errors.append(error_msg)
-    
-    # Log dataframe info if successfully loaded
-    if df is not None:
-        logger.info(f"Successfully loaded CSV with {len(df)} rows and {len(df.columns)} columns")
+        logger.debug(f"Failed to load CSV with delimiter {delimiter}: {str(e)}")
+        errors.append(f"Failed with delimiter {delimiter}: {str(e)}")
         
+        # If encoding might be the issue, try with utf-8 or latin-1
+        df = fallback_encoding(file_path, df, encoding, confidence, delimiter, header)
+        if df is not None:
+            break  # Break out of the delimiter loop if we succeeded with a fallback encoding
+    
+    if df is not None:
         # Check for potential issues
         if len(df.columns) == 1:
             logger.warning("CSV has only one column. This might indicate delimiter issues.")
@@ -137,7 +146,82 @@ def load_csv_safely(file_path: str, header=None) -> Tuple[Optional[pd.DataFrame]
     else:
         logger.error("Failed to load CSV file after all attempts")
     
-    return df, errors
+    return df, potential_header, encoding_used
+
+
+def file_encoding_detection(file_path: str) -> Tuple[str, float]:
+    """
+    Try to detect the encoding used in the CSV file.
+    
+    Args:
+        file_path: The path to the CSV file
+    
+    Returns:
+        A tuple of (encoding, confidence) where encoding is the detected encoding
+        and confidence is the detection confidence score
+    """
+    import chardet
+    with open(file_path, 'rb') as f:
+        raw_data = f.read(10000)  # Read a sample to detect encoding
+        result = chardet.detect(raw_data)
+        encoding = result['encoding']
+        confidence = result['confidence']
+        logger.debug(f"Detected encoding: {encoding} with confidence: {confidence}")
+    return encoding, confidence
+
+
+# Make the delimiter detection based on the number of columns obtained with pandas
+def delimiter_detection(file_path: str) -> str:
+    """
+    Try to detect the delimiter used in the CSV file based on the number of columns.
+    
+    Args:
+        file_path: The path to the CSV file
+    
+    Returns:
+        The detected delimiter
+    """
+    delimiters = [',', ';', '\t', '|']
+    for delimiter in delimiters:
+        df = pd.read_csv(file_path, delimiter=delimiter, header=None)
+        if len(df.columns) > 1:
+            return delimiter
+    return CSV_DELIMITER
+    
+    
+def fallback_encoding(file_path: str, df: pd.DataFrame, encoding: str, confidence: float, delimiter: str, header: str) -> pd.DataFrame:
+    """
+    Try to load a DataFrame with a fallback encoding if the default fails.
+    
+    Args:
+        file_path: The path to the CSV file
+        df: The DataFrame to load (initial attempt)
+        encoding: The encoding to try first
+        confidence: Confidence score from chardet
+        delimiter: The delimiter used in the CSV file
+        header: The header argument for pd.read_csv
+
+    Returns:
+        The loaded DataFrame
+    """
+    if confidence < 0.9:
+        fallback_encodings = ['utf-8', 'latin-1', 'cp1252']
+        for fb_encoding in fallback_encodings:
+            if fb_encoding != encoding:
+                try:
+                    df = pd.read_csv(file_path, 
+                    delimiter=delimiter, 
+                    header=header, 
+                    encoding=fb_encoding, 
+                    low_memory=False, 
+                    on_bad_lines='warn'
+                    )
+                    logger.debug(f"Successfully loaded CSV with delimiter: {delimiter} and encoding: {fb_encoding}")
+                    return df  # Return the DataFrame immediately upon success
+                except Exception as e:
+                    logger.debug(f"Failed with delimiter {delimiter} and encoding {fb_encoding}: {str(e)}")
+    return df
+
 
 def get_sample_rows(df: pd.DataFrame, n: int = 10) -> pd.DataFrame:
     """
