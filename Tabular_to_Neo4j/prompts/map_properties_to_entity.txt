@@ -1,27 +1,27 @@
-Your task is to determine which properties belong to a specific entity type in a Neo4j graph model.
+Your task is to determine which entity a property belongs to in a Neo4j graph model based on the data provided.
 
-ENTITY TYPE:
-{entity_type}
+PROPERTY:
+{property}
 
-PROPERTIES:
-{properties}
+ENTITIES IN THE DATASET:
+{entities}
 
-Based on the entity type and properties list, determine which properties truly belong to this entity type. Consider:
-1. Semantic relationship between the property and entity
-2. Naming patterns and conventions
-3. Data type compatibility
-4. Domain knowledge
+METADATA:
+{metadata_text}
+
+Based on the property, available entities, and metadata provided, determine which entity this property belongs to. Consider:
+1. Semantic relationship between the property and entities
+2. Naming patterns and conventions (e.g., 'customer_id' likely belongs to a 'Customer' entity)
+3. Sample values of the property and their relationship to entities
+4. Domain knowledge from the metadata
+
+The property should be assigned to exactly one entity that it most strongly relates to.
 
 Return your analysis as JSON with the following structure:
 {
-    "properties": [
-        {
-            "column_name": "original_column_name",
-            "property_key": "neo4j_property_name"
-        },
-        ...
-    ],
-    "reasoning": "Brief explanation of your property assignment decisions"
+    "entity_type": "name_of_entity_this_property_belongs_to",
+    "property_key": "neo4j_property_name",
+    "reasoning": "Brief explanation of why this property belongs to this entity"
 }
 
 JSON response:

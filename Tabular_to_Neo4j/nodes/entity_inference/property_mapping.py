@@ -4,16 +4,20 @@ This module handles mapping properties to their respective entities.
 """
 
 from typing import Dict, Any, List
-import os
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
-from Tabular_to_Neo4j.utils.csv_utils import get_primary_entity_from_filename
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
 from Tabular_to_Neo4j.nodes.entity_inference.utils import to_neo4j_property_name
 from Tabular_to_Neo4j.utils.logging_config import get_logger
+from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
+from Tabular_to_Neo4j.utils.csv_utils import get_sample_rows
+from Tabular_to_Neo4j.utils.analytics_utils import analyze_column
 
 # Configure logging
 logger = get_logger(__name__)
+
+
+
 
 def map_properties_to_entities_node(state: GraphState, config: RunnableConfig) -> GraphState:
     """
@@ -37,130 +41,156 @@ def map_properties_to_entities_node(state: GraphState, config: RunnableConfig) -
         return state
     
     try:
-        # Get the consensus classification
+        # Get the consensus classification and other necessary data
         consensus = state['entity_property_consensus']
+        column_analytics = state.get('column_analytics', {})
+        processed_dataframe = state.get('processed_dataframe')
+        metadata = get_metadata_for_state(state)
         
-        # Initialize property-entity mapping
-        property_entity_mapping = {}
+        # Extract entities and properties from consensus
+        entities = []
+        properties = []
         
-        # First pass: identify all entity types and their properties
         for column_name, info in consensus.items():
             classification = info.get('classification', '')
             
             if classification == 'entity':
-                # This column represents an entity
                 entity_type = info.get('entity_type', '')
-                if entity_type and entity_type not in property_entity_mapping:
-                    # Initialize the entity in our mapping
-                    property_entity_mapping[entity_type] = []
-                    logger.debug(f"Identified entity type: {entity_type}")
+                if entity_type:
+                    entities.append({
+                        'entity_type': entity_type,
+                        'column_name': column_name
+                    })
+                    logger.debug(f"Identified entity type: {entity_type} from column '{column_name}'")
             
             elif classification == 'property':
-                # This column represents a property
-                property_of = info.get('property_of', '')
-                if property_of:
-                    # If we know which entity this property belongs to
-                    if property_of not in property_entity_mapping:
-                        property_entity_mapping[property_of] = []
-                    
-                    # Add the property to its entity
-                    property_entity_mapping[property_of].append({
-                        'column_name': column_name,
-                        'property_key': info.get('neo4j_property_key', to_neo4j_property_name(column_name))
-                    })
-                    logger.debug(f"Mapped property '{column_name}' to entity '{property_of}'")
-                else:
-                    logger.warning(f"Property '{column_name}' has no associated entity")
-
-        
-        logger.debug(f"Identified {len(property_entity_mapping)} entity types: {', '.join(property_entity_mapping.keys())}")
-        
-        # Second pass: handle any properties that don't have a clear entity association
-        # Try to infer entity association based on column name patterns
-        for column_name, info in consensus.items():
-            if info.get('classification') == 'property' and not info.get('property_of'):
-                # Try to find an entity type that matches part of the column name
-                column_parts = column_name.lower().split('_')
+                # Get column analytics or analyze the column if not available
+                column_data = column_analytics.get(column_name, {})
+                if not column_data and processed_dataframe is not None and column_name in processed_dataframe.columns:
+                    column_data = analyze_column(processed_dataframe[column_name])
                 
-                for entity_type in property_entity_mapping.keys():
-                    # Check if any part of the column name matches the entity type
-                    if entity_type.lower() in column_parts:
-                        # Add the property to this entity
-                        property_entity_mapping[entity_type].append({
-                            'column_name': column_name,
-                            'property_key': info.get('neo4j_property_key', to_neo4j_property_name(column_name))
-                        })
-                        logger.info(f"Inferred that property '{column_name}' belongs to entity '{entity_type}' based on naming pattern")
-                        break
+                properties.append({
+                    'column_name': column_name,
+                    'property_key': info.get('neo4j_property_key', to_neo4j_property_name(column_name)),
+                    'sample_values': column_data.get('sample_values', []),
+                    'analytics': column_data
+                })
+                logger.debug(f"Identified property: {column_name}")
         
-        # For each entity type, use LLM to validate and refine property mapping
-        final_property_entity_mapping = {}
+        logger.info(f"Found {len(entities)} entities and {len(properties)} properties")
         
-        for entity_type, properties in property_entity_mapping.items():
-            # Skip if this is not a list (might be a dict from a previous iteration)
-            if not isinstance(properties, list):
-                final_property_entity_mapping[entity_type] = properties
-                continue
-                
-            if not properties:
-                logger.warning(f"No properties found for entity type '{entity_type}', skipping")
-                continue
+        # If we have no properties, nothing to map
+        if not properties:
+            logger.warning("No properties found, nothing to map")
+            state['property_entity_mapping'] = {entity['entity_type']: {'type': 'entity', 'entity_type': entity['entity_type'], 'properties': []} for entity in entities}
+            return state
             
-            logger.info(f"Mapping {len(properties)} properties to entity type '{entity_type}'")
+        # If we have no entities, raise an error
+        if not entities:
+            error_msg = "No entities detected but properties exist. Cannot map properties without entities."
+            logger.error(error_msg)
+            state['error_messages'].append(error_msg)
+            state['property_entity_mapping'] = {}
+            return state
             
-            # Format the prompt with entity and property information
-            prompt = format_prompt('map_properties_to_entity.txt',
-                                  entity_type=entity_type,
-                                  properties=str(properties))
+        # If we have only one entity, all properties belong to it
+        if len(entities) == 1:
+            entity_type = entities[0]['entity_type']
+            logger.info(f"Only one entity detected ({entity_type}), assigning all properties to it")
             
-            # Call the LLM for property mapping
-            try:
-                response = call_llm_with_json_output(prompt, state_name="map_properties_to_entity")
-                
-                # Extract the mapping results
-                mapped_properties = response.get('properties', [])
-                
-                if not mapped_properties:
-                    logger.warning(f"LLM returned no property mappings for entity '{entity_type}', using original properties")
-                    mapped_properties = [
-                        {
-                            'column_name': prop['column_name'],
-                            'property_key': prop['property_key']
-                        }
-                        for prop in properties
-                    ]
-                
-                # Create entity mapping entry
-                final_property_entity_mapping[entity_type] = {
-                    'type': 'entity',
-                    'entity_type': entity_type,
-                    'properties': mapped_properties
-                }
-                
-            except Exception as e:
-                logger.error(f"Error mapping properties for entity '{entity_type}': {str(e)}")
-                
-                # Use original properties as fallback
-                final_property_entity_mapping[entity_type] = {
+            # Create the property-entity mapping with all properties assigned to the single entity
+            property_entity_mapping = {
+                entity_type: {
                     'type': 'entity',
                     'entity_type': entity_type,
                     'properties': [
                         {
                             'column_name': prop['column_name'],
                             'property_key': prop['property_key']
-                        }
-                        for prop in properties
+                        } for prop in properties
                     ]
                 }
-                
-                state['error_messages'].append(f"Error mapping properties for entity '{entity_type}': {str(e)}")
+            }
+            
+            # Update the state and return
+            state['property_entity_mapping'] = property_entity_mapping
+            return state
+            
+        # Multiple entities detected, initialize property-entity mapping with LLMs
+        logger.info(f"Multiple entities detected ({len(entities)}), will map each property to an entity")
         
-        # Update the state
+        # Initialize the property-entity mapping with empty properties lists
+        final_property_entity_mapping = {}
+        for entity in entities:
+            entity_type = entity['entity_type']
+            final_property_entity_mapping[entity_type] = {
+                'type': 'entity',
+                'entity_type': entity_type,
+                'properties': []
+            }
+        
+        # Prepare metadata for the prompt
+        metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
+        
+        # Process each property and determine which entity it belongs to
+        for prop in properties:
+            column_name = prop['column_name']
+            property_key = prop['property_key']
+            logger.info(f"Processing property: {column_name}")
+            
+            # Format the prompt for this specific property
+            prompt = format_prompt('map_properties_to_entity.txt',
+                                  property=str(prop),
+                                  entities=str(entities),
+                                  metadata_text=metadata_text)
+            
+            # Call the LLM to determine which entity this property belongs to
+            logger.info(f"Calling LLM to determine which entity property '{column_name}' belongs to")
+            
+            try:
+                response = call_llm_with_json_output(prompt, state_name=f"map_property_{column_name}")
+                
+                # Extract the entity this property belongs to
+                entity_type = response.get('entity_type', '')
+                property_key = response.get('property_key', property_key)  # Use the LLM's suggestion or keep original
+                reasoning = response.get('reasoning', 'No reasoning provided')
+                
+                # Validate that the entity exists in our mapping
+                if entity_type and entity_type in final_property_entity_mapping:
+                    # Add property to the appropriate entity
+                    final_property_entity_mapping[entity_type]['properties'].append({
+                        'column_name': column_name,
+                        'property_key': property_key
+                    })
+                    logger.info(f"Mapped property '{column_name}' to entity '{entity_type}': {reasoning}")
+                else:
+                    # If entity not found, assign to the first entity
+                    if entities:
+                        first_entity = entities[0]['entity_type']
+                        final_property_entity_mapping[first_entity]['properties'].append({
+                            'column_name': column_name,
+                            'property_key': property_key
+                        })
+                        logger.warning(f"LLM returned unknown entity '{entity_type}' for property '{column_name}', assigned to '{first_entity}'")
+                    else:
+                        logger.error(f"Cannot map property '{column_name}': no entities available and LLM returned unknown entity '{entity_type}'")
+                
+            except Exception as e:
+                logger.error(f"Error mapping property '{column_name}' to an entity: {str(e)}")
+                logger.info(f"Skipping property '{column_name}' mapping to an entity")
+                continue      
+        
+        # Check if any entity has no properties
+        for entity_type, entity_info in final_property_entity_mapping.items():
+            if not entity_info.get('properties'):
+                logger.warning(f"Entity '{entity_type}' has no properties assigned")
+        
+        # Update the state with the final mapping
         state['property_entity_mapping'] = final_property_entity_mapping
         
     except Exception as e:
-        logger.error(f"Error mapping properties to entities: {str(e)}")
-        state['error_messages'].append(f"Error mapping properties to entities: {str(e)}")
+        logger.error(f"Error in property mapping: {str(e)}")
+        state['error_messages'].append(f"Error in property mapping: {str(e)}")
         state['property_entity_mapping'] = {}
     
     return state
