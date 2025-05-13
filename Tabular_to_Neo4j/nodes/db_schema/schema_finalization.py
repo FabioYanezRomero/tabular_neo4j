@@ -1,6 +1,6 @@
 """
-Schema finalization module for schema synthesis in the Tabular to Neo4j converter.
-This module handles the final step in schema synthesis: combining all intermediate results into the final Neo4j schema.
+Schema finalization module for database schema generation in the Tabular to Neo4j converter.
+This module handles combining all intermediate results into the final Neo4j schema.
 """
 
 from typing import Dict, Any, List
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 def synthesize_final_schema_node(state: GraphState, config: RunnableConfig) -> GraphState:
     """
-    Final step in schema synthesis: Combine all intermediate results into the final Neo4j schema.
+    Combine all intermediate results into the final Neo4j schema.
     Uses LLM to synthesize a comprehensive Neo4j schema from all intermediate analysis results.
     
     Args:

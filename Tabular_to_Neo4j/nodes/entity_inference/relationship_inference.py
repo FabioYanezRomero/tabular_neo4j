@@ -1,6 +1,6 @@
 """
-Relationship inference module for schema synthesis in the Tabular to Neo4j converter.
-This module handles the fourth step in schema synthesis: inferring relationships between entity types.
+Relationship inference module for entity inference in the Tabular to Neo4j converter.
+This module handles inferring relationships between entity types.
 """
 
 from typing import Dict, Any, List
@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -> GraphState:
     """
-    Fourth step in schema synthesis: Infer relationships between entity types.
+    Infer relationships between entity types.
     Uses LLM to identify and characterize relationships between entities.
     
     Args:
@@ -50,53 +50,65 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
         
         # Extract existing relationships
         existing_relationships = [
-            {
-                'source_entity': item['source_entity'],
-                'relationship_type': item['relationship_type'],
-                'target_entity': item['target_entity'],
-                'properties': item['properties']
-            }
-            for key, item in mapping.items() 
-            if item.get('type') == 'relationship'
+            item.get('relationship', {})
+            for key, item in mapping.items()
+            if item.get('type') == 'property' and item.get('relationship')
         ]
         
-        logger.debug(f"Found {len(entity_types)} entity types and {len(existing_relationships)} existing relationships")
+        # Remove any empty relationships
+        existing_relationships = [r for r in existing_relationships if r]
+        
+        logger.info(f"Found {len(entity_types)} entity types and {len(existing_relationships)} existing relationships")
         
         # If we only have one entity type, there are no relationships to infer
         if len(entity_types) <= 1:
             logger.info("Only one entity type found, no relationships to infer")
-            state['entity_relationships'] = existing_relationships
+            state['entity_relationships'] = []
             return state
         
-        # Get consensus data for additional context
-        consensus = state.get('entity_property_consensus', {})
-        
-        # Prepare entity info for the prompt
+        # Prepare entity information for the LLM
         entity_info = []
         for entity_type in entity_types:
-            entity_data = next(
-                (item for key, item in mapping.items() if item.get('type') == 'entity' and item.get('entity_type') == entity_type),
-                None
-            )
-            
-            if not entity_data:
-                continue
-                
             # Get properties for this entity
-            properties = entity_data.get('properties', [])
-            
-            # Find columns that created this entity type (if any)
-            source_columns = [
-                col_name for col_name, info in consensus.items()
-                if info.get('classification') == 'new_entity_type' and info.get('entity_type') == entity_type
+            properties = [
+                {
+                    'name': key,
+                    'property_name': item.get('property_name', key),
+                    'data_type': item.get('data_type', 'unknown'),
+                    'semantic_type': item.get('semantic_type', 'unknown'),
+                    'uniqueness': item.get('uniqueness', 0)
+                }
+                for key, item in mapping.items()
+                if item.get('type') == 'property' and item.get('entity_type') == entity_type
             ]
             
             entity_info.append({
                 'entity_type': entity_type,
-                'is_primary': entity_data.get('is_primary', False),
-                'properties': [prop.get('property_key') for prop in properties],
-                'source_columns': source_columns
+                'is_primary': entity_type == primary_entity,
+                'properties': properties
             })
+        
+        # Look for consensus in existing relationships
+        consensus = {}
+        for rel in existing_relationships:
+            source = rel.get('source_entity')
+            target = rel.get('target_entity')
+            rel_type = rel.get('relationship_type')
+            
+            if source and target and rel_type:
+                key = f"{source}_{rel_type}_{target}"
+                if key not in consensus:
+                    consensus[key] = {
+                        'source_entity': source,
+                        'target_entity': target,
+                        'relationship_type': rel_type,
+                        'count': 0,
+                        'source_columns': []
+                    }
+                
+                consensus[key]['count'] += 1
+                if 'source_column' in rel:
+                    consensus[key]['source_columns'].append(rel['source_column'])
         
         # Get file name for the prompt
         file_name = os.path.basename(state.get('csv_file_path', 'unknown.csv'))
@@ -159,15 +171,12 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
             state['entity_relationships'] = all_relationships
             
         except Exception as e:
-            logger.error(f"Error inferring entity relationships: {str(e)}")
+            logger.error(f"LLM relationship inference failed: {str(e)}")
             
-            # Use existing relationships as fallback
-            if existing_relationships:
-                logger.info(f"Using {len(existing_relationships)} existing relationships as fallback")
-                state['entity_relationships'] = existing_relationships
-            else:
-                # Create default relationships from primary entity to other entities
+            # If LLM call fails, create default relationships
+            if not existing_relationships:
                 default_relationships = []
+                
                 for entity_type in entity_types:
                     if entity_type != primary_entity:
                         default_relationships.append({
@@ -177,15 +186,19 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
                             'properties': [],
                             'cardinality': "ONE_TO_MANY"
                         })
+                        
+                        logger.info(f"Created default relationship after error: {primary_entity} HAS_{entity_type.upper()} {entity_type}")
                 
-                logger.info(f"Created {len(default_relationships)} default relationships as fallback")
                 state['entity_relationships'] = default_relationships
+            else:
+                # Use existing relationships if available
+                state['entity_relationships'] = existing_relationships
+                
+            state['error_messages'].append(f"LLM relationship inference failed: {str(e)}")
             
-            state['error_messages'].append(f"Error inferring entity relationships: {str(e)}")
-        
     except Exception as e:
-        logger.error(f"Error in relationship inference process: {str(e)}")
-        state['error_messages'].append(f"Error in relationship inference process: {str(e)}")
+        logger.error(f"Error inferring entity relationships: {str(e)}")
+        state['error_messages'].append(f"Error inferring entity relationships: {str(e)}")
         state['entity_relationships'] = []
-    
+        
     return state

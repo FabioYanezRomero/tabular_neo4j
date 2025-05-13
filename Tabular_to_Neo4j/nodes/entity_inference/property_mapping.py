@@ -1,6 +1,6 @@
 """
-Property mapping module for schema synthesis in the Tabular to Neo4j converter.
-This module handles the third step in schema synthesis: mapping properties to their respective entities.
+Property mapping module for entity inference in the Tabular to Neo4j converter.
+This module handles mapping properties to their respective entities.
 """
 
 from typing import Dict, Any, List
@@ -9,7 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.csv_utils import get_primary_entity_from_filename
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
-from Tabular_to_Neo4j.nodes.schema_synthesis.utils import to_neo4j_property_name
+from Tabular_to_Neo4j.nodes.entity_inference.utils import to_neo4j_property_name
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
 # Configure logging
@@ -17,8 +17,7 @@ logger = get_logger(__name__)
 
 def map_properties_to_entities_node(state: GraphState, config: RunnableConfig) -> GraphState:
     """
-    Third step in schema synthesis: Map properties to their respective entities
-    and create a clear property-entity mapping.
+    Map properties to their respective entities and create a clear property-entity mapping.
     Uses LLM to determine the best entity for each property.
     
     Args:

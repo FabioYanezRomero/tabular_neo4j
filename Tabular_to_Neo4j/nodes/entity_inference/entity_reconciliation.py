@@ -1,6 +1,6 @@
 """
-Entity reconciliation module for schema synthesis in the Tabular to Neo4j converter.
-This module handles the second step in schema synthesis: reconciling different classification approaches.
+Entity reconciliation module for entity inference in the Tabular to Neo4j converter.
+This module handles reconciling different classification approaches.
 """
 
 from typing import Dict, Any, Set
@@ -10,7 +10,7 @@ from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.csv_utils import get_primary_entity_from_filename
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
 from Tabular_to_Neo4j.config import UNIQUENESS_THRESHOLD
-from Tabular_to_Neo4j.nodes.schema_synthesis.utils import (
+from Tabular_to_Neo4j.nodes.entity_inference.utils import (
     to_neo4j_property_name,
     find_associated_entity_type,
     find_associated_relationship
@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) -> GraphState:
     """
-    Second step in schema synthesis: Reconcile analytics-based and LLM-based classifications
+    Reconcile analytics-based and LLM-based classifications
     to create a consensus model of entities and properties.
     Uses LLM to reconcile different classification approaches.
     
@@ -150,13 +150,11 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
                 associated_entity = find_associated_entity_type(
                     column_name, 
                     info,
-                    consensus,
-                    entity_types,
-                    state['llm_column_semantics']
+                    consensus
                 )
                 
                 if associated_entity:
-                    info['entity_type'] = associated_entity
+                    info['entity_type'] = associated_entity['entity_type']
                 else:
                     # If we can't find an association, default to primary entity
                     info['entity_type'] = primary_entity
@@ -173,7 +171,7 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
                 )
                 
                 if relationship_info:
-                    info['relationship_type'] = relationship_info['relationship']
+                    info['relationship_type'] = relationship_info['relationship_type']
                     info['source_entity'] = relationship_info['source_entity']
                     info['target_entity'] = relationship_info['target_entity']
                 else:

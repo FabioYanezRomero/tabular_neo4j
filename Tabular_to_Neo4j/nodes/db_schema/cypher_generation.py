@@ -1,6 +1,6 @@
 """
-Cypher generation module for schema synthesis in the Tabular to Neo4j converter.
-This module handles the fifth step in schema synthesis: generating Cypher query templates.
+Cypher generation module for database schema generation in the Tabular to Neo4j converter.
+This module handles generating Cypher query templates.
 """
 
 from typing import Dict, Any, List
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 def generate_cypher_templates_node(state: GraphState, config: RunnableConfig) -> GraphState:
     """
-    Fifth step in schema synthesis: Generate template Cypher queries for the inferred schema.
+    Generate template Cypher queries for the inferred schema.
     Uses LLM to create Cypher query templates for loading and querying the Neo4j graph model.
     
     Args:
