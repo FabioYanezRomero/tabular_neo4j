@@ -349,55 +349,6 @@ def call_lmstudio_api(prompt: str, model_name: str = None, temperature: float = 
                 logger.error(f"LMStudio API call failed after {max_retries} attempts: {e}")
                 raise
 
-def call_huggingface_api(prompt: str, model_id: str, temperature: float = 0.0, seed: int = DEFAULT_SEED, max_retries: int = 3) -> str:
-    """
-    Call the Hugging Face API with retry logic (fallback option).
-    
-    Args:
-        prompt: The prompt to send to the API
-        model_id: The model ID to use
-        temperature: Temperature setting (0.0 for deterministic results)
-        seed: Seed for reproducibility
-        max_retries: Maximum number of retries on failure
-        
-    Returns:
-        The LLM response as a string
-    """
-    # Use API key from environment if not in config
-    api_key = LLM_API_KEY or os.environ.get("HF_API_KEY")
-    if not api_key:
-        raise ValueError("Hugging Face API key not found. Set it in config.py or as an environment variable.")
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    for attempt in range(max_retries):
-        try:
-            response = requests.post(
-                f"https://api-inference.huggingface.co/models/{model_id}",
-                headers=headers,
-                json={
-                    "inputs": prompt, 
-                    "parameters": {
-                        "temperature": temperature,
-                        "seed": seed,
-                        "return_full_text": False
-                    }
-                }
-            )
-            response.raise_for_status()
-            return response.json()[0]["generated_text"]
-        except Exception as e:
-            if attempt < max_retries - 1:
-                wait_time = 2 ** attempt
-                logger.warning(f"Hugging Face API call failed: {e}. Retrying in {wait_time}s...")
-                time.sleep(wait_time)
-            else:
-                logger.error(f"Hugging Face API call failed after {max_retries} attempts: {e}")
-                raise
-
 @contextmanager
 def load_llm_for_state(state_name: str):
     """
