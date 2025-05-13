@@ -45,118 +45,121 @@ def generate_cypher_templates_node(state: GraphState, config: RunnableConfig) ->
         # Get the property-entity mapping and relationships
         mapping = state['property_entity_mapping']
         relationships = state['entity_relationships']
-        primary_entity = get_primary_entity_from_filename(state['csv_file_path'])
-        file_name = os.path.basename(state['csv_file_path'])
         
         # Extract entity types and their properties
         entities = {}
         for key, item in mapping.items():
             if item.get('type') == 'entity':
                 entity_type = item.get('entity_type')
+                
+                # Always add a unique identifier property that doesn't depend on existing properties
+                properties = item.get('properties', [])
+                
+                # Every entity needs a generated UUID as a unique identifier
                 entities[entity_type] = {
                     'is_primary': item.get('is_primary', False),
-                    'properties': item.get('properties', [])
+                    'properties': properties,
+                    'needs_generated_id': True  # Always generate a unique ID for every entity
                 }
         
         logger.debug(f"Preparing Cypher templates for {len(entities)} entities and {len(relationships)} relationships")
         
         # Format the prompt with schema information
         prompt = format_prompt('generate_cypher_templates.txt',
-                              file_name=file_name,
-                              primary_entity=primary_entity,
                               entities=str(entities),
                               relationships=str(relationships))
         
         # Call the LLM for Cypher template generation
-        logger.debug("Calling LLM for Cypher template generation")
+        logger.info("Calling LLM for Cypher template generation with unique identifiers")
         try:
             response = call_llm_with_json_output(prompt, state_name="generate_cypher_templates")
             
             # Extract the Cypher templates
-            load_query = response.get('load_query', '')
-            constraint_queries = response.get('constraint_queries', [])
-            index_queries = response.get('index_queries', [])
-            example_queries = response.get('example_queries', [])
+            cypher_templates = response.get('cypher_templates', [])
+            constraints_and_indexes = response.get('constraints_and_indexes', [])
             
-            # Validate the load query
-            if not load_query:
-                logger.warning("LLM did not generate a load query, creating a basic one")
+            # Log the results
+            logger.info(f"Generated {len(cypher_templates)} Cypher templates and {len(constraints_and_indexes)} constraints/indexes")
+            
+            # Validate that we have at least some templates
+            if not cypher_templates:
+                logger.warning("LLM did not generate any Cypher templates")
                 
-                # Create a basic load query for the primary entity
-                primary_props = []
-                for entity_type, entity_info in entities.items():
-                    if entity_info.get('is_primary', False):
-                        primary_props = [
-                            f"`{prop.get('column_name')}` AS `{prop.get('property_key')}`"
-                            for prop in entity_info.get('properties', [])
-                        ]
+            # Ensure each entity has a unique identifier
+            for entity_type, entity_info in entities.items():
+                # Check if any constraint is created for this entity's UUID
+                has_uuid_constraint = any(
+                    c.get('entity_type') == entity_type and 'uuid' in c.get('property', '').lower()
+                    for c in constraints_and_indexes
+                )
                 
-                load_query = f"""
-                LOAD CSV WITH HEADERS FROM 'file:///{file_name}' AS row
-                CREATE (:{primary_entity} {{
-                    {', '.join(primary_props)}
-                }})
-                """
+                if not has_uuid_constraint:
+                    logger.info(f"Adding UUID constraint for entity {entity_type}")
+                    constraints_and_indexes.append({
+                        "type": "CONSTRAINT",
+                        "entity_type": entity_type,
+                        "property": "uuid",
+                        "query": f"CREATE CONSTRAINT ON (e:{entity_type}) ASSERT e.uuid IS UNIQUE"
+                    })
+                    
+                # Check if any template creates this entity with a UUID
+                has_uuid_creation = any(
+                    entity_type in t.get('query', '') and 'randomUUID()' in t.get('query', '')
+                    for t in cypher_templates
+                )
+                
+                if not has_uuid_creation and cypher_templates:
+                    logger.warning(f"No UUID generation found for entity {entity_type} in templates")
+                    # We'll let the LLM handle this, but log a warning
+
             
             # Update the state with the Cypher templates
             state['cypher_query_templates'] = {
-                'load_query': load_query,
-                'constraint_queries': constraint_queries,
-                'index_queries': index_queries,
-                'example_queries': example_queries
+                'entity_creation_queries': [],
+                'relationship_queries': [],
+                'constraint_queries': [],
+                'example_queries': []
             }
+            
+            # Process the cypher templates based on their purpose
+            for template in cypher_templates:
+                purpose = template.get('purpose', '').lower()
+                query = template.get('query', '')
+                description = template.get('description', '')
+                
+                if not query:
+                    continue
+                    
+                if 'entity' in purpose and 'creat' in purpose:
+                    state['cypher_query_templates']['entity_creation_queries'].append({
+                        'query': query,
+                        'description': description
+                    })
+                elif 'relation' in purpose:
+                    state['cypher_query_templates']['relationship_queries'].append({
+                        'query': query,
+                        'description': description
+                    })
+                elif 'query' in purpose or 'find' in purpose or 'match' in purpose:
+                    state['cypher_query_templates']['example_queries'].append({
+                        'query': query,
+                        'description': description
+                    })
+            
+            # Process constraints and indexes
+            for constraint in constraints_and_indexes:
+                if constraint.get('type', '').upper() == 'CONSTRAINT':
+                    state['cypher_query_templates']['constraint_queries'].append({
+                        'entity_type': constraint.get('entity_type', ''),
+                        'property': constraint.get('property', ''),
+                        'query': constraint.get('query', '')
+                    })
             
             logger.info("Generated Cypher query templates successfully")
             
         except Exception as e:
             logger.error(f"Error generating Cypher templates: {str(e)}")
             
-            # Create basic Cypher templates as fallback
-            load_query_parts = []
-            
-            # Add CREATE statement for each entity
-            for entity_type, entity_info in entities.items():
-                if entity_info.get('is_primary', False):
-                    props = [
-                        f"`{prop.get('column_name')}` AS `{prop.get('property_key')}`"
-                        for prop in entity_info.get('properties', [])
-                    ]
-                    
-                    load_query_parts.append(f"""
-                    LOAD CSV WITH HEADERS FROM 'file:///{file_name}' AS row
-                    CREATE (:{entity_type} {{
-                        {', '.join(props)}
-                    }})
-                    """)
-            
-            # Add basic constraint for primary entity
-            constraint_queries = []
-            for entity_type, entity_info in entities.items():
-                # Find an identifier property
-                identifier_prop = next(
-                    (prop.get('property_key') for prop in entity_info.get('properties', []) 
-                     if prop.get('is_identifier', False)),
-                    None
-                )
-                
-                if identifier_prop:
-                    constraint_queries.append(f"""
-                    CREATE CONSTRAINT {entity_type}_{identifier_prop}_unique IF NOT EXISTS
-                    FOR (n:{entity_type})
-                    REQUIRE n.{identifier_prop} IS UNIQUE
-                    """)
-            
-            # Update the state with the fallback templates
-            state['cypher_query_templates'] = {
-                'load_query': '\n'.join(load_query_parts),
-                'constraint_queries': constraint_queries,
-                'index_queries': [],
-                'example_queries': []
-            }
-            
-            logger.warning("Using fallback Cypher templates due to LLM error")
-            state['error_messages'].append(f"Error generating Cypher templates: {str(e)}")
-        
     except Exception as e:
         logger.error(f"Error in Cypher template generation process: {str(e)}")
         state['error_messages'].append(f"Error in Cypher template generation process: {str(e)}")

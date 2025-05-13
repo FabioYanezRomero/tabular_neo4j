@@ -1,28 +1,69 @@
-Your task is to generate template Cypher queries for a Neo4j graph model based on a CSV dataset. You will receive a 'METADATA' section with context information and a 'DATA' section with entity, property, and relationship details.
+Your task is to generate template Cypher queries for a Neo4j graph model based on Entity-Relation-Entity triples. You will receive information about entities with their properties and the relationships between them.
 
 METADATA:
-- File: {file_name}
-- Primary Entity: {primary_entity}
-- Purpose: Generate template Cypher queries for loading and querying the Neo4j graph model
+- Entities: {entities}
+- Relationships: {relationships}
 
-DATA:
-- Entity Types: {entity_types}
-- Entity-Property Consensus: {entity_property_consensus}
-- Entity Relationships: {entity_relationships}
-- Entity Properties: {entity_properties}
+CRITICAL REQUIREMENTS:
+1. EVERY entity node MUST have a 'uuid' property generated with randomUUID()
+2. This UUID must be used as the primary identifier for all entities
+3. Create a uniqueness constraint on the uuid property for each entity
+4. All relationships MUST use these UUIDs to connect entities
 
-Based on the METADATA and DATA sections, generate template Cypher queries for:
+Generate the following Cypher templates:
 
-1. Creating primary entity nodes with their properties
-2. Creating secondary entity nodes with their properties
-3. Creating relationships between entities
-4. Setting relationship properties
-5. Common query patterns for the domain (e.g., finding connected entities)
+1. CONSTRAINTS: Create a uniqueness constraint for each entity's uuid property
 
-For each query, provide:
-- A clear description of what the query does
-- The Cypher query template with placeholders for CSV column names
-- Any constraints or indexes that should be created
+2. ENTITY CREATION: For each entity type, create a template to:
+   - Generate a UUID
+   - Create the entity with its properties
+
+3. RELATIONSHIP CREATION: For each relationship in the format (EntityA)-[RELATION]->(EntityB), create a template to:
+   - Match the source and target entities by their UUIDs
+   - Create the relationship between them
+
+4. QUERY EXAMPLES: Simple queries to retrieve entities and follow relationships
+
+EXAMPLES:
+
+1. CONSTRAINTS:
+```cypher
+// Create uniqueness constraint for Person entity
+CREATE CONSTRAINT ON (p:Person) ASSERT p.uuid IS UNIQUE;
+
+// Create uniqueness constraint for Product entity
+CREATE CONSTRAINT ON (p:Product) ASSERT p.uuid IS UNIQUE;
+```
+
+2. ENTITY CREATION:
+```cypher
+// Create Person entities with UUIDs
+MERGE (p:Person {uuid: randomUUID(), name: $name, age: $age})
+
+// Create Product entities with UUIDs
+MERGE (p:Product {uuid: randomUUID(), name: $productName, price: $price})
+```
+
+3. RELATIONSHIP CREATION:
+```cypher
+// Create PURCHASED relationship between Person and Product
+MATCH (person:Person {uuid: $personUuid})
+MATCH (product:Product {uuid: $productUuid})
+CREATE (person)-[:PURCHASED {date: $date}]->(product)
+```
+
+4. QUERY EXAMPLES:
+```cypher
+// Find all Products purchased by a specific Person
+MATCH (p:Person {name: $name})-[:PURCHASED]->(product:Product)
+RETURN product.name, product.price
+
+// Find all Persons who purchased a specific Product
+MATCH (person:Person)-[:PURCHASED]->(p:Product {name: $productName})
+RETURN person.name
+```
+
+Ensure all entities have UUIDs and all relationships use these UUIDs to connect entities.
 
 Return your Cypher templates as JSON with the following structure:
 {

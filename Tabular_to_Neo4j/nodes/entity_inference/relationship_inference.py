@@ -9,7 +9,7 @@ from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
 from Tabular_to_Neo4j.utils.logging_config import get_logger
-
+from config import MAX_SAMPLE_ROWS
 # Configure logging
 logger = get_logger(__name__)
 
@@ -89,8 +89,8 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
         if state.get('processed_dataframe') is not None:
             df = state['processed_dataframe']
             if not df.empty:
-                # Get a small sample of the data (first 5 rows)
-                sample_data = df.head(5).to_string(index=False)
+                # Get a small sample of the data (first MAX_SAMPLE_ROWS rows)
+                sample_data = df.head(MAX_SAMPLE_ROWS).to_string(index=False)
         
         # Format the prompt with entity information and metadata
         prompt = format_prompt('infer_entity_relationships.txt',
