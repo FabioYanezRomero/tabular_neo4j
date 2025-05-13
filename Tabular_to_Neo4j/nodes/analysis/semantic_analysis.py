@@ -77,7 +77,6 @@ def llm_semantic_column_analysis_node(state: GraphState, config: RunnableConfig)
                                   uniqueness=column_analytics.get('uniqueness', 0),
                                   cardinality=column_analytics.get('cardinality', 0),
                                   primary_entity=primary_entity,
-                                  patterns=column_analytics.get('patterns', []),
                                   metadata_text=metadata_text)
             
             # Call the LLM for semantic analysis
@@ -103,7 +102,7 @@ def llm_semantic_column_analysis_node(state: GraphState, config: RunnableConfig)
             except Exception as e:
                 logger.error(f"Error in LLM semantic analysis for column '{column_name}': {str(e)}")
                 
-                # Use a fallback classification
+                # Use a fallback classification, in case of error, consider the column as a property
                 semantic_results[column_name] = {
                     'semantic_type': 'Unknown',
                     'neo4j_role': 'PROPERTY',

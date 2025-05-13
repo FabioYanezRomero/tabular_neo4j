@@ -55,13 +55,8 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
         logger.debug("Initializing classification process")
         # Initialize classification dictionary
         classification = {}
-
-        # Get primary entity label from filename
-        csv_path = state['csv_file_path']
-        primary_entity_label = get_primary_entity_from_filename(csv_path)
-        file_name = os.path.basename(csv_path)
-        logger.info(f"Derived primary entity label '{primary_entity_label}' from file: {file_name}")
-
+        
+        
         # Process each column using LLM for classification
         logger.info(f"Beginning classification of {len(state['final_header'])} columns")
         processed_columns = 0
@@ -110,11 +105,9 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
             metadata = get_metadata_for_state(state)
             metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
 
-            # Format the prompt with column information and metadata
+            # Format the prompt with column information and metadata, this is done once for every column in the dataset
             prompt = format_prompt('classify_entities_properties.txt',
-                                  file_name=file_name,
                                   column_name=column_name,
-                                  primary_entity=primary_entity_label,
                                   sample_values=str(sample_values),
                                   uniqueness_ratio=analytics.get('uniqueness_ratio', 0),
                                   cardinality=analytics.get('cardinality', 0),
@@ -130,9 +123,10 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                 response = call_llm_with_json_output(prompt, state_name="classify_entities_properties")
                 logger.debug(f"Received LLM classification response for '{column_name}'")
 
+                # TODO: check if this output format is what we really want, it looks this is more complex than expected
                 # Extract the classification results
                 classification_result = response.get('classification', 'entity_property')
-                entity_type = response.get('entity_type', primary_entity_label)
+                entity_type = response.get('entity_type', '')
                 relationship = response.get('relationship_to_primary', '')
 
                 classification[column_name] = {
@@ -154,29 +148,6 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
             except Exception as e:
                 logger.error(f"LLM entity classification failed for '{column_name}': {str(e)}")
 
-                # If LLM call fails, use a fallback classification based on analytics
-                uniqueness = analytics.get('uniqueness', 0)
-                is_unique_enough = uniqueness > UNIQUENESS_THRESHOLD
-                fallback_classification = 'entity' if is_unique_enough else 'property'
-
-                logger.warning(f"Using fallback classification for '{column_name}': {fallback_classification} based on uniqueness ({uniqueness:.2f})")
-
-                classification[column_name] = {
-                    'column_name': column_name,
-                    'classification': fallback_classification,
-                    'entity_type': primary_entity_label if is_unique_enough else '',
-                    'relationship_to_primary': 'IS_A' if is_unique_enough else '',
-                    'property_name': column_name,
-                    'reasoning': f'Fallback classification based on uniqueness ({uniqueness:.2f})',
-                    'analytics': analytics,
-                    'semantics': semantics
-                }
-
-                state['error_messages'].append(f"LLM entity classification failed for {column_name}: {str(e)}")
-
-            # If we're in the exception handler, we've already set the fallback classification
-            # No need to do further classification based on neo4j_role
-            pass
 
         # Update the state
         state['entity_property_classification'] = classification
