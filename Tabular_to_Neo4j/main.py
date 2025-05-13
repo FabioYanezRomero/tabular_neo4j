@@ -100,15 +100,13 @@ def create_graph() -> StateGraph:
     graph.add_node("semantic_analysis", llm_semantic_column_analysis_node)
     
     
-    # Schema synthesis nodes - Group 1: Entity and Relationship Inference
-    # These nodes analyze the data to identify entities, properties, and their relationships
+    # Entity and Relationship Inference
     graph.add_node("classify_entities_properties", classify_entities_properties_node)
     graph.add_node("reconcile_entity_property", reconcile_entity_property_node)
     graph.add_node("map_properties_to_entities", map_properties_to_entities_node)
     graph.add_node("infer_entity_relationships", infer_entity_relationships_node)
     
-    # Schema synthesis nodes - Group 2: Database Schema Generation
-    # These nodes generate database-specific artifacts like Cypher templates and final schema
+    # Database Schema Generation
     graph.add_node("generate_cypher_templates", generate_cypher_templates_node)
     graph.add_node("synthesize_final_schema", synthesize_final_schema_node)
     
