@@ -16,6 +16,9 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 import re
 from contextlib import contextmanager
 
+# Configure logging
+logger = get_logger(__name__)
+
 # Import configuration
 from Tabular_to_Neo4j.config import (
     DEFAULT_SEED,
@@ -27,6 +30,7 @@ from Tabular_to_Neo4j.config import (
 try:
     from Tabular_to_Neo4j.config.lmstudio_config import (
         LMSTUDIO_ENDPOINT,
+        LMSTUDIO_BASE_URL,
         DEFAULT_MODEL
     )
     from Tabular_to_Neo4j.utils.lmstudio_client import get_lmstudio_client
@@ -34,9 +38,8 @@ try:
 except ImportError:
     logger.warning("LMStudio configuration not found, falling back to default LLM provider")
     LMSTUDIO_AVAILABLE = False
-
-# Configure logging
-logger = get_logger(__name__)
+    # Define a fallback base URL if import fails
+    LMSTUDIO_BASE_URL = "http://localhost:1234/v1"
 
 # Global tracking of loaded models in LMStudio
 # This will store information about which models are currently loaded in LMStudio

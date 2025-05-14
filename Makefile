@@ -50,24 +50,24 @@ restart: stop build run
 
 # Docker Compose targets
 compose-build:
-	docker-compose build
+	docker compose build
 
 # Start the container using docker-compose
 compose-up:
-	docker-compose up -d
+	docker compose up -d
 	@echo "Container started with docker-compose. Access shell with 'make compose-shell'"
 
 # Stop and remove the container using docker-compose
 compose-down:
-	docker-compose down
+	docker compose down
 
 # Open a shell in the running docker-compose container
 compose-shell:
-	docker-compose exec tabular-neo4j bash
+	docker compose exec tabular-neo4j bash
 
 # Check if LMStudio is reachable from the container
 check-lmstudio:
-	docker-compose exec tabular-neo4j python -m Tabular_to_Neo4j.utils.check_lmstudio
+	docker compose exec tabular-neo4j python -m Tabular_to_Neo4j.utils.check_lmstudio
 
 # Run analysis with LMStudio integration
 run-lmstudio:
@@ -75,7 +75,7 @@ run-lmstudio:
 		echo "Error: CSV_FILE parameter is required. Usage: make run-lmstudio CSV_FILE=/path/to/file.csv"; \
 		exit 1; \
 	fi
-	docker-compose exec tabular-neo4j python -m Tabular_to_Neo4j.run_with_lmstudio $(CSV_FILE)
+	docker compose exec tabular-neo4j python -m Tabular_to_Neo4j.run_with_lmstudio $(CSV_FILE)
 
 # Rebuild and restart the container with docker-compose
 compose-restart: compose-down compose-build compose-up

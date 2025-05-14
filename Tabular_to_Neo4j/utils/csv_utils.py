@@ -97,15 +97,12 @@ def load_csv_safely(file_path: str, header=None) -> Tuple[Optional[pd.DataFrame]
             
         encoding_used = encoding
         logger.debug(f"Successfully loaded CSV with delimiter: {delimiter}")
-        break
     except Exception as e:
         logger.debug(f"Failed to load CSV with delimiter {delimiter}: {str(e)}")
         errors.append(f"Failed with delimiter {delimiter}: {str(e)}")
         
         # If encoding might be the issue, try with utf-8 or latin-1
         df = fallback_encoding(file_path, df, encoding, confidence, delimiter, header)
-        if df is not None:
-            break  # Break out of the delimiter loop if we succeeded with a fallback encoding
     
     if df is not None:
         # Check for potential issues
