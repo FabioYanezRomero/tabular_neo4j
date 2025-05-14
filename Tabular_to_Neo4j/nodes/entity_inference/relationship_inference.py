@@ -90,11 +90,18 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
             df = state['processed_dataframe']
             if not df.empty:
                 # Get a small sample of the data (first MAX_SAMPLE_ROWS rows)
-                sample_data = df.head(MAX_SAMPLE_ROWS).to_string(index=False)
+                try:
+                    sample_data = df.head(MAX_SAMPLE_ROWS).to_dict(orient='records')
+                    sample_data = str(sample_data)  # Convert to string for the prompt
+                except Exception as e:
+                    logger.warning(f"Error converting dataframe to dict: {str(e)}")
+                    # Fallback to string representation
+                    sample_data = df.head(MAX_SAMPLE_ROWS).to_string(index=False)
         
         # Format the prompt with entity information and metadata
         prompt = format_prompt('infer_entity_relationships.txt',
-                              entities=str(entities_with_properties),
+                              entity_property_consensus=str(state.get('entity_property_consensus', {})),
+                              property_entity_mapping=str(mapping),
                               metadata_text=metadata_text,
                               sample_data=sample_data)
         
@@ -103,11 +110,16 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
         response = call_llm_with_json_output(prompt, state_name="infer_entity_relationships")
         
         # Extract the inferred relationships
-        inferred_relationships = response.get('relationships', [])
-        reasoning = response.get('reasoning', 'No reasoning provided')
+        inferred_relationships = response.get('entity_relationships', [])
         
+        # Log the inferred relationships
         logger.info(f"LLM inferred {len(inferred_relationships)} relationships between entities")
-        logger.debug(f"LLM reasoning: {reasoning}")
+        for rel in inferred_relationships:
+            source = rel.get('source_entity', '')
+            target = rel.get('target_entity', '')
+            rel_type = rel.get('relationship_type', '')
+            confidence = rel.get('confidence', 0.0)
+            logger.info(f"Relationship: ({source})-[{rel_type}]->({target}) with confidence {confidence}")
         
         # Update the state with the inferred relationships
         state['entity_relationships'] = inferred_relationships

@@ -12,11 +12,10 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
 from Tabular_to_Neo4j.utils.csv_utils import get_sample_rows
 from Tabular_to_Neo4j.utils.analytics_utils import analyze_column
+from config import MAX_SAMPLE_ROWS
 
 # Configure logging
 logger = get_logger(__name__)
-
-
 
 
 def map_properties_to_entities_node(state: GraphState, config: RunnableConfig) -> GraphState:
@@ -138,11 +137,20 @@ def map_properties_to_entities_node(state: GraphState, config: RunnableConfig) -
             property_key = prop['property_key']
             logger.info(f"Processing property: {column_name}")
             
+            # Get sample values for this column
+            sample_values = []
+            if processed_dataframe is not None and column_name in processed_dataframe.columns:
+                sample_values = processed_dataframe[column_name].dropna().sample(
+                    min(MAX_SAMPLE_ROWS, len(processed_dataframe[column_name].dropna()))
+                ).tolist() if len(processed_dataframe[column_name].dropna()) > 0 else []
+            
             # Format the prompt for this specific property
             prompt = format_prompt('map_properties_to_entity.txt',
                                   property=str(prop),
                                   entities=str(entities),
-                                  metadata_text=metadata_text)
+                                  metadata_text=metadata_text,
+                                  sample_values=str(sample_values),
+                                  analytics=str(prop.get('analytics', {})))
             
             # Call the LLM to determine which entity this property belongs to
             logger.info(f"Calling LLM to determine which entity property '{column_name}' belongs to")
@@ -151,27 +159,28 @@ def map_properties_to_entities_node(state: GraphState, config: RunnableConfig) -
                 response = call_llm_with_json_output(prompt, state_name=f"map_property_{column_name}")
                 
                 # Extract the entity this property belongs to
-                entity_type = response.get('entity_type', '')
-                property_key = response.get('property_key', property_key)  # Use the LLM's suggestion or keep original
-                reasoning = response.get('reasoning', 'No reasoning provided')
+                entity_type = response.get('entity', '')
+                confidence = response.get('confidence', 0.5)
                 
                 # Validate that the entity exists in our mapping
                 if entity_type and entity_type in final_property_entity_mapping:
                     # Add property to the appropriate entity
                     final_property_entity_mapping[entity_type]['properties'].append({
                         'column_name': column_name,
-                        'property_key': property_key
+                        'property_key': property_key,
+                        'confidence': confidence
                     })
-                    logger.info(f"Mapped property '{column_name}' to entity '{entity_type}': {reasoning}")
+                    logger.info(f"Mapped property '{column_name}' to entity '{entity_type}' with confidence {confidence}")
                 else:
                     # If entity not found, assign to the first entity
                     if entities:
                         first_entity = entities[0]['entity_type']
                         final_property_entity_mapping[first_entity]['properties'].append({
                             'column_name': column_name,
-                            'property_key': property_key
+                            'property_key': property_key,
+                            'confidence': 0.3  # Lower confidence since this is a fallback
                         })
-                        logger.warning(f"LLM returned unknown entity '{entity_type}' for property '{column_name}', assigned to '{first_entity}'")
+                        logger.warning(f"LLM returned unknown entity '{entity_type}' for property '{column_name}', assigned to '{first_entity}' with low confidence")
                     else:
                         logger.error(f"Cannot map property '{column_name}': no entities available and LLM returned unknown entity '{entity_type}'")
                 

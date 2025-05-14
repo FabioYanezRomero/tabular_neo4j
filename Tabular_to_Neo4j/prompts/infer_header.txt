@@ -1,8 +1,7 @@
 Your task is to infer appropriate column headers for a table without headers. You will receive a 'METADATA' section containing information about the table and a 'TABLE' section with sample data.
 
 METADATA:
-- File: {file_name}
-- Purpose: Infer appropriate headers for a CSV file without headers
+- Initial Metadata: {metadata_text}
 - Number of columns: {num_columns}
 
 TABLE:
@@ -15,10 +14,10 @@ For example: ["customer_id", "name", "email", "purchase_date", "amount"]
 
 Make sure the headers are:
 1. Descriptive of the column content
-2. In English
-3. Using snake_case format (lowercase with underscores)
-4. No spaces or special characters
-5. Singular nouns (e.g., "customer_id" not "customers_ids")
+2. Using snake_case format (lowercase with underscores)
+3. No spaces or special characters
+4. Singular nouns (e.g., "customer_id" not "customers_ids")
+5. In the same language as the Initial Metadata and TABLE sections
 
 The response MUST be a JSON array with exactly {num_columns} elements, one for each column in the table.
 

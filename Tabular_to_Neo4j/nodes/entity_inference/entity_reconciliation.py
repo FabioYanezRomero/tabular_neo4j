@@ -9,6 +9,7 @@ from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
 from Tabular_to_Neo4j.config import UNIQUENESS_THRESHOLD
 from Tabular_to_Neo4j.nodes.entity_inference.utils import to_neo4j_property_name
+from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
 # Configure logging
@@ -30,29 +31,50 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
     logger.info("Starting entity-property reconciliation process")
     
     # Validate required inputs
+    missing_inputs = []
     if state.get('entity_property_classification') is None:
-        error_msg = "Cannot reconcile entity/property classifications: missing classification data"
+        missing_inputs.append("entity_property_classification")
+    if state.get('rule_based_classification') is None:
+        missing_inputs.append("rule_based_classification")
+        
+    if missing_inputs:
+        error_msg = f"Cannot reconcile entity/property classifications: missing required data: {', '.join(missing_inputs)}"
         logger.error(error_msg)
         state['error_messages'].append(error_msg)
         return state
     
     try:
-        # Get the initial classification
-        classification = state['entity_property_classification']
+        # Get the classifications
+        llm_classification = state['entity_property_classification']
+        rule_based_classification = state['rule_based_classification']
         
         # Initialize consensus dictionary
         consensus = {}
         
-        # Process each column using LLM for reconciliation
-        for column_name, info in classification.items():
-            # Get analytics and semantics for this column
-            analytics = state.get('column_analytics', {}).get(column_name, {})
-            semantics = state.get('llm_column_semantics', {}).get(column_name, {})
+        # Process each column to determine if reconciliation is needed
+        for column_name in llm_classification.keys():
+            # Get both classifications for this column
+            llm_info = llm_classification.get(column_name, {})
+            rule_info = rule_based_classification.get(column_name, {})
             
-            # Skip if we don't have both analytics and semantics
-            if not analytics or not semantics:
-                consensus[column_name] = info  # Use initial classification as fallback
+            # Skip if we don't have both classifications
+            if not llm_info or not rule_info:
+                logger.warning(f"Missing classification for column '{column_name}', using LLM classification as fallback")
+                consensus[column_name] = llm_info if llm_info else {'column_name': column_name, 'classification': 'property', 'confidence': 0.5}
                 continue
+            
+            # Check if there's a discrepancy between the classifications
+            llm_classification_result = llm_info.get('classification', '')
+            rule_classification_result = rule_info.get('classification', '')
+            
+            # If classifications match, and are not empty no need for reconciliation
+            if llm_classification_result == rule_classification_result:
+                logger.info(f"Classifications match for column '{column_name}': {llm_classification_result}")                
+                consensus[column_name] = llm_info
+                continue
+            
+            # If there's a discrepancy, perform reconciliation
+            logger.info(f"Classification discrepancy for '{column_name}': LLM={llm_classification_result}, Rule={rule_classification_result}")
             
             # Get sample values for this column
             sample_values = []
@@ -61,24 +83,16 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
                     min(5, len(state['processed_dataframe'][column_name].dropna()))
                 ).tolist() if len(state['processed_dataframe'][column_name].dropna()) > 0 else []
             
-            # Determine analytics-based classification
-            analytics_classification = "entity_property"  # Default
-            uniqueness = analytics.get('uniqueness', 0)
-            cardinality = analytics.get('cardinality', 0)
+            # Get metadata for the CSV file
+            metadata = get_metadata_for_state(state)
+            metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
             
-            if uniqueness > UNIQUENESS_THRESHOLD:
-                analytics_classification = "entity_identifier"
-                logger.debug(f"Analytics suggests '{column_name}' is an entity_identifier (uniqueness: {uniqueness:.2f})")
-
-            elif analytics.get('cardinality', 0) < len(state['processed_dataframe']) * 0.1 and analytics.get('cardinality', 0) > 1:
-                analytics_classification = "new_entity_type"
-            
-            # Format the prompt with column information
+            # Format the prompt with column information for reconciliation
             prompt = format_prompt('reconcile_entity_property.txt',
                                   column_name=column_name,
-                                  initial_classification=str(info),
-                                  analytics_classification=analytics_classification,
-                                  llm_classification=semantics.get('neo4j_role', 'UNKNOWN'),
+                                  metadata_text=metadata_text,
+                                  analytics_classification=rule_classification_result,
+                                  llm_classification=llm_classification_result,
                                   sample_values=str(sample_values))
             
             # Call the LLM for reconciliation
@@ -87,23 +101,16 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
                 
                 # Extract the reconciliation results
                 consensus_classification = response.get('consensus_classification', 'property')  # Default to property
-                entity_type = response.get('entity_type', '')
-                property_of = response.get('property_of', '')
-                neo4j_property_key = response.get('neo4j_property_key', to_neo4j_property_name(column_name))
                 confidence = response.get('confidence', 0.5)
-                reasoning = response.get('reasoning', 'No reasoning provided')
                 
                 # Create consensus entry
                 consensus[column_name] = {
                     'column_name': column_name,
                     'classification': consensus_classification,
-                    'entity_type': entity_type if consensus_classification == 'entity' else '',
-                    'property_of': property_of if consensus_classification == 'property' else '',
-                    'neo4j_property_key': neo4j_property_key if consensus_classification == 'property' else '',
-                    'semantic_type': info.get('semantic_type', 'Unknown'),
-                    'confidence': confidence,
-                    'reasoning': reasoning
+                    'confidence': confidence
                 }
+                
+                logger.info(f"Reconciled classification for '{column_name}': {consensus_classification} with confidence {confidence}")
                 
                 # Add uniqueness information for entities to help with later processing
                 if consensus_classification == 'entity':
@@ -113,28 +120,11 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
                 logger.error(f"Error reconciling column {column_name}: {str(e)}")
                 consensus[column_name] = info  # Use initial classification as fallback
         
-        # Second pass: for properties without a clear entity association, try to infer which entity they belong to
+        # Add uniqueness information for entities to help with later processing
         for column_name, info in consensus.items():
-            if info['classification'] == 'property' and (not info.get('property_of') or info.get('property_of') == ''):
-                # Try to find the associated entity
-                associated_entity = None
-                
-                # Look for entities with similar naming patterns
-                column_parts = column_name.split('_')
-                for entity_col, entity_info in consensus.items():
-                    if entity_info['classification'] == 'entity':
-                        entity_name = entity_info['entity_type'].lower()
-                        # Check if any part of the column name matches the entity name
-                        if any(part.lower() == entity_name for part in column_parts):
-                            associated_entity = entity_info
-                            break
-                
-                if associated_entity:
-                    info['property_of'] = associated_entity['entity_type']
-                    logger.info(f"Associated property '{column_name}' with entity '{associated_entity['entity_type']}' based on naming pattern")
-                else:
-                    # If we can't find an association, leave property_of empty
-                    info['note'] = "No clear entity association found"
+            if info['classification'] == 'entity':
+                analytics = state.get('column_analytics', {}).get(column_name, {})
+                info['uniqueness_ratio'] = analytics.get('uniqueness_ratio', 0)
         
         # Update the state
         state['entity_property_consensus'] = consensus

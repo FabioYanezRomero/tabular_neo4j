@@ -52,11 +52,9 @@ def infer_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphSta
         
         # Format the prompt with the data sample and metadata
         prompt = format_prompt('infer_header.txt',
-                              file_name=file_name,
-                              data_sample=data_sample,
-                              column_count=len(df.columns),
-                              row_count=len(df),
-                              metadata_text=metadata_text)
+                              metadata_text=metadata_text,
+                              num_columns=len(df.columns),
+                              data_sample=data_sample)
         
         # Call the LLM to infer headers
         logger.debug("Calling LLM for header inference")

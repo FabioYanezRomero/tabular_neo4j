@@ -9,19 +9,17 @@ ENTITIES IN THE DATASET:
 METADATA:
 {metadata_text}
 
-Based on the property, available entities, and metadata provided, determine which entity this property belongs to. Consider:
-1. Semantic relationship between the property and entities
-2. Naming patterns and conventions (e.g., 'customer_id' likely belongs to a 'Customer' entity)
-3. Sample values of the property and their relationship to entities
-4. Domain knowledge from the metadata
+DATA:
+- Sample Values: {sample_values}
+- Analytics: {analytics}
 
-The property should be assigned to exactly one entity that it most strongly relates to.
+Based on the property, available entities, metadata provided, and the data where those entities and properties are used, determine which entity this property belongs to.
+Make sure that any property is assigned to exactly one entity and provide a confidence score for your assignment.
 
 Return your analysis as JSON with the following structure:
 {
-    "entity_type": "name_of_entity_this_property_belongs_to",
-    "property_key": "neo4j_property_name",
-    "reasoning": "Brief explanation of why this property belongs to this entity"
+    "entity": "name_of_entity_this_property_belongs_to",
+    "confidence": 0.0-1.0,
 }
 
 JSON response:

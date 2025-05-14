@@ -1,23 +1,18 @@
-Your task is to infer relationships between entity types in a Neo4j graph model based on a CSV dataset. You will receive a 'METADATA' section with context information and a 'DATA' section with entity and property details.
+Your task is to infer relationships between entity types in a Neo4j graph model based on a CSV dataset. 
+You will receive a 'METADATA' section with context information and a 'DATA' section with entity and property details, as well as a sample from the initial CSV file.
 
 METADATA:
-- File: {file_name}
-- Primary Entity: {primary_entity}
-- Purpose: Infer relationships between entity types in the Neo4j graph model
+- Initial Metadata: {metadata_text}
 
 DATA:
-- Entity Types: {entity_types}
 - Entity-Property Consensus: {entity_property_consensus}
 - Property-Entity Mapping: {property_entity_mapping}
-- Column Semantics: {column_semantics}
+- Sample Data: {sample_data}
 
 Based on the METADATA and DATA sections, infer relationships between entity types:
 
-1. Identify columns that represent relationships between entities
-2. Determine the source and target entities for each relationship
-3. Name the relationships appropriately based on domain semantics
-4. Identify properties that belong to the relationships
-5. Consider cardinality (one-to-one, one-to-many, many-to-many)
+1. Determine the source and target entities for each relationship from the given columns
+2. Name the relationships appropriately
 
 Return your entity relationships as JSON with the following structure:
 {
@@ -26,20 +21,9 @@ Return your entity relationships as JSON with the following structure:
             "source_entity": "...",
             "target_entity": "...",
             "relationship_type": "...",
-            "cardinality": "ONE_TO_ONE" | "ONE_TO_MANY" | "MANY_TO_MANY",
-            "source_column": "...",
-            "target_column": "...",
-            "properties": [
-                {
-                    "column_name": "...",
-                    "neo4j_property_key": "..."
-                },
-                ...
-            ]
+            "confidence": 0.0-1.0,
         },
-        ...
     ],
-    "reasoning": "..."
 }
 
 JSON response:
