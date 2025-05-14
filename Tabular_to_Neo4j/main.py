@@ -64,8 +64,7 @@ from Tabular_to_Neo4j.nodes.entity_inference import (
 
 # Import database schema generation nodes
 from Tabular_to_Neo4j.nodes.db_schema import (
-    generate_cypher_templates_node,
-    synthesize_final_schema_node
+    generate_cypher_templates_node
 )
 
 # Get a logger for this module
@@ -106,7 +105,6 @@ def create_graph() -> StateGraph:
     
     # Database Schema Generation
     graph.add_node("generate_cypher_templates", generate_cypher_templates_node)
-    graph.add_node("synthesize_final_schema", synthesize_final_schema_node)
     
     # Define the edges
     # Start with loading the CSV
@@ -149,10 +147,9 @@ def create_graph() -> StateGraph:
     graph.add_edge("reconcile_entity_property", "map_properties_to_entities")
     graph.add_edge("map_properties_to_entities", "infer_entity_relationships")
     graph.add_edge("infer_entity_relationships", "generate_cypher_templates")
-    graph.add_edge("generate_cypher_templates", "synthesize_final_schema")
     
-    # End the graph after schema synthesis
-    graph.add_edge("synthesize_final_schema", END)
+    # End the graph after cypher template generation
+    graph.add_edge("generate_cypher_templates", END)
     
     # Set the entry point
     graph.set_entry_point("load_csv")
@@ -287,34 +284,36 @@ def run_analysis(csv_file_path: str, output_file: str = None, verbose: bool = Fa
     else:
         logger.info("Analysis completed successfully with no errors")
     
-    # Log schema information
-    if final_state.get('inferred_neo4j_schema'):
-        schema = final_state['inferred_neo4j_schema']
-        primary_entity = schema.get('primary_entity_label', 'Unknown')
-        column_count = len(schema.get('columns_classification', []))
-        logger.info(f"Inferred schema with primary entity '{primary_entity}' and {column_count} classified columns")
-        
-        # Count column roles
-        roles = {}
-        for col in schema.get('columns_classification', []):
-            role = col.get('role', 'UNKNOWN')
-            roles[role] = roles.get(role, 0) + 1
-        
-        for role, count in roles.items():
-            logger.debug(f"Role '{role}': {count} columns")
+    # Log cypher template information
+    if final_state.get('cypher_query_templates'):
+        templates = final_state['cypher_query_templates']
+        entity_count = len(templates.get('entity_creation_queries', []))
+        relationship_count = len(templates.get('relationship_queries', []))
+        example_count = len(templates.get('example_queries', []))
+        logger.info(f"Generated {entity_count} entity creation queries, {relationship_count} relationship queries, and {example_count} example queries")
     else:
-        logger.warning("No schema was inferred")
+        logger.warning("No Cypher templates were generated")
     
     # Save results to file if requested
     if output_file:
         try:
             logger.info(f"Saving results to {output_file}")
             with open(output_file, 'w') as f:
-                if final_state.get('inferred_neo4j_schema'):
-                    schema_output = format_schema_output(final_state['inferred_neo4j_schema'])
-                    f.write(schema_output)
+                if final_state.get('cypher_query_templates'):
+                    templates = final_state['cypher_query_templates']
+                    f.write("ENTITY CREATION QUERIES:\n")
+                    for i, query in enumerate(templates.get('entity_creation_queries', [])):
+                        f.write(f"\nQuery {i+1}:\n{query.get('query', '')}\n")
+                    
+                    f.write("\nRELATIONSHIP QUERIES:\n")
+                    for i, query in enumerate(templates.get('relationship_queries', [])):
+                        f.write(f"\nQuery {i+1}:\n{query.get('query', '')}\n")
+                    
+                    f.write("\nEXAMPLE QUERIES:\n")
+                    for i, query in enumerate(templates.get('example_queries', [])):
+                        f.write(f"\nQuery {i+1}:\n{query.get('query', '')}\n")
                 else:
-                    f.write("No schema inferred.\n")
+                    f.write("No Cypher templates generated.\n")
                     
                 if final_state.get('error_messages'):
                     f.write("\nErrors/Warnings:\n")
@@ -334,11 +333,25 @@ def run_analysis(csv_file_path: str, output_file: str = None, verbose: bool = Fa
             for error in final_state.get('error_messages', []):
                 print(f"  - {error}")
         
-        # Print the inferred schema
-        if final_state.get('inferred_neo4j_schema'):
-            schema_output = format_schema_output(final_state['inferred_neo4j_schema'])
-            print("\nInferred Neo4j Schema:")
-            print(schema_output)
+        # Print the generated Cypher templates
+        if final_state.get('cypher_query_templates'):
+            templates = final_state['cypher_query_templates']
+            print("\nGenerated Cypher Templates:")
+            
+            print("\nENTITY CREATION QUERIES:")
+            for i, query in enumerate(templates.get('entity_creation_queries', [])):
+                print(f"\nQuery {i+1}:")
+                print(query.get('query', ''))
+            
+            print("\nRELATIONSHIP QUERIES:")
+            for i, query in enumerate(templates.get('relationship_queries', [])):
+                print(f"\nQuery {i+1}:")
+                print(query.get('query', ''))
+            
+            print("\nEXAMPLE QUERIES:")
+            for i, query in enumerate(templates.get('example_queries', [])):
+                print(f"\nQuery {i+1}:")
+                print(query.get('query', ''))
     
     return final_state
 

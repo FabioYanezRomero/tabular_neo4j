@@ -9,6 +9,8 @@ from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.csv_utils import get_primary_entity_from_filename
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
+from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
+from Tabular_to_Neo4j.config import MAX_SAMPLE_ROWS
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
 # Configure logging
@@ -64,96 +66,76 @@ def generate_cypher_templates_node(state: GraphState, config: RunnableConfig) ->
         
         logger.debug(f"Preparing Cypher templates for {len(entities)} entities and {len(relationships)} relationships")
         
+        # Get metadata for the CSV file
+        metadata = get_metadata_for_state(state)
+        metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
+        
+        # Get sample data from the processed dataframe
+        sample_data = ""
+        if state.get('processed_dataframe') is not None:
+            df = state['processed_dataframe']
+            if not df.empty:
+                try:
+                    sample_data = df.head(MAX_SAMPLE_ROWS).to_dict(orient='records')
+                    sample_data = str(sample_data)  # Convert to string for the prompt
+                except Exception as e:
+                    logger.warning(f"Error converting dataframe to dict: {str(e)}")
+                    # Fallback to string representation
+                    sample_data = df.head(MAX_SAMPLE_ROWS).to_string(index=False)
+        
         # Format the prompt with schema information
         prompt = format_prompt('generate_cypher_templates.txt',
                               entities=str(entities),
-                              relationships=str(relationships))
+                              relationships=str(relationships),
+                              metadata_text=metadata_text,
+                              sample_data=sample_data)
         
         # Call the LLM for Cypher template generation
         logger.info("Calling LLM for Cypher template generation with unique identifiers")
         try:
             response = call_llm_with_json_output(prompt, state_name="generate_cypher_templates")
             
-            # Extract the Cypher templates
-            cypher_templates = response.get('cypher_templates', [])
-            constraints_and_indexes = response.get('constraints_and_indexes', [])
+            # Extract the Cypher templates from the new response format
+            entity_creation_queries = response.get('entity_creation_queries', [])
+            relationship_creation_queries = response.get('relationship_creation_queries', [])
+            example_queries = response.get('example_queries', [])
             
             # Log the results
-            logger.info(f"Generated {len(cypher_templates)} Cypher templates and {len(constraints_and_indexes)} constraints/indexes")
+            logger.info(f"Generated {len(entity_creation_queries)} entity creation queries, {len(relationship_creation_queries)} relationship queries, and {len(example_queries)} example queries")
             
             # Validate that we have at least some templates
-            if not cypher_templates:
+            if not entity_creation_queries and not relationship_creation_queries:
                 logger.warning("LLM did not generate any Cypher templates")
                 
-            # Ensure each entity has a unique identifier
+            # Ensure each entity has a unique identifier in the creation queries
             for entity_type, entity_info in entities.items():
-                # Check if any constraint is created for this entity's UUID
-                has_uuid_constraint = any(
-                    c.get('entity_type') == entity_type and 'uuid' in c.get('property', '').lower()
-                    for c in constraints_and_indexes
-                )
-                
-                if not has_uuid_constraint:
-                    logger.info(f"Adding UUID constraint for entity {entity_type}")
-                    constraints_and_indexes.append({
-                        "type": "CONSTRAINT",
-                        "entity_type": entity_type,
-                        "property": "uuid",
-                        "query": f"CREATE CONSTRAINT ON (e:{entity_type}) ASSERT e.uuid IS UNIQUE"
-                    })
-                    
                 # Check if any template creates this entity with a UUID
                 has_uuid_creation = any(
-                    entity_type in t.get('query', '') and 'randomUUID()' in t.get('query', '')
-                    for t in cypher_templates
+                    entity_type in q.get('query', '') and 'UUID' in q.get('query', '')
+                    for q in entity_creation_queries
                 )
                 
-                if not has_uuid_creation and cypher_templates:
+                if not has_uuid_creation and entity_creation_queries:
                     logger.warning(f"No UUID generation found for entity {entity_type} in templates")
                     # We'll let the LLM handle this, but log a warning
 
             
-            # Update the state with the Cypher templates
+            # Update the state with the Cypher templates using the new format
             state['cypher_query_templates'] = {
-                'entity_creation_queries': [],
-                'relationship_queries': [],
-                'constraint_queries': [],
-                'example_queries': []
+                'entity_creation_queries': entity_creation_queries,
+                'relationship_queries': relationship_creation_queries,
+                'example_queries': example_queries,
+                'constraint_queries': []  # Keep this for backward compatibility
             }
             
-            # Process the cypher templates based on their purpose
-            for template in cypher_templates:
-                purpose = template.get('purpose', '').lower()
-                query = template.get('query', '')
-                description = template.get('description', '')
-                
-                if not query:
-                    continue
-                    
-                if 'entity' in purpose and 'creat' in purpose:
-                    state['cypher_query_templates']['entity_creation_queries'].append({
-                        'query': query,
-                        'description': description
-                    })
-                elif 'relation' in purpose:
-                    state['cypher_query_templates']['relationship_queries'].append({
-                        'query': query,
-                        'description': description
-                    })
-                elif 'query' in purpose or 'find' in purpose or 'match' in purpose:
-                    state['cypher_query_templates']['example_queries'].append({
-                        'query': query,
-                        'description': description
-                    })
-            
-            # Process constraints and indexes
-            for constraint in constraints_and_indexes:
-                if constraint.get('type', '').upper() == 'CONSTRAINT':
-                    state['cypher_query_templates']['constraint_queries'].append({
-                        'entity_type': constraint.get('entity_type', ''),
-                        'property': constraint.get('property', ''),
-                        'query': constraint.get('query', '')
-                    })
+            # Add default UUID constraints for each entity if not already included
+            for entity_type in entities.keys():
+                constraint_query = f"CREATE CONSTRAINT ON (e:{entity_type}) ASSERT e.uuid IS UNIQUE"
+                state['cypher_query_templates']['constraint_queries'].append({
+                    'entity_type': entity_type,
+                    'property': 'uuid',
+                    'query': constraint_query
+                })
             
             logger.info("Generated Cypher query templates successfully")
             
@@ -164,10 +146,10 @@ def generate_cypher_templates_node(state: GraphState, config: RunnableConfig) ->
         logger.error(f"Error in Cypher template generation process: {str(e)}")
         state['error_messages'].append(f"Error in Cypher template generation process: {str(e)}")
         state['cypher_query_templates'] = {
-            'load_query': '',
-            'constraint_queries': [],
-            'index_queries': [],
-            'example_queries': []
+            'entity_creation_queries': [],
+            'relationship_queries': [],
+            'example_queries': [],
+            'constraint_queries': []
         }
     
     return state
