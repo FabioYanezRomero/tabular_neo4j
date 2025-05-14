@@ -12,7 +12,7 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
 from Tabular_to_Neo4j.utils.csv_utils import get_sample_rows
 from Tabular_to_Neo4j.utils.analytics_utils import analyze_column
-from config import MAX_SAMPLE_ROWS
+from Tabular_to_Neo4j.config import MAX_SAMPLE_ROWS
 
 # Configure logging
 logger = get_logger(__name__)

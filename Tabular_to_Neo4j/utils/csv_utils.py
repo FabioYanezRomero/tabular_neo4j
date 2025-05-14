@@ -234,3 +234,6 @@ def df_to_json_sample(df: pd.DataFrame, n: int = 10) -> str:
     sample_df = get_sample_rows(df, n)
     list_of_lists = sample_df.values.tolist() # Converts df data to list of lists
     return json.dumps(list_of_lists) # No indent for LLM, it's more compact
+
+
+# Function removed as per user request

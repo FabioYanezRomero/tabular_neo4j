@@ -24,11 +24,8 @@ def test_reconcile_entity_property_node_missing_data(runnable_config):
     assert "Cannot reconcile entity/property classifications" in result_state['error_messages'][0]
 
 @pytest.mark.unit
-@patch('Tabular_to_Neo4j.nodes.entity_inference.entity_reconciliation.get_primary_entity_from_filename')
-def test_reconcile_entity_property_node_success(mock_get_primary_entity, runnable_config):
+def test_reconcile_entity_property_node_success(runnable_config):
     """Test that the reconcile_entity_property_node successfully reconciles entity and property classifications."""
-    # Mock primary entity
-    mock_get_primary_entity.return_value = 'Person'
     
     # Create initial state with required data
     initial_state = GraphState({

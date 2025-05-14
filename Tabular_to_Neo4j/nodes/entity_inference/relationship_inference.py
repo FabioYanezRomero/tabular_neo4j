@@ -9,7 +9,7 @@ from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_for_state, format_metadata_for_prompt
 from Tabular_to_Neo4j.utils.logging_config import get_logger
-from config import MAX_SAMPLE_ROWS
+from Tabular_to_Neo4j.config import MAX_SAMPLE_ROWS
 # Configure logging
 logger = get_logger(__name__)
 
