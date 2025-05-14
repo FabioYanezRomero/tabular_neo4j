@@ -51,8 +51,7 @@ from Tabular_to_Neo4j.nodes.header_processing import (
 
 # Import analysis nodes
 from Tabular_to_Neo4j.nodes.analysis import (
-    perform_column_analytics_node, 
-    llm_semantic_column_analysis_node
+    perform_column_analytics_node
 )
 
 # Import entity inference nodes
@@ -97,7 +96,6 @@ def create_graph() -> StateGraph:
     
     # Analysis nodes
     graph.add_node("analyze_columns", perform_column_analytics_node)
-    graph.add_node("semantic_analysis", llm_semantic_column_analysis_node)
     
     
     # Entity and Relationship Inference
@@ -145,9 +143,8 @@ def create_graph() -> StateGraph:
     
     # Column analysis
     graph.add_edge("apply_header", "analyze_columns")
-    graph.add_edge("analyze_columns", "semantic_analysis")
     # Schema synthesis pipeline
-    graph.add_edge("semantic_analysis", "classify_entities_properties")
+    graph.add_edge("analyze_columns", "classify_entities_properties")
     graph.add_edge("classify_entities_properties", "reconcile_entity_property")
     graph.add_edge("reconcile_entity_property", "map_properties_to_entities")
     graph.add_edge("map_properties_to_entities", "infer_entity_relationships")

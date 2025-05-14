@@ -14,6 +14,8 @@ logger = get_logger(__name__)
 def get_metadata_path_for_csv(csv_file_path: str) -> str:
     """
     Get the path to the metadata file for a given CSV file path.
+    The metadata file should be in the /app/Tabular_to_Neo4j/sample_data/metadata directory
+    with the same name as the CSV file but with a .json extension.
     
     Args:
         csv_file_path: Path to the CSV file
@@ -25,18 +27,10 @@ def get_metadata_path_for_csv(csv_file_path: str) -> str:
     file_name = os.path.basename(csv_file_path)
     file_name_without_ext = os.path.splitext(file_name)[0]
     
-    # Determine the base directory
-    if 'sample_data' in csv_file_path:
-        base_dir = csv_file_path.split('sample_data')[0] + 'sample_data'
-    elif 'data' in csv_file_path:
-        base_dir = csv_file_path.split('data')[0] + 'data'
-    else:
-        # If not in a standard data directory, use the directory of the CSV file
-        base_dir = os.path.dirname(os.path.dirname(csv_file_path))
+    # Construct the metadata path using the specified directory structure
+    metadata_path = os.path.join('/app/Tabular_to_Neo4j/sample_data/metadata', f"{file_name_without_ext}.json")
     
-    # Construct the metadata path
-    metadata_path = os.path.join(base_dir, 'metadata', f"{file_name_without_ext}.json")
-    
+    logger.debug(f"Metadata path for {csv_file_path}: {metadata_path}")
     return metadata_path
 
 def load_metadata_for_csv(csv_file_path: str) -> Optional[Dict[str, Any]]:

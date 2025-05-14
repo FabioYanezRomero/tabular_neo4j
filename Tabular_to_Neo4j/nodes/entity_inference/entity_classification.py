@@ -34,8 +34,6 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
     missing_inputs = []
     if state.get('column_analytics') is None:
         missing_inputs.append("column_analytics")
-    if state.get('llm_column_semantics') is None:
-        missing_inputs.append("llm_column_semantics")
     if state.get('final_header') is None:
         missing_inputs.append("final_header")
 
@@ -48,8 +46,7 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
     # Log input data stats
     header_count = len(state['final_header'])
     analytics_count = len(state.get('column_analytics', {}))
-    semantics_count = len(state.get('llm_column_semantics', {}))
-    logger.debug(f"Input data: {header_count} columns, {analytics_count} analytics entries, {semantics_count} semantic entries")
+    logger.debug(f"Input data: {header_count} columns, {analytics_count} analytics entries")
 
     try:
         logger.debug("Initializing classification process")
@@ -65,17 +62,12 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
         for column_name in state['final_header']:
             logger.debug(f"Processing column: '{column_name}'")
 
-            # Get analytics and semantics for this column
+            # Get analytics for this column
             analytics = state.get('column_analytics', {}).get(column_name, {})
-            semantics = state.get('llm_column_semantics', {}).get(column_name, {})
 
-            # Skip if we don't have both analytics and semantics
+            # Skip if we don't have analytics
             if not analytics:
                 logger.warning(f"Missing analytics for column '{column_name}', skipping")
-                skipped_columns += 1
-                continue
-            if not semantics:
-                logger.warning(f"Missing semantics for column '{column_name}', skipping")
                 skipped_columns += 1
                 continue
 
@@ -113,8 +105,8 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                                   cardinality=analytics.get('cardinality', 0),
                                   data_type=analytics.get('data_type', 'unknown'),
                                   missing_percentage=analytics.get('missing_percentage', 0) * 100,
-                                  semantic_type=semantics.get('semantic_type', 'Unknown'),
-                                  llm_role=semantics.get('neo4j_role', 'UNKNOWN'),
+                                  semantic_type='Not provided',
+                                  llm_role='Not provided',
                                   metadata_text=metadata_text)
 
             # Call the LLM for entity/property classification
@@ -123,26 +115,18 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                 response = call_llm_with_json_output(prompt, state_name="classify_entities_properties")
                 logger.debug(f"Received LLM classification response for '{column_name}'")
 
-                # TODO: check if this output format is what we really want, it looks this is more complex than expected
                 # Extract the classification results
                 classification_result = response.get('classification', 'entity_property')
-                entity_type = response.get('entity_type', '')
-                relationship = response.get('relationship_to_primary', '')
+                confidence = response.get('confidence', 0.0)
 
                 classification[column_name] = {
                     'column_name': column_name,
                     'classification': classification_result,
-                    'entity_type': entity_type,
-                    'relationship_to_primary': relationship,
-                    'property_name': response.get('property_name', column_name),
-                    'reasoning': response.get('reasoning', ''),
-                    'analytics': analytics,
-                    'semantics': semantics
+                    'confidence': confidence,
+                    'analytics': analytics
                 }
 
-                logger.info(f"Classified '{column_name}' as '{classification_result}' with entity type '{entity_type}'")
-                if relationship:
-                    logger.debug(f"Relationship to primary entity: '{relationship}'")
+                logger.info(f"Classified '{column_name}' as '{classification_result}' with confidence '{confidence}'")
 
             # TODO: check and improve the fallback evaluation whenever the model fails
             except Exception as e:
