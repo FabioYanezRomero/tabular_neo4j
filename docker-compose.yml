@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  tabular-neo4j:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/app
+    environment:
+      - LMSTUDIO_HOST=host.docker.internal
+      - LMSTUDIO_PORT=1234
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - tabular-neo4j-network
+
+networks:
+  tabular-neo4j-network:
+    driver: bridge

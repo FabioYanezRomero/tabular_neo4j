@@ -18,13 +18,22 @@ from contextlib import contextmanager
 
 # Import configuration
 from Tabular_to_Neo4j.config import (
-    LLM_API_KEY,
-    DEFAULT_LLM_PROVIDER,
     DEFAULT_SEED,
     DEFAULT_TEMPERATURE,
-    LLM_CONFIGS,
-    LMSTUDIO_BASE_URL
+    LLM_CONFIGS
 )
+
+# Import LMStudio client
+try:
+    from Tabular_to_Neo4j.config.lmstudio_config import (
+        LMSTUDIO_ENDPOINT,
+        DEFAULT_MODEL
+    )
+    from Tabular_to_Neo4j.utils.lmstudio_client import get_lmstudio_client
+    LMSTUDIO_AVAILABLE = True
+except ImportError:
+    logger.warning("LMStudio configuration not found, falling back to default LLM provider")
+    LMSTUDIO_AVAILABLE = False
 
 # Configure logging
 logger = get_logger(__name__)
@@ -474,37 +483,90 @@ def call_llm_with_json_output(prompt: str, state_name: str = None) -> Dict[str, 
     # Get the LLM configuration for this state
     state_config = LLM_CONFIGS.get(state_name, {})
     
-    # Add explicit JSON formatting instruction unless the configuration says to skip it
-    if not state_config.get("skip_json_instruction", False):
-        prompt += "\n\nIMPORTANT: Your response must be valid JSON. Do not include any explanations or markdown formatting, just the raw JSON object."
+    # Check if LMStudio is available and should be used
+    if LMSTUDIO_AVAILABLE:
+        try:
+            # Add explicit instructions to return JSON
+            json_prompt = f"{prompt}\n\nPlease provide your response in valid JSON format."
+            
+            # Get LMStudio client
+            client = get_lmstudio_client()
+            
+            # Call the LMStudio API
+            logger.debug(f"Calling LMStudio API for state '{state_name}'")
+            response = client.completion(json_prompt)
+            
+            # Extract the text from the response
+            response_text = client.extract_completion_text(response)
+            
+            # Try to parse the response as JSON
+            json_data = extract_json_from_llm_response(response_text)
+            
+            if json_data:
+                logger.debug(f"Successfully parsed JSON response from LMStudio for state '{state_name}'")
+                return json_data
+            else:
+                logger.warning(f"Failed to parse JSON response from LMStudio for state '{state_name}'. Response: {response_text}")
+                
+                # If we couldn't extract JSON, try again with a more explicit prompt
+                retry_prompt = f"{prompt}\n\nYou MUST respond with ONLY valid JSON. No other text. No markdown formatting."
+                
+                # Call the LMStudio API again
+                retry_response = client.completion(retry_prompt)
+                retry_text = client.extract_completion_text(retry_response)
+                
+                # Try to parse the retry response
+                retry_json = extract_json_from_llm_response(retry_text)
+                
+                if retry_json:
+                    logger.debug(f"Successfully parsed JSON from retry response from LMStudio for state '{state_name}'")
+                    return retry_json
+                else:
+                    logger.error(f"Failed to parse JSON from retry response from LMStudio for state '{state_name}'. Response: {retry_text}")
+                    # Return an empty dict as a fallback
+                    return {}
+                    
+        except Exception as e:
+            logger.error(f"Error using LMStudio for state '{state_name}': {str(e)}")
+            logger.warning("Falling back to default LLM provider")
+    
+    # If LMStudio is not available or there was an error, use the default implementation
+    # Add explicit instructions to return JSON
+    json_prompt = f"{prompt}\n\nPlease provide your response in valid JSON format."
     
     # Call the LLM
-    response = call_llm_with_state(state_name, prompt)
+    response = call_llm_with_state(state_name, json_prompt)
     
-    # Parse the response as JSON
+    # Try to parse the response as JSON
     try:
-        result = extract_json_from_llm_response(response)
-        logger.debug(f"Successfully parsed JSON response from LM Studio")
-        return result
+        # First try to extract JSON from the response
+        json_data = extract_json_from_llm_response(response)
+        
+        if json_data:
+            logger.debug(f"Successfully parsed JSON response for state '{state_name}'")
+            return json_data
+        else:
+            logger.warning(f"Failed to parse JSON response for state '{state_name}'. Response: {response}")
+            
+            # If we couldn't extract JSON, try again with a more explicit prompt
+            retry_prompt = f"{prompt}\n\nYou MUST respond with ONLY valid JSON. No other text. No markdown formatting."
+            
+            # Call the LLM again
+            retry_response = call_llm_with_state(state_name, retry_prompt)
+            
+            # Try to parse the retry response
+            retry_json = extract_json_from_llm_response(retry_response)
+            
+            if retry_json:
+                logger.debug(f"Successfully parsed JSON from retry response for state '{state_name}'")
+                return retry_json
+            else:
+                logger.error(f"Failed to parse JSON from retry response for state '{state_name}'. Response: {retry_response}")
+                # Return an empty dict as a fallback
+                return {}
+    
     except Exception as e:
-        logger.error(f"Error parsing JSON response: {e}")
-        logger.error(f"Raw response: {response}")
-        
-        # Try to fix common JSON formatting issues that might occur with LM Studio models
-        try:
-            # Sometimes LLMs add extra text before or after the JSON
-            # Try to extract just the JSON part
-            import re
-            json_pattern = r'\{[\s\S]*\}|\[[\s\S]*\]'
-            match = re.search(json_pattern, response)
-            if match:
-                json_str = match.group(0)
-                result = json.loads(json_str)
-                logger.info(f"Successfully extracted JSON after cleanup")
-                return result
-        except Exception as cleanup_error:
-            logger.error(f"JSON cleanup failed: {cleanup_error}")
-        
+        logger.error(f"Error parsing JSON response for state '{state_name}': {str(e)}")
         # Return a dictionary with the error and raw response
         return {
             "error": str(e),
