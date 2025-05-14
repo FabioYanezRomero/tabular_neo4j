@@ -92,19 +92,190 @@ def generate_cypher_templates_node(state: GraphState, config: RunnableConfig) ->
         # Call the LLM for Cypher template generation
         logger.info("Calling LLM for Cypher template generation with unique identifiers")
         try:
-            response = call_llm_with_json_output(prompt, state_name="generate_cypher_templates")
+            try:
+                response = call_llm_with_json_output(prompt, state_name="generate_cypher_templates")
+                logger.debug(f"LLM response for Cypher template generation: {response}")
+            except Exception as e:
+                logger.warning(f"Error calling LLM for Cypher template generation: {str(e)}")
+                response = {}
             
-            # Extract the Cypher templates from the new response format
-            entity_creation_queries = response.get('entity_creation_queries', [])
-            relationship_creation_queries = response.get('relationship_creation_queries', [])
-            example_queries = response.get('example_queries', [])
+            # Extract the Cypher templates from the response
+            entity_creation_queries = []
+            relationship_creation_queries = []
+            example_queries = []
+            
+            # Log the raw response for debugging
+            logger.debug(f"Raw response type: {type(response)}")
+            if isinstance(response, dict):
+                logger.debug(f"Response keys: {response.keys()}")
+            elif isinstance(response, str):
+                logger.debug(f"Response string: {response[:100]}..." if len(response) > 100 else response)
+            
+            # Handle different response formats
+            if isinstance(response, dict):
+                # Try to extract entity_creation_queries
+                if 'entity_creation_queries' in response:
+                    entity_queries = response['entity_creation_queries']
+                    if isinstance(entity_queries, list):
+                        entity_creation_queries = entity_queries
+                    elif isinstance(entity_queries, str):
+                        # Try to convert string to list if it's a string representation
+                        try:
+                            import json
+                            # Clean the string if needed
+                            if entity_queries.strip().startswith('[') and entity_queries.strip().endswith(']'):
+                                entity_creation_queries = json.loads(entity_queries)
+                            else:
+                                # Try to find a list in the string
+                                import re
+                                list_match = re.search(r'\[(.*?)\]', entity_queries)
+                                if list_match:
+                                    try:
+                                        entity_creation_queries = json.loads(f"[{list_match.group(1)}]")
+                                    except:
+                                        logger.warning("Could not parse extracted list from entity_creation_queries")
+                        except Exception as e:
+                            logger.warning(f"Could not parse entity_creation_queries as JSON: {str(e)}")
+                            
+                # If we still don't have entity_creation_queries, try to find them in the response
+                if not entity_creation_queries:
+                    # Check if any key contains 'entity' and 'queries'
+                    for key in response.keys():
+                        if 'entity' in key.lower() and ('queries' in key.lower() or 'creation' in key.lower()):
+                            try:
+                                value = response[key]
+                                if isinstance(value, list):
+                                    entity_creation_queries = value
+                                    logger.info(f"Found entity creation queries under key '{key}'")
+                                    break
+                            except:
+                                continue
+                
+                # Try to extract relationship_creation_queries
+                if 'relationship_creation_queries' in response:
+                    rel_queries = response['relationship_creation_queries']
+                    if isinstance(rel_queries, list):
+                        relationship_creation_queries = rel_queries
+                    elif isinstance(rel_queries, str):
+                        try:
+                            import json
+                            # Clean the string if needed
+                            if rel_queries.strip().startswith('[') and rel_queries.strip().endswith(']'):
+                                relationship_creation_queries = json.loads(rel_queries)
+                            else:
+                                # Try to find a list in the string
+                                import re
+                                list_match = re.search(r'\[(.*?)\]', rel_queries)
+                                if list_match:
+                                    try:
+                                        relationship_creation_queries = json.loads(f"[{list_match.group(1)}]")
+                                    except:
+                                        logger.warning("Could not parse extracted list from relationship_creation_queries")
+                        except Exception as e:
+                            logger.warning(f"Could not parse relationship_creation_queries as JSON: {str(e)}")
+                            
+                # If we still don't have relationship_creation_queries, try to find them in the response
+                if not relationship_creation_queries:
+                    # Check if any key contains 'relationship' and 'queries'
+                    for key in response.keys():
+                        if 'relationship' in key.lower() and ('queries' in key.lower() or 'creation' in key.lower()):
+                            try:
+                                value = response[key]
+                                if isinstance(value, list):
+                                    relationship_creation_queries = value
+                                    logger.info(f"Found relationship creation queries under key '{key}'")
+                                    break
+                            except:
+                                continue
+                
+                # Try to extract example_queries
+                if 'example_queries' in response:
+                    ex_queries = response['example_queries']
+                    if isinstance(ex_queries, list):
+                        example_queries = ex_queries
+                    elif isinstance(ex_queries, str):
+                        try:
+                            import json
+                            example_queries = json.loads(ex_queries)
+                        except:
+                            logger.warning("Could not parse example_queries as JSON")
             
             # Log the results
             logger.info(f"Generated {len(entity_creation_queries)} entity creation queries, {len(relationship_creation_queries)} relationship queries, and {len(example_queries)} example queries")
             
             # Validate that we have at least some templates
             if not entity_creation_queries and not relationship_creation_queries:
-                logger.warning("LLM did not generate any Cypher templates")
+                logger.warning("LLM did not generate any Cypher templates, using fallback mechanism")
+                
+                # Get entity types from the property-entity mapping
+                property_entity_mapping = state.get('property_entity_mapping', {})
+                entities_with_properties = {}
+                
+                # Extract entities and their properties
+                for entity_type, entity_info in property_entity_mapping.items():
+                    if entity_info.get('type') == 'entity':
+                        entities_with_properties[entity_type] = entity_info.get('properties', [])
+                
+                # Get entity types and their properties from the property-entity mapping
+                property_entity_mapping = state.get('property_entity_mapping', {})
+                if not property_entity_mapping:
+                    # If property_entity_mapping is not available, try to get it from reconciled_classification
+                    reconciled_classification = state.get('reconciled_classification', {})
+                    entities = {}
+                    properties = {}
+                    
+                    # Separate entities and properties
+                    for column_name, info in reconciled_classification.items():
+                        if info.get('classification') == 'entity':
+                            entities[column_name] = {
+                                'type': 'entity',
+                                'entity_type': column_name,
+                                'properties': []
+                            }
+                        elif info.get('classification') == 'property':
+                            # Assign to first entity as fallback
+                            if entities:
+                                first_entity = next(iter(entities.keys()))
+                                if 'properties' not in entities[first_entity]:
+                                    entities[first_entity]['properties'] = []
+                                entities[first_entity]['properties'].append(column_name)
+                    
+                    property_entity_mapping = entities
+                    logger.info(f"Created fallback property-entity mapping with {len(entities)} entities")
+                
+                # Generate fallback entity creation queries
+                for entity_type, entity_info in property_entity_mapping.items():
+                    if entity_info.get('type') == 'entity':
+                        # Get properties for this entity
+                        properties = entity_info.get('properties', [])
+                        
+                        # Create a basic Cypher query for this entity
+                        if properties:
+                            property_str = ", ".join([f"{prop}: ${prop}" for prop in properties])
+                            query = f"CREATE (e:{entity_type} {{id: $id, {property_str}}})"
+                        else:
+                            query = f"CREATE (e:{entity_type} {{id: $id}})"
+                            
+                        entity_creation_queries.append({"query": query})
+                        logger.info(f"Generated fallback entity creation query for {entity_type} with {len(properties)} properties")
+                
+                # Generate fallback relationship queries if we have multiple entities
+                if len(property_entity_mapping) > 1:
+                    entity_types = [entity_type for entity_type, info in property_entity_mapping.items() 
+                                  if info.get('type') == 'entity']
+                    
+                    # Create relationships between consecutive entities
+                    for i in range(len(entity_types) - 1):
+                        source = entity_types[i]
+                        target = entity_types[i + 1]
+                        query = f"MATCH (a:{source} {{id: $id_a}}), (b:{target} {{id: $id_b}}) CREATE (a)-[:RELATED_TO]->(b)"
+                        relationship_creation_queries.append({"query": query})
+                        logger.info(f"Generated fallback relationship query between {source} and {target}")
+                
+                # Generate basic example queries
+                example_queries.append({"query": "MATCH (n) RETURN n LIMIT 10"})
+                example_queries.append({"query": "MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 10"})
+                logger.info("Generated fallback example queries")
                 
             # Ensure each entity has a unique identifier in the creation queries
             for entity_type, entity_info in entities.items():

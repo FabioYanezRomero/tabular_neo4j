@@ -16,10 +16,12 @@ DATA:
 Based on the property, available entities, metadata provided, and the data where those entities and properties are used, determine which entity this property belongs to.
 Make sure that any property is assigned to exactly one entity and provide a confidence score for your assignment.
 
-Return your analysis as JSON with the following structure:
+IMPORTANT: You must respond ONLY with a valid JSON object and nothing else. No explanations, no markdown formatting, just the JSON object.
+
+Your response must follow this exact structure:
 {
     "entity": "name_of_entity_this_property_belongs_to",
-    "confidence": 0.0-1.0,
+    "confidence": 0.8
 }
 
-JSON response:
+Response (JSON only):

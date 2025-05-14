@@ -20,24 +20,25 @@ Generate the following Cypher templates:
 
 Ensure all entities have Unique Identifiers (UUIDs) and all relationships use these UUIDs to connect entities.
 
-Return your Cypher templates as JSON with the following structure:
+IMPORTANT: You must respond ONLY with a valid JSON object and nothing else. No explanations, no markdown formatting, just the JSON object.
 
+Your response must follow this exact structure:
 {
     "entity_creation_queries": [
         {
-            "query": "...",
-        },
+            "query": "CREATE (e:Entity {id: $id, property1: $property1, property2: $property2})"
+        }
     ],
     "relationship_creation_queries": [
         {
-            "query": "...",
-        },
+            "query": "MATCH (a:EntityA {id: $idA}), (b:EntityB {id: $idB}) CREATE (a)-[:RELATION]->(b)"
+        }
     ],
     "example_queries": [
         {
-            "query": "...",
-        },
+            "query": "MATCH (n) RETURN n LIMIT 10"
+        }
     ]
 }
 
-JSON response:
+Response (JSON only):

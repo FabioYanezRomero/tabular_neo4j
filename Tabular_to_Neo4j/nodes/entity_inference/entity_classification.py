@@ -17,49 +17,40 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 def classify_entities_properties_node(state: GraphState, config: RunnableConfig) -> GraphState:
-    """First step in schema synthesis: Classify columns as entities or properties based on analytics and semantics.
-    Uses LLM to classify each column based on its analytics and semantics.
-
+    """First step in schema synthesis: Classify columns as entities or properties using both LLM and rule-based approaches.
+    
     Args:
         state: The current graph state
         config: LangGraph runnable configuration
-
+        
     Returns:
-        Updated graph state with entity_property_classification
+        Updated graph state with entity_property_classification and rule_based_classification
     """
     logger.info("Starting entity-property classification process")
-
+    
     # Validate required inputs
-    missing_inputs = []
-    if state.get('column_analytics') is None:
-        missing_inputs.append("column_analytics")
-    if state.get('final_header') is None:
-        missing_inputs.append("final_header")
-
-    if missing_inputs:
-        error_msg = f"Cannot classify entities/properties: missing required analysis data: {', '.join(missing_inputs)}"
+    if state.get('column_analytics') is None or state.get('final_header') is None:
+        error_msg = "Cannot classify entities/properties: missing required data"
         logger.error(error_msg)
         state['error_messages'].append(error_msg)
         return state
-
-    # Log input data stats
-    header_count = len(state['final_header'])
-    analytics_count = len(state.get('column_analytics', {}))
-    logger.debug(f"Input data: {header_count} columns, {analytics_count} analytics entries")
-
+    
     try:
-        logger.debug("Initializing classification process")
-        # Initialize classification dictionary
-        classification = {}
+        # Get the column analytics and header
+        analytics = state['column_analytics']
+        header = state['final_header']
         
+        # Get the rule-based classification from column_analytics
+        # This is important - we need to preserve this from the column_analytics module
+        rule_based_classification = state.get('rule_based_classification', {})
         
-        # Process each column using LLM for classification
-        logger.info(f"Beginning classification of {len(state['final_header'])} columns")
+        # Initialize LLM classification dictionary
+        llm_classification = {}
+        
+        # Process each column using both LLM and rule-based approaches
+        logger.info(f"Beginning classification of {len(header)} columns")
         processed_columns = 0
         skipped_columns = 0
-        
-        # Get rule-based classification if available
-        rule_based = state.get('rule_based_classification', {})
 
         try:
             for column_name in state['final_header']:
@@ -101,13 +92,14 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                     metadata = get_metadata_for_state(state)
                     metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
     
-                    # Check if we have a rule-based classification for this column
+                    # Check if we have a rule-based classification for this column from the state
+                    rule_based = state.get('rule_based_classification', {})
                     rule_based_class = rule_based.get(column_name, {}).get('classification', None)
                     
                     # If we have a rule-based classification with high confidence, use it directly
                     if rule_based_class and rule_based.get(column_name, {}).get('confidence', 0) > 0.8:
                         logger.info(f"Using rule-based classification for '{column_name}': {rule_based_class}")
-                        classification[column_name] = {
+                        llm_classification[column_name] = {
                             'column_name': column_name,
                             'classification': rule_based_class,
                             'confidence': rule_based.get(column_name, {}).get('confidence', 0.9),
@@ -172,7 +164,7 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                             except (ValueError, TypeError):
                                 confidence = 0.5  # Default confidence
     
-                        classification[column_name] = {
+                        llm_classification[column_name] = {
                             'column_name': column_name,
                             'classification': classification_result,
                             'confidence': confidence,
@@ -185,7 +177,7 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                         # If LLM classification fails, use fallback based on uniqueness
                         fallback_classification = 'entity' if uniqueness > UNIQUENESS_THRESHOLD else 'property'
                         logger.warning(f"LLM classification failed for '{column_name}', using fallback: {fallback_classification}")
-                        classification[column_name] = {
+                        llm_classification[column_name] = {
                             'column_name': column_name,
                             'classification': fallback_classification,
                             'confidence': 0.6,  # Moderate confidence for fallback
@@ -196,7 +188,7 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                     # If processing a specific column fails, log it and continue with the next one
                     logger.error(f"Error processing column '{column_name}': {str(column_error)}")
                     # Use a default classification to ensure the pipeline continues
-                    classification[column_name] = {
+                    llm_classification[column_name] = {
                         'column_name': column_name,
                         'classification': 'error',  # Default to property as safer option
                         'confidence': 0.5,
@@ -214,12 +206,12 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
             logger.error(f"Error in classification process: {str(e)}")
             # Create a minimal classification for each column to allow the pipeline to continue
             for column_name in state['final_header']:
-                if column_name not in classification:
+                if column_name not in llm_classification:
                     # Use rule-based classification if available, otherwise default to property
                     if column_name in rule_based:
-                        classification[column_name] = rule_based[column_name]
+                        llm_classification[column_name] = rule_based[column_name]
                     else:
-                        classification[column_name] = {
+                        llm_classification[column_name] = {
                             'column_name': column_name,
                             'classification': 'error',  # Default to property as safer option
                             'confidence': 0.5,
@@ -228,12 +220,71 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                         }
 
 
-        # Update the state
-        state['entity_property_classification'] = classification
+        # Get the rule-based classification from column analytics
+        analytics_rule_based = {}
+        for column_name, analytics_data in state.get('column_analytics', {}).items():
+            uniqueness = analytics_data.get('uniqueness', 0)
+            cardinality = analytics_data.get('cardinality', 0)
+            
+            if uniqueness > UNIQUENESS_THRESHOLD:
+                classification = "entity"
+                confidence = 0.8
+            elif cardinality < len(state.get('processed_dataframe', [])) * 0.1 and cardinality > 1:
+                classification = "entity"
+                confidence = 0.7
+            else:
+                classification = "property"
+                confidence = 0.6
+                
+            analytics_rule_based[column_name] = {
+                'column_name': column_name,
+                'classification': classification,
+                'confidence': confidence,
+                'analytics': analytics_data,
+                'source': 'rule_based'
+            }
+        
+        # Update the state with both LLM and rule-based classifications
+        state['entity_property_classification'] = llm_classification
+        state['rule_based_classification'] = analytics_rule_based
+        
+        logger.info(f"Added rule-based classification for {len(analytics_rule_based)} columns")
 
     except Exception as e:
         logger.error(f"Error classifying entities/properties: {str(e)}")
         state['error_messages'].append(f"Error classifying entities/properties: {str(e)}")
+        
+        # Even in case of error, try to create rule-based classification from analytics
         state['entity_property_classification'] = {}
+        analytics_rule_based = {}
+        
+        try:
+            for column_name, analytics_data in state.get('column_analytics', {}).items():
+                uniqueness = analytics_data.get('uniqueness', 0)
+                cardinality = analytics_data.get('cardinality', 0)
+                
+                if uniqueness > UNIQUENESS_THRESHOLD:
+                    classification = "entity"
+                    confidence = 0.8
+                elif cardinality < len(state.get('processed_dataframe', [])) * 0.1 and cardinality > 1:
+                    classification = "entity"
+                    confidence = 0.7
+                else:
+                    classification = "property"
+                    confidence = 0.6
+                    
+                analytics_rule_based[column_name] = {
+                    'column_name': column_name,
+                    'classification': classification,
+                    'confidence': confidence,
+                    'analytics': analytics_data,
+                    'source': 'rule_based'
+                }
+            
+            state['rule_based_classification'] = analytics_rule_based
+            logger.info(f"Added fallback rule-based classification for {len(analytics_rule_based)} columns")
+        except Exception as rule_error:
+            logger.error(f"Error creating fallback rule-based classification: {str(rule_error)}")
+            state['rule_based_classification'] = {}
 
     return state

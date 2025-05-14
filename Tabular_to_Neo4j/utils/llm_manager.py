@@ -333,14 +333,14 @@ def unload_model_from_lmstudio(model_name: str, state_name: str = None, max_retr
                 logger.error(f"❌ Failed to unload model '{model_name}'{state_info} after {max_retries} attempts: {e}")
                 return False
 
-def call_lmstudio_api(prompt: str, model_name: str = None, temperature: float = 0.0, seed: int = DEFAULT_SEED, state_name: str = None, max_retries: int = 3) -> str:
+def call_lmstudio_api(prompt: str, model_name: str = None, temperature: float = 0.7, seed: int = DEFAULT_SEED, state_name: str = None, max_retries: int = 3) -> str:
     """
-    Call the LMStudio API with retry logic.
+    Call the LMStudio API with retry logic, specifically configured for Gemma model.
     
     Args:
         prompt: The prompt to send to the API
         model_name: Name of the model to use (must be loaded in LMStudio)
-        temperature: Temperature setting (0.0 for deterministic results)
+        temperature: Temperature setting (0.7 is a good default for Gemma)
         seed: Seed for reproducibility
         state_name: Name of the state using the model (for logging)
         max_retries: Maximum number of retries on failure
@@ -364,55 +364,77 @@ def call_lmstudio_api(prompt: str, model_name: str = None, temperature: float = 
         model_name = DEFAULT_LMSTUDIO_MODEL
         logger.info(f"No model specified, using default model: {model_name}")
     
-    # Check if the model is loaded, and load it if not
-    if not _is_model_loaded(model_name):
-        logger.info(f"Model '{model_name}' not loaded in LMStudio, attempting to load it")
-        success = load_model_in_lmstudio(model_name, state_name)
-        
-        # If loading fails, try to get any available model
-        if not success:
-            logger.warning(f"Failed to load model '{model_name}', trying to find an available model")
-            available_models = get_lmstudio_models()
-            
-            if available_models:
-                # Use the first available model
-                model_name = available_models[0].get('id')
-                logger.info(f"Using available model: {model_name}")
-            else:
-                logger.error("No models available in LM Studio. Please ensure LM Studio is running and has models loaded.")
-                raise ValueError("No models available in LM Studio")
+    # For Gemma models, we'll use a specific system prompt
+    system_prompt = "You are a helpful assistant that specializes in data analysis and Neo4j graph modeling. Always return valid JSON when asked to do so."
     
-    # Prepare the request payload
+    # Prepare the request payload for chat completions API
     payload = {
+        "model": model_name,
         "messages": [
-            {"role": "system", "content": "You are a helpful assistant that specializes in data analysis and Neo4j graph modeling."},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ],
         "temperature": temperature,
-        "seed": seed,
-        "model": model_name
+        "max_tokens": 2048,  # Reasonable limit for responses
+        "stream": False
     }
+    
+    # Add seed if provided
+    if seed is not None:
+        payload["seed"] = seed
     
     headers = {
         "Content-Type": "application/json"
     }
     
+    # Log the request details for debugging
+    logger.debug(f"Calling LMStudio API with model '{model_name}', temperature {temperature}")
+    logger.debug(f"Prompt length: {len(prompt)} characters")
+    
     # Make the API call with retries
     for attempt in range(max_retries):
         try:
-            logger.debug(f"Calling LMStudio API with model '{model_name}', attempt {attempt+1}/{max_retries}")
+            logger.debug(f"API call attempt {attempt+1}/{max_retries}")
             
             response = requests.post(
-                f"{base_url}/chat/completions",
+                f"{base_url}/v1/chat/completions",  # Use v1 endpoint for compatibility
                 headers=headers,
                 data=json.dumps(payload),
-                timeout=120  # 2-minute timeout
+                timeout=180  # 3-minute timeout for large responses
             )
             
-            response.raise_for_status()  # Raise an exception for HTTP errors
+            # Check for HTTP errors
+            if response.status_code != 200:
+                logger.error(f"HTTP error {response.status_code}: {response.text}")
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # Exponential backoff
+                    logger.warning(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    response.raise_for_status()
             
-            response_data = response.json()
-            return response_data["choices"][0]["message"]["content"]
+            # Parse the response
+            try:
+                response_data = response.json()
+                logger.debug(f"Received response from LMStudio API: {str(response_data)[:200]}...")
+                
+                # Extract the content from the response
+                if "choices" in response_data and len(response_data["choices"]) > 0:
+                    if "message" in response_data["choices"][0]:
+                        content = response_data["choices"][0]["message"]["content"]
+                        return content
+                    else:
+                        logger.error(f"Unexpected response format: {response_data}")
+                        return str(response_data)  # Return the raw response as a fallback
+                else:
+                    logger.error(f"No choices in response: {response_data}")
+                    return str(response_data)  # Return the raw response as a fallback
+                    
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON response: {e}")
+                logger.debug(f"Raw response: {response.text[:500]}...")
+                return response.text  # Return the raw text as a fallback
             
         except requests.exceptions.ConnectionError:
             logger.error(f"Connection error: Could not connect to LM Studio at {base_url}")
@@ -432,6 +454,9 @@ def call_lmstudio_api(prompt: str, model_name: str = None, temperature: float = 
             else:
                 logger.error(f"LMStudio API call failed after {max_retries} attempts: {e}")
                 raise
+    
+    # If we get here, all retries failed
+    raise RuntimeError(f"Failed to get a valid response from LMStudio after {max_retries} attempts")
 
 @contextmanager
 def load_llm_for_state(state_name: str):

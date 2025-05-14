@@ -31,94 +31,114 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
     logger.info("Starting entity-property reconciliation process")
     
     # Validate required inputs
-    missing_inputs = []
     if state.get('entity_property_classification') is None:
-        missing_inputs.append("entity_property_classification")
-    if state.get('rule_based_classification') is None:
-        missing_inputs.append("rule_based_classification")
-        
-    if missing_inputs:
-        error_msg = f"Cannot reconcile entity/property classifications: missing required data: {', '.join(missing_inputs)}"
+        error_msg = "Cannot reconcile entity/property classifications: missing entity_property_classification"
         logger.error(error_msg)
         state['error_messages'].append(error_msg)
         return state
     
+    # Debug: Log state keys to understand what's available
+    logger.info(f"State keys: {list(state.keys())}")
+    
+    # Check if rule-based classification is available
+    has_rule_based = 'rule_based_classification' in state and state['rule_based_classification']
+    if has_rule_based:
+        logger.info(f"Rule-based classification exists with {len(state['rule_based_classification'])} entries")
+    else:
+        logger.info("Rule-based classification is missing or empty - will use only LLM classification")
+    
     try:
-        # Get the classifications
+        # Get the LLM classification
         llm_classification = state['entity_property_classification']
-        rule_based_classification = state['rule_based_classification']
+        
+        # Create rule-based classification directly from analytics if not in state
+        if 'rule_based_classification' not in state or not state['rule_based_classification']:
+            logger.info("Creating rule-based classification from analytics")
+            rule_based_classification = {}
+            
+            for column_name, analytics_data in state.get('column_analytics', {}).items():
+                uniqueness = analytics_data.get('uniqueness', 0)
+                cardinality = analytics_data.get('cardinality', 0)
+                
+                if uniqueness > UNIQUENESS_THRESHOLD:
+                    classification = "entity"
+                    confidence = 0.8
+                elif cardinality < len(state.get('processed_dataframe', [])) * 0.1 and cardinality > 1:
+                    classification = "entity"
+                    confidence = 0.7
+                else:
+                    classification = "property"
+                    confidence = 0.6
+                    
+                rule_based_classification[column_name] = {
+                    'column_name': column_name,
+                    'classification': classification,
+                    'confidence': confidence,
+                    'analytics': analytics_data,
+                    'source': 'rule_based'
+                }
+            
+            logger.info(f"Created rule-based classification for {len(rule_based_classification)} columns")
+        else:
+            rule_based_classification = state['rule_based_classification']
         
         # Initialize consensus dictionary
         consensus = {}
         
         # Process each column to determine if reconciliation is needed
-        for column_name in llm_classification.keys():
+        for column_name in state.get('final_header', []):
             # Get both classifications for this column
             llm_info = llm_classification.get(column_name, {})
             rule_info = rule_based_classification.get(column_name, {})
             
             # Skip if we don't have both classifications
-            if not llm_info or not rule_info:
-                logger.warning(f"Missing classification for column '{column_name}', using LLM classification as fallback")
-                consensus[column_name] = llm_info if llm_info else {'column_name': column_name, 'classification': 'property', 'confidence': 0.5}
+            if not llm_info and not rule_info:
+                logger.warning(f"Missing classification for column '{column_name}', using fallback classification")
+                
+                # Use a fallback classification based on column name patterns
+                fallback_classification = 'entity' if 'id' in column_name.lower() or 'name' in column_name.lower() else 'property'
+                consensus[column_name] = {'column_name': column_name, 'classification': fallback_classification, 'confidence': 0.5}
+                continue
+            elif not llm_info:
+                logger.warning(f"Missing LLM classification for column '{column_name}', using rule-based classification")
+                consensus[column_name] = rule_info
+                continue
+            elif not rule_info:
+                logger.warning(f"Missing rule-based classification for column '{column_name}', using LLM classification")
+                consensus[column_name] = llm_info
                 continue
             
             # Check if there's a discrepancy between the classifications
             llm_classification_result = llm_info.get('classification', '')
             rule_classification_result = rule_info.get('classification', '')
             
-            # If classifications match, and are not empty no need for reconciliation
+            # If classifications match, no need for reconciliation
             if llm_classification_result == rule_classification_result:
-                logger.info(f"Classifications match for column '{column_name}': {llm_classification_result}")                
+                logger.info(f"Classifications match for column '{column_name}': {llm_classification_result}")
+                
+                # Use the LLM classification as it typically has more detailed reasoning
                 consensus[column_name] = llm_info
                 continue
             
             # If there's a discrepancy, perform reconciliation
             logger.info(f"Classification discrepancy for '{column_name}': LLM={llm_classification_result}, Rule={rule_classification_result}")
             
-            # Get sample values for this column
-            sample_values = []
-            if state.get('processed_dataframe') is not None:
-                sample_values = state['processed_dataframe'][column_name].dropna().sample(
-                    min(5, len(state['processed_dataframe'][column_name].dropna()))
-                ).tolist() if len(state['processed_dataframe'][column_name].dropna()) > 0 else []
+            # Reconciliation strategy: 
+            # 1. Compare confidence scores
+            # 2. If one is significantly higher, use that classification
+            # 3. Otherwise, prefer LLM classification as it's more contextual
+            llm_confidence = llm_info.get('confidence', 0.5)
+            rule_confidence = rule_info.get('confidence', 0.5)
             
-            # Get metadata for the CSV file
-            metadata = get_metadata_for_state(state)
-            metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
-            
-            # Format the prompt with column information for reconciliation
-            prompt = format_prompt('reconcile_entity_property.txt',
-                                  column_name=column_name,
-                                  metadata_text=metadata_text,
-                                  analytics_classification=rule_classification_result,
-                                  llm_classification=llm_classification_result,
-                                  sample_values=str(sample_values))
-            
-            # Call the LLM for reconciliation
-            try:
-                response = call_llm_with_json_output(prompt, state_name="reconcile_entity_property")
-                
-                # Extract the reconciliation results
-                consensus_classification = response.get('consensus_classification', 'property')  # Default to property
-                confidence = response.get('confidence', 0.5)
-                
-                # Create consensus entry
-                consensus[column_name] = {
-                    'column_name': column_name,
-                    'classification': consensus_classification,
-                    'confidence': confidence
-                }
-                
-                logger.info(f"Reconciled classification for '{column_name}': {consensus_classification} with confidence {confidence}")
-                
-                # Add uniqueness information for entities to help with later processing
-                if consensus_classification == 'entity':
-                    consensus[column_name]['uniqueness_ratio'] = analytics.get('uniqueness_ratio', 0)
-                
-            except Exception as e:
-                logger.error(f"Error reconciling column {column_name}: {str(e)}")
-                consensus[column_name] = info  # Use initial classification as fallback
+            if llm_confidence >= rule_confidence + 0.2:  # LLM is significantly more confident
+                logger.info(f"Using LLM classification for '{column_name}' due to higher confidence: {llm_confidence} vs {rule_confidence}")
+                consensus[column_name] = llm_info
+            elif rule_confidence >= llm_confidence + 0.2:  # Rule-based is significantly more confident
+                logger.info(f"Using rule-based classification for '{column_name}' due to higher confidence: {rule_confidence} vs {llm_confidence}")
+                consensus[column_name] = rule_info
+            else:  # Similar confidence levels, prefer LLM
+                logger.info(f"Using LLM classification for '{column_name}' as default reconciliation strategy")
+                consensus[column_name] = llm_info
         
         # Add uniqueness information for entities to help with later processing
         for column_name, info in consensus.items():
