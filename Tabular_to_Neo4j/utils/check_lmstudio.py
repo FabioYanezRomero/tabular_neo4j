@@ -7,8 +7,14 @@ import argparse
 import sys
 import requests
 import time
+import os
 
-def check_lmstudio_connection(host="host.docker.internal", port=1234, retries=3, retry_delay=2):
+def check_lmstudio_connection(host=None, port=None, retries=3, retry_delay=2):
+    # Use environment variables if host or port are not provided
+    if host is None:
+        host = os.environ.get("LMSTUDIO_HOST", "host.docker.internal")
+    if port is None:
+        port = os.environ.get("LMSTUDIO_PORT", 1234)
     """
     Check if LMStudio server is reachable.
     
@@ -46,9 +52,14 @@ def check_lmstudio_connection(host="host.docker.internal", port=1234, retries=3,
     return False
 
 def main():
+    # Get default values from environment variables
+    default_host = os.environ.get("LMSTUDIO_HOST", "host.docker.internal")
+    default_port = int(os.environ.get("LMSTUDIO_PORT", 1234))
+    
     parser = argparse.ArgumentParser(description="Check if LMStudio server is reachable")
-    parser.add_argument("--host", default="host.docker.internal", help="LMStudio host address")
-    parser.add_argument("--port", type=int, default=1234, help="LMStudio port number")
+    parser.add_argument("--host", default=default_host, help=f"LMStudio host address (default: {default_host})")
+    parser.add_argument("--port", type=int, default=default_port, help=f"LMStudio port number (default: {default_port})")
+    
     parser.add_argument("--retries", type=int, default=3, help="Number of connection retries")
     parser.add_argument("--retry-delay", type=int, default=2, help="Delay between retries in seconds")
     

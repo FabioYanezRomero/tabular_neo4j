@@ -1,8 +1,9 @@
-Your task is to classify a column from a CSV dataset as either an entity or a property for a Neo4j graph model. You will receive a 'METADATA' section with column information and a 'DATA' section with sample values and analytics.
+You are a data modeling expert. Your task is to classify a column from a CSV dataset as either an entity or a property for a Neo4j graph model.
+
+COLUMN TO CLASSIFY: {column_name}
 
 METADATA:
 - General metadata: {metadata_text}
-- Column: {column_name}
 - Purpose: Determine if this column represents an entity or a property in a Neo4j graph model
 
 DATA:
@@ -11,19 +12,34 @@ DATA:
 - Cardinality: {cardinality} (number of distinct values)
 - Data Type: {data_type}
 - Missing Values: {missing_percentage}%
-- Semantic Type: {semantic_type}
-- LLM Suggested Role: {llm_role}
 
-Based on the METADATA and DATA sections, classify this column as one of the following:
+DEFINITIONS:
+- Entity: A distinct object or concept that can stand on its own (e.g., Person, Product, Location)
+- Property: An attribute that describes an entity (e.g., name, age, price)
 
-1. Entity: A distinct object or concept that can stand on its own (e.g., Person, Product, Location)
-2. Property: An attribute that describes an entity (e.g., name, age, price)
+INSTRUCTIONS:
+1. Analyze the column name, sample values, and analytics
+2. Determine if this column represents an entity or a property
+3. Return ONLY a valid JSON object with the following structure:
 
-Return your analysis as JSON with the following structure:
+```json
 {
     "column_name": "{column_name}",
-    "classification": "entity" | "property",
-    "confidence": 0.0-1.0,
+    "classification": "entity",
+    "confidence": 0.9,
+    "reasoning": "Brief explanation of your classification"
 }
+```
 
-JSON response:
+OR 
+
+```json
+{
+    "column_name": "{column_name}",
+    "classification": "property",
+    "confidence": 0.9,
+    "reasoning": "Brief explanation of your classification"
+}
+```
+
+IMPORTANT: Your response must be ONLY the JSON object, with no additional text before or after.

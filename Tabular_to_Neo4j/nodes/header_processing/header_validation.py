@@ -71,10 +71,21 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
         
         # Validate the response
         if not isinstance(validated_header, list):
-            error_msg = f"LLM did not return a list of headers: {validated_header}"
-            logger.error(error_msg)
-            state['error_messages'].append(error_msg)
-            return state
+            # Try to handle the case where the response is a string
+            if isinstance(validated_header, str):
+                # Try to parse it as a comma-separated list
+                try:
+                    validated_header = [h.strip() for h in validated_header.split(',')]
+                except Exception:
+                    # If that fails, just use the current header
+                    logger.warning(f"Could not parse validated_header as list: {validated_header}")
+                    validated_header = current_header
+            else:
+                # If it's not a string or a list, use the current header
+                error_msg = f"LLM did not return a list of headers: {validated_header}"
+                logger.error(error_msg)
+                state['error_messages'].append(error_msg)
+                validated_header = current_header
         
         if len(validated_header) != len(df.columns):
             error_msg = f"LLM returned {len(validated_header)} headers, but CSV has {len(df.columns)} columns"

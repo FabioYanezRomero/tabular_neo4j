@@ -57,79 +57,175 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
         logger.info(f"Beginning classification of {len(state['final_header'])} columns")
         processed_columns = 0
         skipped_columns = 0
+        
+        # Get rule-based classification if available
+        rule_based = state.get('rule_based_classification', {})
 
-        for column_name in state['final_header']:
-            logger.debug(f"Processing column: '{column_name}'")
-
-            # Get analytics for this column
-            analytics = state.get('column_analytics', {}).get(column_name, {})
-
-            # Skip if we don't have analytics
-            if not analytics:
-                logger.warning(f"Missing analytics for column '{column_name}', skipping")
-                skipped_columns += 1
-                continue
-
-            # Log key analytics for debugging
-            uniqueness = analytics.get('uniqueness', 0)
-            null_percentage = analytics.get('null_percentage', 0)
-            logger.debug(f"Column '{column_name}' analytics: uniqueness={uniqueness:.2f}, null_percentage={null_percentage:.2f}")
-
-            # Get sample values for this column
-            sample_values = []
-            if state.get('processed_dataframe') is not None:
-                df = state['processed_dataframe']
-                non_null_values = df[column_name].dropna()
-
-                if len(non_null_values) > 0:
-                    sample_count = min(5, len(non_null_values))
-                    sample_values = non_null_values.sample(sample_count).tolist()
-                    logger.debug(f"Sampled {len(sample_values)} values from column '{column_name}'")
-                else:
-                    logger.warning(f"Column '{column_name}' has no non-null values to sample")
+        try:
+            for column_name in state['final_header']:
+                try:
+                    logger.debug(f"Processing column: '{column_name}'")
+    
+                    # Get analytics for this column
+                    analytics = state.get('column_analytics', {}).get(column_name, {})
+    
+                    # Skip if we don't have analytics
+                    if not analytics:
+                        logger.warning(f"Missing analytics for column '{column_name}', skipping")
+                        skipped_columns += 1
+                        continue
+    
+                    # Log key analytics for debugging
+                    uniqueness = analytics.get('uniqueness', 0)
+                    null_percentage = analytics.get('null_percentage', 0)
+                    logger.debug(f"Column '{column_name}' analytics: uniqueness={uniqueness:.2f}, null_percentage={null_percentage:.2f}")
+    
+                    # Get sample values for this column
+                    sample_values = []
+                    if state.get('processed_dataframe') is not None:
+                        df = state['processed_dataframe']
+                        non_null_values = df[column_name].dropna()
+    
+                        if len(non_null_values) > 0:
+                            sample_count = min(5, len(non_null_values))
+                            sample_values = non_null_values.sample(sample_count).tolist()
+                            logger.debug(f"Sampled {len(sample_values)} values from column '{column_name}'")
+                        else:
+                            logger.warning(f"Column '{column_name}' has no non-null values to sample")
+                    else:
+                        logger.warning("No processed dataframe available for sampling values")
+    
+                    processed_columns += 1
+    
+                    # Get metadata for the CSV file
+                    metadata = get_metadata_for_state(state)
+                    metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
+    
+                    # Check if we have a rule-based classification for this column
+                    rule_based_class = rule_based.get(column_name, {}).get('classification', None)
+                    
+                    # If we have a rule-based classification with high confidence, use it directly
+                    if rule_based_class and rule_based.get(column_name, {}).get('confidence', 0) > 0.8:
+                        logger.info(f"Using rule-based classification for '{column_name}': {rule_based_class}")
+                        classification[column_name] = {
+                            'column_name': column_name,
+                            'classification': rule_based_class,
+                            'confidence': rule_based.get(column_name, {}).get('confidence', 0.9),
+                            'analytics': analytics,
+                            'source': 'rule_based'
+                        }
+                        continue
+    
+                    # Format the prompt with column information and metadata
+                    prompt = format_prompt('classify_entities_properties.txt',
+                                          column_name=column_name,
+                                          sample_values=str(sample_values),
+                                          uniqueness_ratio=analytics.get('uniqueness', 0),
+                                          cardinality=analytics.get('cardinality', 0),
+                                          data_type=analytics.get('data_type', 'unknown'),
+                                          missing_percentage=analytics.get('null_percentage', 0) * 100,
+                                          metadata_text=metadata_text)
+    
+                    # Call the LLM for entity/property classification
+                    logger.debug(f"Calling LLM for entity/property classification of column '{column_name}'")
+                    try:
+                        # Add a fallback classification based on analytics
+                        fallback_classification = 'entity' if uniqueness > UNIQUENESS_THRESHOLD else 'property'
+                        
+                        # Call the LLM for classification
+                        response = call_llm_with_json_output(prompt, state_name="classify_entities_properties")
+                        logger.debug(f"Received LLM classification response for '{column_name}': {response}")
+                        
+                        # If response is empty or has an error, use fallback
+                        if not response or 'error' in response:
+                            logger.warning(f"Using fallback classification for '{column_name}' due to LLM error")
+                            response = {
+                                'classification': fallback_classification,
+                                'confidence': 0.6,
+                                'reasoning': 'Fallback classification based on uniqueness threshold.'
+                            }
+    
+                        # Extract the classification results
+                        classification_result = response.get('classification', 'entity_property')
+                        # Handle the case where classification_result is not a string
+                        if not isinstance(classification_result, str):
+                            if isinstance(classification_result, dict) and 'type' in classification_result:
+                                classification_result = classification_result['type']
+                            else:
+                                classification_result = 'entity_property'  # Default fallback
+                        
+                        # Normalize the classification result
+                        classification_result = classification_result.lower().strip()
+                        if classification_result not in ['entity', 'property', 'entity_property']:
+                            if 'entity' in classification_result:
+                                classification_result = 'entity'
+                            elif 'property' in classification_result:
+                                classification_result = 'property'
+                            else:
+                                classification_result = 'entity_property'
+                        
+                        # Handle confidence value
+                        confidence = response.get('confidence', 0.0)
+                        if not isinstance(confidence, (int, float)):
+                            try:
+                                confidence = float(confidence)
+                            except (ValueError, TypeError):
+                                confidence = 0.5  # Default confidence
+    
+                        classification[column_name] = {
+                            'column_name': column_name,
+                            'classification': classification_result,
+                            'confidence': confidence,
+                            'analytics': analytics,
+                            'source': 'llm'
+                        }
+                        
+                        logger.info(f"Classified '{column_name}' as '{classification_result}' with confidence '{confidence}' using LLM approach")
+                    except Exception as e:
+                        # If LLM classification fails, use fallback based on uniqueness
+                        fallback_classification = 'entity' if uniqueness > UNIQUENESS_THRESHOLD else 'property'
+                        logger.warning(f"LLM classification failed for '{column_name}', using fallback: {fallback_classification}")
+                        classification[column_name] = {
+                            'column_name': column_name,
+                            'classification': fallback_classification,
+                            'confidence': 0.6,  # Moderate confidence for fallback
+                            'analytics': analytics,
+                            'source': 'fallback'
+                        }
+                except Exception as column_error:
+                    # If processing a specific column fails, log it and continue with the next one
+                    logger.error(f"Error processing column '{column_name}': {str(column_error)}")
+                    # Use a default classification to ensure the pipeline continues
+                    classification[column_name] = {
+                        'column_name': column_name,
+                        'classification': 'error',  # Default to property as safer option
+                        'confidence': 0.5,
+                        'analytics': analytics if 'analytics' in locals() else {},
+                        'source': 'error_fallback'
+                    }
+            
+            # If we processed at least one column successfully, consider it a success
+            if processed_columns > 0:
+                logger.info(f"Successfully classified {processed_columns} columns, skipped {skipped_columns}")
             else:
-                logger.warning("No processed dataframe available for sampling values")
-
-            processed_columns += 1
-
-            # Get metadata for the CSV file
-            metadata = get_metadata_for_state(state)
-            metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
-
-            # Format the prompt with column information and metadata, this is done once for every column in the dataset
-            prompt = format_prompt('classify_entities_properties.txt',
-                                  column_name=column_name,
-                                  sample_values=str(sample_values),
-                                  uniqueness_ratio=analytics.get('uniqueness_ratio', 0),
-                                  cardinality=analytics.get('cardinality', 0),
-                                  data_type=analytics.get('data_type', 'unknown'),
-                                  missing_percentage=analytics.get('missing_percentage', 0) * 100,
-                                  semantic_type='Not provided',
-                                  llm_role='Not provided',
-                                  metadata_text=metadata_text)
-
-            # Call the LLM for entity/property classification
-            logger.debug(f"Calling LLM for entity/property classification of column '{column_name}'")
-            try:
-                response = call_llm_with_json_output(prompt, state_name="classify_entities_properties")
-                logger.debug(f"Received LLM classification response for '{column_name}'")
-
-                # Extract the classification results
-                classification_result = response.get('classification', 'entity_property')
-                confidence = response.get('confidence', 0.0)
-
-                classification[column_name] = {
-                    'column_name': column_name,
-                    'classification': classification_result,
-                    'confidence': confidence,
-                    'analytics': analytics
-                }
-
-                logger.info(f"Classified '{column_name}' as '{classification_result}' with confidence '{confidence}'")
-
-            # TODO: check and improve the fallback evaluation whenever the model fails
-            except Exception as e:
-                logger.error(f"LLM entity classification failed for '{column_name}': {str(e)}")
+                logger.warning("No columns were successfully classified")
+                
+        except Exception as e:
+            logger.error(f"Error in classification process: {str(e)}")
+            # Create a minimal classification for each column to allow the pipeline to continue
+            for column_name in state['final_header']:
+                if column_name not in classification:
+                    # Use rule-based classification if available, otherwise default to property
+                    if column_name in rule_based:
+                        classification[column_name] = rule_based[column_name]
+                    else:
+                        classification[column_name] = {
+                            'column_name': column_name,
+                            'classification': 'error',  # Default to property as safer option
+                            'confidence': 0.5,
+                            'analytics': state.get('column_analytics', {}).get(column_name, {}),
+                            'source': 'global_error_fallback'
+                        }
 
 
         # Update the state

@@ -43,7 +43,7 @@ def load_csv_node(state: GraphState, config: RunnableConfig) -> GraphState:
         
         # Log successful loading
         logger.info(f"Successfully loaded CSV file")
-        logger.debug(f"CSV file with {len(df)} rows and {len(df.columns)} columns using encoding: {encoding_used} with confidence: {confidence}")
+        logger.debug(f"CSV file with {len(df)} rows and {len(df.columns)} columns using encoding: {encoding_used}")
         logger.debug(f"First few rows of data: {df.head(3)}")
         
         # Store the raw dataframe and potential header in the state

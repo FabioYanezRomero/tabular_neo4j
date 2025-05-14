@@ -3,7 +3,7 @@ Configuration for LMStudio integration.
 """
 
 # LMStudio server configuration
-LMSTUDIO_HOST = "host.docker.internal"  # Special Docker DNS name that resolves to the host machine
+LMSTUDIO_HOST = "127.0.0.1"  # Special Docker DNS name that resolves to the host machine
 LMSTUDIO_PORT = 1234
 LMSTUDIO_BASE_URL = f"http://{LMSTUDIO_HOST}:{LMSTUDIO_PORT}"
 LMSTUDIO_API_VERSION = "v1"

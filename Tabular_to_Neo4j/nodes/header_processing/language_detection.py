@@ -89,11 +89,15 @@ def detect_header_language_node(state: GraphState, config: RunnableConfig) -> Gr
         metadata_language, metadata_confidence = get_metadata_language(state)
         normalized_metadata_lang = normalize_language_name(metadata_language)
         
-        logger.info(f"Detected header language: {header_language} (confidence: {header_confidence:.2f})")
-        logger.info(f"Metadata language: {metadata_language} (confidence: {metadata_confidence:.2f})")
+        logger.info(f"Detected header language: {header_language} (confidence: {float(header_confidence):.2f})")
+        logger.info(f"Metadata language: {metadata_language} (confidence: {float(metadata_confidence):.2f})")
         
         # Check if the header language matches the metadata language
-        is_same_language = are_languages_matching(header_language, metadata_language)
+        try:
+            is_same_language = are_languages_matching(header_language, metadata_language)
+        except Exception as e:
+            logger.warning(f"Error comparing languages: {str(e)}")
+            is_same_language = True  # Assume they match to avoid unnecessary translation
         
         # Update the state with language detection results
         state['header_language'] = header_language

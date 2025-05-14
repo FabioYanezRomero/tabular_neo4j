@@ -87,7 +87,7 @@ def set_seed(seed: int) -> None:
 
 def extract_json_from_llm_response(response: str) -> Dict[str, Any]:
     """
-    Extract JSON from an LLM response, handling various formats.
+    Extract JSON from an LLM response, handling various formats including LMStudio responses.
     
     Args:
         response: The raw LLM response text
@@ -95,24 +95,96 @@ def extract_json_from_llm_response(response: str) -> Dict[str, Any]:
     Returns:
         Parsed JSON as a dictionary
     """
-    # Try to find JSON within triple backticks
-    json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response)
+    # Handle empty responses
+    if not response or response.strip() == "":
+        logger.warning("Received empty response from LLM")
+        return {"error": "Empty response", "raw_response": ""}
+    
+    # Log the raw response for debugging
+    logger.debug(f"Raw LLM response: {response[:200]}..." if len(response) > 200 else response)
+    
+    # Clean the response - remove any leading/trailing whitespace and newlines
+    cleaned_response = response.strip()
+    
+    # Try to find JSON within triple backticks (common in markdown formatted responses)
+    json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', cleaned_response)
     if json_match:
-        json_str = json_match.group(1)
+        json_str = json_match.group(1).strip()
+        logger.debug(f"Found JSON in code block: {json_str[:100]}..." if len(json_str) > 100 else json_str)
     else:
-        # Try to find JSON within curly braces
-        json_match = re.search(r'(\{[\s\S]*\})', response)
+        # Try to find JSON within curly braces (find the outermost complete JSON object)
+        # This regex looks for a JSON object that starts with { and ends with }
+        json_match = re.search(r'(\{[\s\S]*?\})', cleaned_response)
         if json_match:
-            json_str = json_match.group(1)
+            json_str = json_match.group(1).strip()
+            logger.debug(f"Found JSON with braces: {json_str[:100]}..." if len(json_str) > 100 else json_str)
         else:
             # Just use the whole response
-            json_str = response
+            json_str = cleaned_response
+            logger.debug(f"Using whole response as JSON: {json_str[:100]}..." if len(json_str) > 100 else json_str)
     
+    # If the string doesn't start with {, try to find the first { and parse from there
+    if not json_str.startswith("{"):
+        brace_index = json_str.find("{")
+        if brace_index >= 0:
+            json_str = json_str[brace_index:]
+            logger.debug(f"Trimmed to start at first brace: {json_str[:100]}..." if len(json_str) > 100 else json_str)
+    
+    # If the string doesn't end with }, try to find the last } and parse until there
+    if not json_str.endswith("}"):
+        brace_index = json_str.rfind("}")
+        if brace_index >= 0:
+            json_str = json_str[:brace_index+1]
+            logger.debug(f"Trimmed to end at last brace: {json_str[:100]}..." if len(json_str) > 100 else json_str)
+    
+    # Special handling for LMStudio responses which might have extra text
+    # Sometimes LMStudio adds extra text after the JSON object
     try:
+        # First try to parse as is
         return json.loads(json_str)
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse JSON from LLM response: {e}")
-        logger.debug(f"Response was: {response}")
+    except json.JSONDecodeError:
+        # If that fails, try to extract just the first valid JSON object
+        try:
+            # Find all potential JSON objects in the string
+            potential_jsons = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', json_str)
+            if potential_jsons:
+                # Try each potential JSON object until one parses successfully
+                for potential_json in potential_jsons:
+                    try:
+                        return json.loads(potential_json)
+                    except json.JSONDecodeError:
+                        continue
+        except Exception as e:
+            logger.error(f"Error during JSON extraction: {e}")
+    
+    # If we get here, all parsing attempts failed
+    logger.error(f"Failed to parse JSON from LLM response")
+    logger.debug(f"Response was: {response}")
+    logger.debug(f"Attempted to parse: {json_str}")
+    
+    # Fallback: try to create a structured response based on content
+    if "classification" in response.lower() and "column_name" in response.lower():
+        # This is likely an entity classification response
+        # Try to extract the classification (entity or property)
+        if "entity" in response.lower():
+            classification = "entity"
+        elif "property" in response.lower():
+            classification = "property"
+        else:
+            classification = "unknown"
+            
+        # Create a minimal valid response
+        return {
+            "column_name": re.search(r'column_name[":\s]+(\w+)', response, re.IGNORECASE).group(1) if re.search(r'column_name[":\s]+(\w+)', response, re.IGNORECASE) else "unknown",
+            "classification": classification,
+            "confidence": 0.5,  # Default confidence
+            "reasoning": "Extracted from unstructured response"
+        }
+    elif "headers" in response.lower():
+        # This might be a header validation response
+        return {"headers": response}
+    else:
+        # Generic error response
         return {"error": "Failed to parse JSON", "raw_response": response}
 
 # OpenAI API function removed - using LM Studio exclusively

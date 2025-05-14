@@ -92,7 +92,7 @@ ISO_LANGUAGE_CODES = {
     'la': 'latin'
 }
 
-def detect_language(text: str) -> Optional[str]:
+def detect_language(text: str) -> Tuple[str, float]:
     """
     Detect the language of a given text.
     
@@ -100,19 +100,20 @@ def detect_language(text: str) -> Optional[str]:
         text (str): The text to detect language for
         
     Returns:
-        Optional[str]: ISO language code or None if detection failed
+        Tuple[str, float]: ISO language code and confidence score
     """
     if not text or len(text.strip()) < 3:
         logger.warning(f"Text too short for language detection: '{text}'")
-        return None
+        return "en", 0.5  # Default to English with low confidence
         
     try:
         # Detect language
         lang_code = detect(text)
-        return lang_code
+        # langdetect doesn't provide confidence, so we use a fixed value
+        return lang_code, 0.8  # Reasonable confidence for successful detection
     except LangDetectException as e:
         logger.warning(f"Language detection failed for text: '{text}'. Error: {str(e)}")
-        return None
+        return "en", 0.5  # Default to English with low confidence
 
 def normalize_language_name(language: str) -> str:
     """

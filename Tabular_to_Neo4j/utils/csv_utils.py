@@ -4,6 +4,7 @@ Utility functions for CSV file handling.
 import json
 import os
 import pandas as pd
+import logging
 from typing import Tuple, List, Optional
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 from Tabular_to_Neo4j.config import CSV_ENCODING, CSV_DELIMITER
@@ -28,6 +29,9 @@ def load_csv_safely(file_path: str, header=None) -> Tuple[Optional[pd.DataFrame]
     df = None
     potential_header = None
     encoding_used = None
+    encoding = CSV_ENCODING  # Default encoding
+    confidence = 0.0  # Default confidence
+    delimiter = CSV_DELIMITER  # Default delimiter
     
     logger.debug(f"Attempting to load CSV file: {file_path}")
     logger.debug(f"Using configured encoding: {CSV_ENCODING}, delimiter: {CSV_DELIMITER}")
@@ -43,13 +47,13 @@ def load_csv_safely(file_path: str, header=None) -> Tuple[Optional[pd.DataFrame]
         file_size = os.path.getsize(file_path) / 1024  # KB
         logger.debug(f"CSV file size: {file_size:.2f} KB")
     
-    # Detect file encoding
-    encoding, confidence = file_encoding_detection(file_path)
-    
-    # Try different delimiters if the default fails
-    delimiter = delimiter_detection(file_path)
-    
     try:
+        # Detect file encoding
+        encoding, confidence = file_encoding_detection(file_path)
+        
+        # Try different delimiters if the default fails
+        delimiter = delimiter_detection(file_path)
+        
         # First try to read a few rows to check for header
         temp_df = pd.read_csv(
             file_path, 

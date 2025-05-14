@@ -8,12 +8,9 @@ services:
     volumes:
       - ./:/app
     environment:
-      - LMSTUDIO_HOST=host.docker.internal
+      - LMSTUDIO_HOST=127.0.0.1
       - LMSTUDIO_PORT=1234
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - tabular-neo4j-network
+    network_mode: "host"
 
 networks:
   tabular-neo4j-network:
