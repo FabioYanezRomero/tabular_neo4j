@@ -162,6 +162,60 @@ The system processes your CSV file through a series of steps using LangGraph:
    - Infers relationships between entities
    - Suggests property assignments for nodes and relationships
 
+## Generated Samples and Prompt Samples
+
+The system automatically saves detailed information during each pipeline run to help with debugging, analysis, and improvement:
+
+### Node Output Samples
+
+Each node in the pipeline saves its output state to the `samples` directory. These JSON files capture the evolution of the data processing:
+
+```
+samples/
+├── 20250515_113423/            # Timestamped run folder
+    ├── 01_load_csv.json        # Output from CSV loading node
+    ├── 02_detect_header.json   # Output from header detection node
+    ├── 03_infer_header.json    # Output from header inference node
+    ├── ...
+    └── 13_generate_cypher_templates.json  # Final output with Neo4j schema
+```
+
+To enable this feature, use the `--save-node-outputs` flag when running the pipeline:
+
+```bash
+python main.py path/to/your/data.csv --save-node-outputs
+```
+
+Or with the Docker setup:
+
+```bash
+make run-lmstudio-with-outputs CSV_FILE=/app/Tabular_to_Neo4j/sample_data/csv/customers.csv
+```
+
+### LLM Prompt Samples
+
+All interactions with language models are saved to the `prompt_samples` directory, including both prompts and responses:
+
+```
+prompt_samples/
+├── 20250515_113423/            # Timestamped run folder (same as samples)
+    ├── 03_infer_header_original_prompt.txt    # Original prompt template
+    ├── 03_infer_header_json_prompt.txt        # JSON-formatted prompt sent to LLM
+    ├── 03_infer_header_response.txt           # Response from LLM
+    ├── 09_classify_entities_properties_customer_id_prompt.txt  # Entity classification for specific column
+    ├── ...
+    └── 12_infer_entity_relationships_retry_response.txt  # Retry response if needed
+```
+
+The numeric prefixes in the prompt samples align with the node order in the pipeline, making it easy to correlate LLM interactions with their corresponding node outputs.
+
+These samples are automatically saved for every run and are invaluable for:
+- Debugging LLM-related issues
+- Understanding model reasoning
+- Improving prompt engineering
+- Analyzing model performance across different states
+- Comparing different model configurations
+
 ## LLM Provider
 
 The system exclusively uses LM Studio for all LLM interactions:

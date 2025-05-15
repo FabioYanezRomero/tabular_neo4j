@@ -148,6 +148,49 @@ The system processes your CSV file through a series of steps using LangGraph:
    - Adds uniqueness constraints on UUID properties
    - Provides example queries for retrieving data from the graph
 
+## Generated Samples and Prompt Samples
+
+When running the pipeline, the system generates two types of output files for debugging and analysis:
+
+### Node Output Samples
+
+The system saves the output of each node in the pipeline to the `samples` directory. Each run creates a timestamped folder (e.g., `samples/20250515_113423/`) containing JSON files for each node's output:
+
+```
+samples/
+├── 20250515_113423/            # Timestamped run folder
+    ├── 01_load_csv.json        # Output from CSV loading node
+    ├── 02_detect_header.json   # Output from header detection node
+    ├── 03_infer_header.json    # Output from header inference node
+    ├── ...
+    └── 13_generate_cypher_templates.json  # Final output with Neo4j schema
+```
+
+Each file contains the new or changed state information produced by that node, making it easy to trace how the data evolves through the pipeline. The numeric prefixes (01, 02, etc.) correspond to the order of nodes in the pipeline.
+
+### LLM Prompt Samples
+
+The system also saves all LLM interactions (prompts and responses) to the `prompt_samples` directory. Each run creates a timestamped folder containing text files for each LLM interaction:
+
+```
+prompt_samples/
+├── 20250515_113423/            # Timestamped run folder (same as samples)
+    ├── 03_infer_header_prompt.txt           # Prompt sent to LLM
+    ├── 03_infer_header_prompt_kwargs.json   # Variables used in the prompt
+    ├── 03_infer_header_response.txt         # Response from LLM
+    ├── ...
+    └── 12_infer_entity_relationships_retry_response.txt  # Retry response if needed
+```
+
+The numeric prefixes in the prompt samples align with the node order in the pipeline, making it easy to correlate LLM interactions with their corresponding node outputs in the `samples` directory.
+
+These samples are invaluable for:
+- Debugging pipeline issues
+- Understanding LLM reasoning
+- Improving prompts
+- Analyzing model performance
+- Tracing the evolution of the schema inference process
+
 ## LLM Provider
 
 The system exclusively uses LM Studio for all LLM interactions:
