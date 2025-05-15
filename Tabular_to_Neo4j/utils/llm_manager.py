@@ -661,13 +661,18 @@ def save_prompt_sample(template_name: str, formatted_prompt: str, kwargs: dict, 
     # Determine the file prefix based on whether this is a template, error, or formatted prompt
     file_prefix = "template" if is_template else "error" if is_error else "formatted"
     
+    # For entity classification prompts, include the column name in the filename
+    column_suffix = ""
+    if "classify_entities_properties" in template_name and "column_name" in kwargs:
+        column_suffix = f"_{kwargs['column_name']}"
+    
     # Save the prompt content
-    prompt_file = timestamp_dir / f"{template_name.replace('.txt', '')}_{file_prefix}.txt"
+    prompt_file = timestamp_dir / f"{template_name.replace('.txt', '')}{column_suffix}_{file_prefix}.txt"
     with open(prompt_file, 'w', encoding='utf-8') as f:
         f.write(formatted_prompt)
     
     # Save the kwargs used to format the prompt
-    kwargs_file = timestamp_dir / f"{template_name.replace('.txt', '')}_{file_prefix}_kwargs.json"
+    kwargs_file = timestamp_dir / f"{template_name.replace('.txt', '')}{column_suffix}_{file_prefix}_kwargs.json"
     with open(kwargs_file, 'w', encoding='utf-8') as f:
         # Convert any non-serializable objects to strings
         serializable_kwargs = {}
@@ -704,12 +709,17 @@ def save_prompt_sample(template_name: str, formatted_prompt: str, kwargs: dict, 
             "node_type": template_name.replace('.txt', ''),
         }
         
+        # For entity classification, include the column name in the metadata
+        if "classify_entities_properties" in template_name and "column_name" in kwargs:
+            template_info["column_name"] = kwargs["column_name"]
+        
         # Check if this template is already in the list
         template_exists = False
         for existing in metadata.get("templates", []):
             if (existing.get("template_name") == template_name and 
                 existing.get("is_template") == is_template and
-                existing.get("is_error") == is_error):
+                existing.get("is_error") == is_error and
+                existing.get("column_name", None) == template_info.get("column_name", None)):
                 template_exists = True
                 break
         

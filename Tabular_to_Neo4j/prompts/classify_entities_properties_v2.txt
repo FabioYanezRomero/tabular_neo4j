@@ -17,17 +17,6 @@ DEFINITIONS:
 - Entity: A distinct object or concept that can stand on its own (e.g., Person, Product, Location)
 - Property: An attribute that describes an entity (e.g., name, age, price)
 
-CLASSIFICATION CRITERIA:
-1. Properties typically describe attributes of entities and cannot stand alone
-2. Properties are often numeric values, dates, or simple text attributes
-3. Entities typically represent real-world objects, people, places, or concepts
-4. IDs, codes, and identifiers are typically properties, not entities
-5. Columns with names like 'id', 'date', 'amount', 'price', 'count' are usually properties
-6. Columns with names like 'name', 'city', 'country' may represent entities
-7. Numeric columns (int, float) are almost always properties
-8. Date/time columns are almost always properties
-9. Email addresses are typically properties of a Person entity
-
 INSTRUCTIONS:
 1. Analyze the column name, sample values, and analytics
 2. Determine if this column represents an entity or a property

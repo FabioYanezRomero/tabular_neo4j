@@ -70,18 +70,32 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                     null_percentage = analytics.get('null_percentage', 0)
                     logger.debug(f"Column '{column_name}' analytics: uniqueness={uniqueness:.2f}, null_percentage={null_percentage:.2f}")
     
-                    # Get sample values for this column
-                    sample_values = []
+                    # Get full sample rows for context and sample values for this column
+                    sample_values_json = "[]"
+                    full_sample_json = "[]"
                     if state.get('processed_dataframe') is not None:
                         df = state['processed_dataframe']
-                        non_null_values = df[column_name].dropna()
-    
-                        if len(non_null_values) > 0:
-                            sample_count = min(5, len(non_null_values))
-                            sample_values = non_null_values.sample(sample_count).tolist()
+                        
+                        # Use the existing get_sample_rows and df_to_json_sample functions
+                        from Tabular_to_Neo4j.utils.csv_utils import get_sample_rows, df_to_json_sample
+                        
+                        # Get sample rows (up to 5) from the entire dataframe
+                        sample_count = 5
+                        full_sample_df = get_sample_rows(df, sample_count)
+                        
+                        if not full_sample_df.empty:
+                            # Get the full sample data as a JSON string
+                            full_sample_json = df_to_json_sample(full_sample_df)
+                            
+                            # Extract just the values for this column as a list
+                            sample_values = full_sample_df[column_name].tolist()
+                            
+                            # Convert to JSON string
+                            import json
+                            sample_values_json = json.dumps(sample_values)
                             logger.debug(f"Sampled {len(sample_values)} values from column '{column_name}'")
                         else:
-                            logger.warning(f"Column '{column_name}' has no non-null values to sample")
+                            logger.warning(f"No sample data available")
                     else:
                         logger.warning("No processed dataframe available for sampling values")
     
@@ -109,9 +123,9 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
     
                     # Format the prompt with column information and metadata
                     try:
-                        prompt = format_prompt('classify_entities_properties.txt',
+                        prompt = format_prompt('classify_entities_properties_v3.txt',
                                             column_name=column_name,
-                                            sample_values=str(sample_values),
+                                            full_sample_data=full_sample_json,  # Include the full sample data
                                             uniqueness_ratio=analytics.get('uniqueness', 0),
                                             cardinality=analytics.get('cardinality', 0),
                                             data_type=analytics.get('data_type', 'unknown'),

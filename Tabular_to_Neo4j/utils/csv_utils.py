@@ -232,12 +232,20 @@ def get_sample_rows(df: pd.DataFrame, n: int = 10) -> pd.DataFrame:
 
 def df_to_json_sample(df: pd.DataFrame, n: int = 10) -> str:
     """
-    Convert a DataFrame sample to a JSON string (list of lists).
-    Each inner list represents a row of data values.
+    Convert a DataFrame sample to a JSON string (list of dictionaries).
+    Each dictionary represents a row with column names as keys.
+    Returns a formatted string with proper indentation and line breaks.
     """
     sample_df = get_sample_rows(df, n)
-    list_of_lists = sample_df.values.tolist() # Converts df data to list of lists
-    return json.dumps(list_of_lists) # No indent for LLM, it's more compact
+    # Convert to list of dictionaries with column names as keys
+    records = sample_df.to_dict(orient='records')
+    
+    # Format with indentation and line breaks for better readability
+    formatted_json = json.dumps(records, indent=2)
+    
+    # For prompt display, we want each row on a separate line
+    # This makes a more readable format for the LLM
+    return formatted_json
 
 
 # Function removed as per user request

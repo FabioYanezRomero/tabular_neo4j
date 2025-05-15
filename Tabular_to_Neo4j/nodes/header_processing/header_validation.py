@@ -68,10 +68,14 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
             state['metadata_language_confidence'] = 1.0  # High confidence since it's from metadata
         
         # Format the prompt with the data sample, current header, and metadata
+        # Convert current_header to JSON string for consistent formatting
+        import json
+        headers_json = json.dumps(current_header)
+        
         prompt = format_prompt('validate_header.txt',
                               file_name=file_name,
                               data_sample=data_sample,
-                              current_header=current_header,
+                              headers=headers_json,  # Pass headers instead of current_header
                               column_count=len(df.columns),
                               row_count=len(df),
                               metadata_text=metadata_text)

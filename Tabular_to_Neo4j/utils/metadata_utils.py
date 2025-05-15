@@ -76,7 +76,8 @@ def format_metadata_for_prompt(metadata: Dict[str, Any]) -> str:
     import json
     metadata_str = json.dumps(metadata, indent=2)
     
-    return f"METADATA:\n{metadata_str}"
+    # Return just the JSON string without any prefix
+    return metadata_str
 
 def get_metadata_for_state(state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
