@@ -144,7 +144,25 @@ def perform_column_analytics_node(state: GraphState, config: RunnableConfig) -> 
             # Higher threshold for entity classification (> 60% of max score)
             entity_threshold = 9  # ~60% of maximum 16 points
             
-            if total_score >= entity_threshold:
+            # Get patterns from analytics data
+            patterns = analytics.get('patterns', {})
+            
+            # Force classification as property for specific data types and patterns regardless of score
+            if data_type in ['date', 'datetime', 'float', 'integer']:
+                classification = "property"
+                confidence = 1.0  # High confidence for this rule
+                reason = f"forced property classification due to {data_type} data type (original score: {total_score}/{16})"
+            # Check for email pattern
+            elif 'email' in patterns and patterns['email'] > 0.5:
+                classification = "property"
+                confidence = 1.0
+                reason = f"forced property classification due to email pattern (original score: {total_score}/{16})"
+            # Check for numeric patterns (phone numbers, credit cards, etc.)
+            elif any(p in patterns for p in ['phone', 'credit_card', 'numeric_id']) and patterns.get(next((p for p in patterns if p in ['phone', 'credit_card', 'numeric_id']), None), 0) > 0.5:
+                classification = "property"
+                confidence = 1.0
+                reason = f"forced property classification due to numeric pattern (original score: {total_score}/{16})"
+            elif total_score >= entity_threshold:
                 classification = "entity"
                 # Confidence based on how far above threshold
                 confidence = 0.7 + min(0.3, (total_score - entity_threshold) / 10)

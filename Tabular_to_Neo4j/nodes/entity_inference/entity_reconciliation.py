@@ -40,47 +40,65 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
     # Debug: Log state keys to understand what's available
     logger.info(f"State keys: {list(state.keys())}")
     
-    # Check if rule-based classification is available
-    has_rule_based = 'rule_based_classification' in state and state['rule_based_classification']
+    # Check if rule-based classification is available from column analytics
+    has_rule_based = 'column_analytics' in state and 'rule_based_classification' in state.get('column_analytics', {})
     if has_rule_based:
-        logger.info(f"Rule-based classification exists with {len(state['rule_based_classification'])} entries")
+        logger.info(f"Rule-based classification exists in column analytics")
     else:
-        logger.info("Rule-based classification is missing or empty - will use only LLM classification")
+        logger.info("Rule-based classification is missing in column analytics - will use only LLM classification")
     
     try:
         # Get the LLM classification
         llm_classification = state['entity_property_classification']
         
-        # Create rule-based classification directly from analytics if not in state
-        if 'rule_based_classification' not in state or not state['rule_based_classification']:
+        # Get rule-based classification from column analytics if available
+        if has_rule_based:
+            rule_based_classification = state['column_analytics']['rule_based_classification']
+            logger.info(f"Using rule-based classification from column analytics with {len(rule_based_classification)} entries")
+        # Create rule-based classification directly from analytics if not in column analytics
+        else:
             logger.info("Creating rule-based classification from analytics")
             rule_based_classification = {}
             
             for column_name, analytics_data in state.get('column_analytics', {}).items():
-                uniqueness = analytics_data.get('uniqueness', 0)
-                cardinality = analytics_data.get('cardinality', 0)
-                
-                if uniqueness > UNIQUENESS_THRESHOLD:
-                    classification = "entity"
-                    confidence = 0.8
-                elif cardinality < len(state.get('processed_dataframe', [])) * 0.1 and cardinality > 1:
-                    classification = "entity"
-                    confidence = 0.7
-                else:
-                    classification = "property"
-                    confidence = 0.6
+                if isinstance(analytics_data, dict) and 'column_name' in analytics_data:
+                    uniqueness = analytics_data.get('uniqueness', 0)
+                    cardinality = analytics_data.get('cardinality', 0)
+                    data_type = analytics_data.get('data_type', '')
+                    patterns = analytics_data.get('patterns', {})
                     
-                rule_based_classification[column_name] = {
-                    'column_name': column_name,
-                    'classification': classification,
-                    'confidence': confidence,
-                    'analytics': analytics_data,
-                    'source': 'rule_based'
-                }
+                    # Force classification as property for specific data types
+                    if data_type in ['date', 'datetime', 'float', 'integer']:
+                        classification = "property"
+                        confidence = 1.0
+                    # Check for email pattern
+                    elif 'email' in patterns and patterns['email'] > 0.5:
+                        classification = "property"
+                        confidence = 1.0
+                    # Check for numeric patterns
+                    elif any(p in patterns for p in ['phone', 'credit_card', 'numeric_id']) and patterns.get(next((p for p in patterns if p in ['phone', 'credit_card', 'numeric_id']), None), 0) > 0.5:
+                        classification = "property"
+                        confidence = 1.0
+                    # Apply standard rules
+                    elif uniqueness > UNIQUENESS_THRESHOLD:
+                        classification = "entity"
+                        confidence = 0.8
+                    elif cardinality < len(state.get('processed_dataframe', [])) * 0.1 and cardinality > 1:
+                        classification = "entity"
+                        confidence = 0.7
+                    else:
+                        classification = "property"
+                        confidence = 0.6
+                        
+                    rule_based_classification[column_name] = {
+                        'column_name': column_name,
+                        'classification': classification,
+                        'confidence': confidence,
+                        'analytics': analytics_data,
+                        'source': 'rule_based'
+                    }
             
             logger.info(f"Created rule-based classification for {len(rule_based_classification)} columns")
-        else:
-            rule_based_classification = state['rule_based_classification']
         
         # Initialize consensus dictionary
         consensus = {}
@@ -123,12 +141,22 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
             # If there's a discrepancy, perform reconciliation
             logger.info(f"Classification discrepancy for '{column_name}': LLM={llm_classification_result}, Rule={rule_classification_result}")
             
+            # Get confidence scores for both classifications
+            llm_confidence = llm_info.get('confidence', 0.5)
+            rule_confidence = rule_info.get('confidence', 0.5)
+            
+            # Special case: If rule-based classification has maximum confidence (1.0), it means
+            # we have a forced property classification based on data type or pattern detection
+            # (e.g., emails, dates, numeric values) - always use this classification
+            if rule_confidence == 1.0 and rule_classification_result == 'property':
+                logger.info(f"Using rule-based classification for '{column_name}' due to forced property classification")
+                consensus[column_name] = rule_info
+                continue
+            
             # Reconciliation strategy: 
             # 1. Compare confidence scores
             # 2. If one is significantly higher, use that classification
             # 3. Otherwise, prefer LLM classification as it's more contextual
-            llm_confidence = llm_info.get('confidence', 0.5)
-            rule_confidence = rule_info.get('confidence', 0.5)
             
             if llm_confidence >= rule_confidence + 0.2:  # LLM is significantly more confident
                 logger.info(f"Using LLM classification for '{column_name}' due to higher confidence: {llm_confidence} vs {rule_confidence}")

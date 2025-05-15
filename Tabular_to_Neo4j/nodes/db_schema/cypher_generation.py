@@ -49,16 +49,17 @@ def generate_cypher_templates_node(state: GraphState, config: RunnableConfig) ->
         
         # Extract entity types and their properties
         entities = {}
-        for key, item in mapping.items():
+        for entity_name, item in mapping.items():
             if item.get('type') == 'entity':
-                entity_type = item.get('entity_type')
+                # Use the column name as the entity type if entity_type is not specified
+                entity_type = item.get('entity_type', entity_name)
                 
-                # Always add a unique identifier property that doesn't depend on existing properties
+                # Get properties for this entity
                 properties = item.get('properties', [])
                 
                 # Every entity needs a generated UUID as a unique identifier
                 entities[entity_type] = {
-                    'is_primary': item.get('is_primary', False),
+                    'is_primary': item.get('is_primary', True),  # Default to primary if not specified
                     'properties': properties,
                     'needs_generated_id': True  # Always generate a unique ID for every entity
                 }
@@ -82,244 +83,97 @@ def generate_cypher_templates_node(state: GraphState, config: RunnableConfig) ->
                     # Fallback to string representation
                     sample_data = df.head(MAX_SAMPLE_ROWS).to_string(index=False)
         
-        # Format the prompt with schema information
-        prompt = format_prompt('generate_cypher_templates.txt',
-                              entities=str(entities),
-                              relationships=str(relationships),
-                              metadata_text=metadata_text,
-                              sample_data=sample_data)
+        # Generate Cypher templates directly instead of using LLM
+        logger.info("Generating Cypher templates directly")
         
-        # Call the LLM for Cypher template generation
-        logger.info("Calling LLM for Cypher template generation with unique identifiers")
         try:
-            try:
-                response = call_llm_with_json_output(prompt, state_name="generate_cypher_templates")
-                logger.debug(f"LLM response for Cypher template generation: {response}")
-            except Exception as e:
-                logger.warning(f"Error calling LLM for Cypher template generation: {str(e)}")
-                response = {}
+            # Initialize response structure
+            response = {
+                'entity_creation_queries': [],
+                'relationship_queries': [],
+                'example_queries': [],
+                'constraint_queries': []
+            }
             
-            # Extract the Cypher templates from the response
+            # Generate Cypher queries for each entity
             entity_creation_queries = []
             relationship_creation_queries = []
             example_queries = []
+            constraint_queries = []
             
-            # Log the raw response for debugging
-            logger.debug(f"Raw response type: {type(response)}")
-            if isinstance(response, dict):
-                logger.debug(f"Response keys: {response.keys()}")
-            elif isinstance(response, str):
-                logger.debug(f"Response string: {response[:100]}..." if len(response) > 100 else response)
-            
-            # Handle different response formats
-            if isinstance(response, dict):
-                # Try to extract entity_creation_queries
-                if 'entity_creation_queries' in response:
-                    entity_queries = response['entity_creation_queries']
-                    if isinstance(entity_queries, list):
-                        entity_creation_queries = entity_queries
-                    elif isinstance(entity_queries, str):
-                        # Try to convert string to list if it's a string representation
-                        try:
-                            import json
-                            # Clean the string if needed
-                            if entity_queries.strip().startswith('[') and entity_queries.strip().endswith(']'):
-                                entity_creation_queries = json.loads(entity_queries)
-                            else:
-                                # Try to find a list in the string
-                                import re
-                                list_match = re.search(r'\[(.*?)\]', entity_queries)
-                                if list_match:
-                                    try:
-                                        entity_creation_queries = json.loads(f"[{list_match.group(1)}]")
-                                    except:
-                                        logger.warning("Could not parse extracted list from entity_creation_queries")
-                        except Exception as e:
-                            logger.warning(f"Could not parse entity_creation_queries as JSON: {str(e)}")
-                            
-                # If we still don't have entity_creation_queries, try to find them in the response
-                if not entity_creation_queries:
-                    # Check if any key contains 'entity' and 'queries'
-                    for key in response.keys():
-                        if 'entity' in key.lower() and ('queries' in key.lower() or 'creation' in key.lower()):
-                            try:
-                                value = response[key]
-                                if isinstance(value, list):
-                                    entity_creation_queries = value
-                                    logger.info(f"Found entity creation queries under key '{key}'")
-                                    break
-                            except:
-                                continue
-                
-                # Try to extract relationship_creation_queries
-                if 'relationship_creation_queries' in response:
-                    rel_queries = response['relationship_creation_queries']
-                    if isinstance(rel_queries, list):
-                        relationship_creation_queries = rel_queries
-                    elif isinstance(rel_queries, str):
-                        try:
-                            import json
-                            # Clean the string if needed
-                            if rel_queries.strip().startswith('[') and rel_queries.strip().endswith(']'):
-                                relationship_creation_queries = json.loads(rel_queries)
-                            else:
-                                # Try to find a list in the string
-                                import re
-                                list_match = re.search(r'\[(.*?)\]', rel_queries)
-                                if list_match:
-                                    try:
-                                        relationship_creation_queries = json.loads(f"[{list_match.group(1)}]")
-                                    except:
-                                        logger.warning("Could not parse extracted list from relationship_creation_queries")
-                        except Exception as e:
-                            logger.warning(f"Could not parse relationship_creation_queries as JSON: {str(e)}")
-                            
-                # If we still don't have relationship_creation_queries, try to find them in the response
-                if not relationship_creation_queries:
-                    # Check if any key contains 'relationship' and 'queries'
-                    for key in response.keys():
-                        if 'relationship' in key.lower() and ('queries' in key.lower() or 'creation' in key.lower()):
-                            try:
-                                value = response[key]
-                                if isinstance(value, list):
-                                    relationship_creation_queries = value
-                                    logger.info(f"Found relationship creation queries under key '{key}'")
-                                    break
-                            except:
-                                continue
-                
-                # Try to extract example_queries
-                if 'example_queries' in response:
-                    ex_queries = response['example_queries']
-                    if isinstance(ex_queries, list):
-                        example_queries = ex_queries
-                    elif isinstance(ex_queries, str):
-                        try:
-                            import json
-                            example_queries = json.loads(ex_queries)
-                        except:
-                            logger.warning("Could not parse example_queries as JSON")
-            
-            # Log the results
-            logger.info(f"Generated {len(entity_creation_queries)} entity creation queries, {len(relationship_creation_queries)} relationship queries, and {len(example_queries)} example queries")
-            
-            # Validate that we have at least some templates
-            if not entity_creation_queries and not relationship_creation_queries:
-                logger.warning("LLM did not generate any Cypher templates, using fallback mechanism")
-                
-                # Get entity types from the property-entity mapping
-                property_entity_mapping = state.get('property_entity_mapping', {})
-                entities_with_properties = {}
-                
-                # Extract entities and their properties
-                for entity_type, entity_info in property_entity_mapping.items():
-                    if entity_info.get('type') == 'entity':
-                        entities_with_properties[entity_type] = entity_info.get('properties', [])
-                
-                # Get entity types and their properties from the property-entity mapping
-                property_entity_mapping = state.get('property_entity_mapping', {})
-                if not property_entity_mapping:
-                    # If property_entity_mapping is not available, try to get it from reconciled_classification
-                    reconciled_classification = state.get('reconciled_classification', {})
-                    entities = {}
-                    properties = {}
-                    
-                    # Separate entities and properties
-                    for column_name, info in reconciled_classification.items():
-                        if info.get('classification') == 'entity':
-                            entities[column_name] = {
-                                'type': 'entity',
-                                'entity_type': column_name,
-                                'properties': []
-                            }
-                        elif info.get('classification') == 'property':
-                            # Assign to first entity as fallback
-                            if entities:
-                                first_entity = next(iter(entities.keys()))
-                                if 'properties' not in entities[first_entity]:
-                                    entities[first_entity]['properties'] = []
-                                entities[first_entity]['properties'].append(column_name)
-                    
-                    property_entity_mapping = entities
-                    logger.info(f"Created fallback property-entity mapping with {len(entities)} entities")
-                
-                # Generate fallback entity creation queries
-                for entity_type, entity_info in property_entity_mapping.items():
-                    if entity_info.get('type') == 'entity':
-                        # Get properties for this entity
-                        properties = entity_info.get('properties', [])
-                        
-                        # Create a basic Cypher query for this entity
-                        if properties:
-                            property_str = ", ".join([f"{prop}: ${prop}" for prop in properties])
-                            query = f"CREATE (e:{entity_type} {{id: $id, {property_str}}})"
-                        else:
-                            query = f"CREATE (e:{entity_type} {{id: $id}})"
-                            
-                        entity_creation_queries.append({"query": query})
-                        logger.info(f"Generated fallback entity creation query for {entity_type} with {len(properties)} properties")
-                
-                # Generate fallback relationship queries if we have multiple entities
-                if len(property_entity_mapping) > 1:
-                    entity_types = [entity_type for entity_type, info in property_entity_mapping.items() 
-                                  if info.get('type') == 'entity']
-                    
-                    # Create relationships between consecutive entities
-                    for i in range(len(entity_types) - 1):
-                        source = entity_types[i]
-                        target = entity_types[i + 1]
-                        query = f"MATCH (a:{source} {{id: $id_a}}), (b:{target} {{id: $id_b}}) CREATE (a)-[:RELATED_TO]->(b)"
-                        relationship_creation_queries.append({"query": query})
-                        logger.info(f"Generated fallback relationship query between {source} and {target}")
-                
-                # Generate basic example queries
-                example_queries.append({"query": "MATCH (n) RETURN n LIMIT 10"})
-                example_queries.append({"query": "MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 10"})
-                logger.info("Generated fallback example queries")
-                
-            # Ensure each entity has a unique identifier in the creation queries
+            # Process each entity to generate Cypher queries
             for entity_type, entity_info in entities.items():
-                # Check if any template creates this entity with a UUID
-                has_uuid_creation = any(
-                    entity_type in q.get('query', '') and 'UUID' in q.get('query', '')
-                    for q in entity_creation_queries
-                )
+                properties = entity_info.get('properties', [])
                 
-                if not has_uuid_creation and entity_creation_queries:
-                    logger.warning(f"No UUID generation found for entity {entity_type} in templates")
-                    # We'll let the LLM handle this, but log a warning
-
-            
-            # Update the state with the Cypher templates using the new format
-            state['cypher_query_templates'] = {
-                'entity_creation_queries': entity_creation_queries,
-                'relationship_queries': relationship_creation_queries,
-                'example_queries': example_queries,
-                'constraint_queries': []  # Keep this for backward compatibility
-            }
-            
-            # Add default UUID constraints for each entity if not already included
-            for entity_type in entities.keys():
-                constraint_query = f"CREATE CONSTRAINT ON (e:{entity_type}) ASSERT e.uuid IS UNIQUE"
-                state['cypher_query_templates']['constraint_queries'].append({
-                    'entity_type': entity_type,
-                    'property': 'uuid',
-                    'query': constraint_query
+                # Generate constraint query for entity
+                constraint_query = f"CREATE CONSTRAINT ON (n:{entity_type}) ASSERT n.id IS UNIQUE;"
+                constraint_queries.append({
+                    "query": constraint_query,
+                    "description": f"Create unique constraint on {entity_type}.id"
+                })
+                
+                # Generate entity creation query
+                property_assignments = []
+                for prop in properties:
+                    if isinstance(prop, dict) and 'column_name' in prop and 'property_key' in prop:
+                        column_name = prop['column_name']
+                        property_key = prop['property_key']
+                        property_assignments.append(f"{property_key}: row.{column_name}")
+                
+                # Always add a unique ID
+                property_assignments.append("id: randomUUID()")
+                
+                property_assignments_str = ", ".join(property_assignments)
+                entity_query = f"LOAD CSV WITH HEADERS FROM 'file:///data.csv' AS row\nCREATE (n:{entity_type} {{{property_assignments_str}}});"
+                
+                entity_creation_queries.append({
+                    "query": entity_query,
+                    "description": f"Create {entity_type} nodes from CSV data"
+                })
+                
+                # Generate example query
+                example_query = f"MATCH (n:{entity_type}) RETURN n LIMIT 5;"
+                example_queries.append({
+                    "query": example_query,
+                    "description": f"Retrieve sample {entity_type} nodes"
                 })
             
-            logger.info("Generated Cypher query templates successfully")
+            # Process relationships
+            for rel in relationships:
+                source_entity = rel.get('source_entity')
+                target_entity = rel.get('target_entity')
+                relationship_type = rel.get('relationship_type')
+                
+                if source_entity and target_entity and relationship_type:
+                    rel_query = f"MATCH (source:{source_entity}), (target:{target_entity})\nWHERE source.id = row.source_id AND target.id = row.target_id\nCREATE (source)-[:{relationship_type}]->(target);"
+                    
+                    relationship_creation_queries.append({
+                        "query": rel_query,
+                        "description": f"Create {relationship_type} relationships between {source_entity} and {target_entity}"
+                    })
+            
+            # Update the response with our generated queries
+            response['entity_creation_queries'] = entity_creation_queries
+            response['relationship_queries'] = relationship_creation_queries
+            response['example_queries'] = example_queries
+            response['constraint_queries'] = constraint_queries
+            
+            # Update the state with the generated Cypher templates
+            state['cypher_query_templates'] = response
+            
+            # Log the number of queries generated
+            logger.info(f"Generated {len(entity_creation_queries)} entity creation queries, {len(relationship_creation_queries)} relationship queries, and {len(example_queries)} example queries")
+            
+            return state
             
         except Exception as e:
-            logger.error(f"Error generating Cypher templates: {str(e)}")
+            error_msg = f"Error in Cypher template generation process: {str(e)}"
+            logger.error(error_msg)
+            state['error_messages'].append(error_msg)
+            return state
             
     except Exception as e:
-        logger.error(f"Error in Cypher template generation process: {str(e)}")
-        state['error_messages'].append(f"Error in Cypher template generation process: {str(e)}")
-        state['cypher_query_templates'] = {
-            'entity_creation_queries': [],
-            'relationship_queries': [],
-            'example_queries': [],
-            'constraint_queries': []
-        }
-    
-    return state
+        error_msg = f"Error in Cypher template generation process: {str(e)}"
+        logger.error(error_msg)
+        state['error_messages'].append(error_msg)
+        return state

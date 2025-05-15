@@ -50,13 +50,13 @@ def calculate_missing_percentage(column: pd.Series) -> float:
 
 def detect_data_type(column: pd.Series) -> str:
     """
-    Detect the predominant data type of a column.
+    Detect the predominant data type of a column with more precise categorization.
     
     Args:
         column: Pandas Series representing a column
         
     Returns:
-        String representing the data type ('numeric', 'string', 'date', 'boolean', 'mixed')
+        String representing the data type ('integer', 'float', 'string', 'date', 'datetime', 'boolean', 'categorical', 'unknown')
     """
     # Clean column by dropping NaN values
     clean_column = column.dropna()
@@ -64,10 +64,27 @@ def detect_data_type(column: pd.Series) -> str:
     if len(clean_column) == 0:
         return 'unknown'
     
-    # Check if all values are numeric
+    # Check original pandas dtype first
+    orig_dtype = str(column.dtype)
+    if 'int' in orig_dtype:
+        return 'integer'
+    elif 'float' in orig_dtype:
+        return 'float'
+    elif 'datetime' in orig_dtype:
+        return 'datetime'
+    elif 'bool' in orig_dtype:
+        return 'boolean'
+    elif 'category' in orig_dtype:
+        return 'categorical'
+    
+    # Try to convert to numeric
     try:
-        pd.to_numeric(clean_column)
-        return 'numeric'
+        numeric_values = pd.to_numeric(clean_column)
+        # Determine if integer or float
+        if all(numeric_values == numeric_values.astype(int)):
+            return 'integer'
+        else:
+            return 'float'
     except:
         pass
     
@@ -75,25 +92,41 @@ def detect_data_type(column: pd.Series) -> str:
     if set(clean_column.astype(str).str.lower().unique()).issubset({'true', 'false', 'yes', 'no', 'y', 'n', '1', '0', 't', 'f'}):
         return 'boolean'
     
-    # Check if all values are dates
-    date_count = 0
-    for val in clean_column.astype(str).sample(min(100, len(clean_column))):
-        try:
-            datetime.strptime(val, '%Y-%m-%d')
-            date_count += 1
-        except:
-            try:
-                datetime.strptime(val, '%d/%m/%Y')
-                date_count += 1
-            except:
-                try:
-                    datetime.strptime(val, '%m/%d/%Y')
-                    date_count += 1
-                except:
-                    pass
+    # Check if values are categorical (few unique values compared to total)
+    unique_ratio = len(clean_column.unique()) / len(clean_column)
+    if unique_ratio < 0.1 and len(clean_column.unique()) < 20:
+        return 'categorical'
     
-    if date_count / len(clean_column.sample(min(100, len(clean_column)))) > 0.8:
+    # Check if all values are dates
+    date_formats = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%Y/%m/%d', '%d-%m-%Y', '%m-%d-%Y']
+    date_count = 0
+    datetime_count = 0
+    sample_size = min(100, len(clean_column))
+    sample = clean_column.astype(str).sample(sample_size)
+    
+    for val in sample:
+        # Check for date formats
+        for date_format in date_formats:
+            try:
+                datetime.strptime(val, date_format)
+                date_count += 1
+                break
+            except:
+                pass
+        
+        # Check for datetime formats
+        try:
+            # Try common datetime formats
+            if ' ' in val and ((':' in val) or ('T' in val)):
+                pd.to_datetime(val)
+                datetime_count += 1
+        except:
+            pass
+    
+    if date_count / sample_size > 0.8:
         return 'date'
+    elif datetime_count / sample_size > 0.8:
+        return 'datetime'
     
     # Default to string
     return 'string'
@@ -130,7 +163,7 @@ def calculate_value_length_stats(column: pd.Series) -> Dict[str, float]:
 
 def detect_patterns(column: pd.Series) -> Dict[str, float]:
     """
-    Detect common patterns in the column values that might indicate specific entity types.
+    Detect common patterns in the column values that might indicate specific property types.
     
     Args:
         column: Pandas Series representing a column
@@ -146,23 +179,77 @@ def detect_patterns(column: pd.Series) -> Dict[str, float]:
     sample_size = min(1000, len(clean_column))
     sample = clean_column.sample(sample_size) if len(clean_column) > sample_size else clean_column
     
+    # Define patterns with more comprehensive regex for better matching
     patterns = {
-        'email': r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-        'phone': r'^\+?[0-9\-\(\)\s]{7,20}$',
-        'url': r'^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$',
-        'ip_address': r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$',
-        'postal_code': r'^\d{5}(-\d{4})?$|^[A-Z]\d[A-Z]\s?\d[A-Z]\d$',  # US and Canadian postal codes
-        'credit_card': r'^(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})$',
-        'alphanumeric_id': r'^[A-Za-z0-9-_]{3,}$',
-        'numeric_id': r'^\d+$'
+        # Email patterns - more flexible to catch various formats
+        'email': r'(?i)[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}',
+        
+        # Phone number patterns - international and domestic formats
+        'phone': r'(?:\+\d{1,3}[\s-]?)?(?:\(\d{1,4}\)[\s-]?)?\d{1,4}[\s-]?\d{1,4}[\s-]?\d{1,9}',
+        
+        # URL patterns
+        'url': r'(?i)(?:https?:\/\/)?(?:www\.)?[\w\.-]+\.[a-z]{2,}(?:\/[\w\.-]*)*\/?',
+        
+        # IP address patterns
+        'ip_address': r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}',
+        
+        # Postal/ZIP code patterns for various countries
+        'postal_code': r'(?:\d{5}(?:-\d{4})?)|(?:[A-Z]\d[A-Z]\s?\d[A-Z]\d)|(?:[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})',
+        
+        # Credit card patterns
+        'credit_card': r'(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})',
+        
+        # ID patterns
+        'alphanumeric_id': r'^[A-Za-z0-9][A-Za-z0-9_-]{2,}$',
+        'numeric_id': r'^\d+$',
+        
+        # Currency patterns
+        'currency': r'(?:^\$|€|£|¥)\s?[\d,.]+|[\d,.]+\s?(?:\$|€|£|¥)$',
+        
+        # Percentage patterns
+        'percentage': r'\d+(?:\.\d+)?\s?%',
+        
+        # Social security number (US)
+        'ssn': r'\d{3}[-\s]?\d{2}[-\s]?\d{4}',
+        
+        # Date-like patterns (not caught by data type detection)
+        'date_like': r'\d{1,4}[-\/]\d{1,2}[-\/]\d{1,4}'
+    }
+    
+    # Check column name for hints about its content
+    column_name = str(column.name).lower() if column.name else ''
+    name_hints = {
+        'email': ['email', 'e-mail', 'mail'],
+        'phone': ['phone', 'tel', 'telephone', 'mobile', 'cell'],
+        'url': ['url', 'website', 'web', 'site', 'link'],
+        'postal_code': ['zip', 'postal', 'post code', 'postcode'],
+        'credit_card': ['card', 'credit', 'cc', 'creditcard'],
+        'currency': ['price', 'cost', 'amount', 'payment', 'salary', 'income', 'expense'],
+        'percentage': ['percent', 'rate', 'ratio', '%'],
+        'ssn': ['ssn', 'social security', 'social']
     }
     
     results = {}
+    
+    # First check for patterns in the data
     for pattern_name, regex in patterns.items():
-        match_count = sum(1 for val in sample if re.match(regex, val))
+        # Use partial match for more flexible pattern detection
+        match_count = sum(1 for val in sample if re.search(regex, val))
         match_ratio = match_count / len(sample)
-        if match_ratio > 0.5:  # Only include significant patterns
+        
+        # Lower threshold for pattern detection
+        if match_ratio > 0.3:  # Include patterns with at least 30% match
             results[pattern_name] = match_ratio
+    
+    # Then boost confidence based on column name hints
+    for hint_type, hint_words in name_hints.items():
+        if any(hint in column_name for hint in hint_words):
+            if hint_type in results:
+                # Boost existing pattern match
+                results[hint_type] = min(1.0, results[hint_type] + 0.3)
+            else:
+                # Add pattern based on column name with medium confidence
+                results[hint_type] = 0.5
     
     return results
 
