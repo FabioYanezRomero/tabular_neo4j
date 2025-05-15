@@ -77,6 +77,27 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
         # If we have 0 or 1 entity types, there are no relationships to infer
         if len(entity_types) <= 1:
             logger.info(f"Found {len(entity_types)} entity types, no relationships to infer")
+            
+            # Still format the prompt and save it as a sample, even though we won't call the LLM
+            # This ensures we have complete prompt samples for all steps
+            metadata = get_metadata_for_state(state)
+            metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
+            
+            # Format the prompt with entity information and metadata
+            prompt = format_prompt('infer_entity_relationships.txt',
+                                  entity_property_consensus=str(state.get('entity_property_consensus', {})),
+                                  property_entity_mapping=str(mapping),
+                                  metadata_text=metadata_text,
+                                  sample_data=str(state.get('processed_dataframe', {}).head(5).to_dict(orient='records') if state.get('processed_dataframe') is not None else {}))
+            
+            # Save the prompt sample without actually calling the LLM
+            from Tabular_to_Neo4j.utils.llm_manager import save_prompt_sample
+            save_prompt_sample('infer_entity_relationships.txt', prompt, {"state_name": "infer_entity_relationships"})
+            
+            # Add a note in the prompt sample that this was skipped due to insufficient entity types
+            skipped_note = "\n\nNOTE: LLM call was skipped because there were insufficient entity types to infer relationships."
+            save_prompt_sample('infer_entity_relationships_skipped.txt', skipped_note, {"state_name": "infer_entity_relationships"})
+            
             state['entity_relationships'] = []
             return state
         
@@ -112,17 +133,84 @@ def infer_entity_relationships_node(state: GraphState, config: RunnableConfig) -
         # Extract the inferred relationships
         inferred_relationships = response.get('entity_relationships', [])
         
-        # Log the inferred relationships
-        logger.info(f"LLM inferred {len(inferred_relationships)} relationships between entities")
-        for rel in inferred_relationships:
-            source = rel.get('source_entity', '')
-            target = rel.get('target_entity', '')
-            rel_type = rel.get('relationship_type', '')
-            confidence = rel.get('confidence', 0.0)
-            logger.info(f"Relationship: ({source})-[{rel_type}]->({target}) with confidence {confidence}")
+        # Get the list of entity types from the mapping
+        entity_types = [entity_type for entity_type, data in mapping.items() if data.get('type') == 'entity']
+        logger.info(f"Identified entity types: {entity_types}")
         
-        # Update the state with the inferred relationships
-        state['entity_relationships'] = inferred_relationships
+        # Use a pairwise approach to infer relationships between each pair of entities
+        all_relationships = []
+        processed_pairs = set()  # Track which pairs we've already processed
+        
+        # For each pair of entities, infer the relationship between them
+        for i, entity1 in enumerate(entity_types):
+            for j, entity2 in enumerate(entity_types):
+                # Skip self-relationships
+                if i == j:
+                    continue
+                
+                # Create a pair identifier (sorted to ensure we don't process the same pair twice)
+                pair = tuple(sorted([entity1, entity2]))
+                
+                # Skip if we've already processed this pair
+                if pair in processed_pairs:
+                    continue
+                
+                processed_pairs.add(pair)
+                logger.info(f"Inferring relationship between entities: {pair[0]} and {pair[1]}")
+                
+                # Format a focused prompt specifically for this entity pair
+                focused_prompt = format_prompt('infer_entity_relationship_pair.txt',
+                                              source_entity=pair[0],
+                                              target_entity=pair[1],
+                                              entity_property_consensus=str(state.get('entity_property_consensus', {})),
+                                              property_entity_mapping=str(mapping),
+                                              metadata_text=metadata_text,
+                                              sample_data=sample_data)
+                
+                # Call the LLM for this specific entity pair
+                pair_response = call_llm_with_json_output(focused_prompt, state_name=f"infer_relationship_{pair[0]}_{pair[1]}")
+                
+                # Extract the inferred relationship
+                pair_relationships = pair_response.get('entity_relationships', [])
+                
+                # Add valid relationships to the overall list
+                for rel in pair_relationships:
+                    source = rel.get('source_entity', '')
+                    target = rel.get('target_entity', '')
+                    rel_type = rel.get('relationship_type', '')
+                    confidence = rel.get('confidence', 0.0)
+                    bidirectional = rel.get('bidirectional', False)
+                    reasoning = rel.get('reasoning', '')
+                    
+                    # Validate the relationship has required fields and sufficient confidence
+                    if source and target and rel_type and confidence > 0.5:
+                        # Add the primary relationship
+                        all_relationships.append(rel)
+                        logger.info(f"Valid relationship: ({source})-[{rel_type}]->({target}) with confidence {confidence}")
+                        if reasoning:
+                            logger.info(f"Reasoning: {reasoning}")
+                        
+                        # If bidirectional, add the reverse relationship too
+                        if bidirectional:
+                            # Create a reverse relationship with the same type
+                            reverse_rel = {
+                                'source_entity': target,
+                                'target_entity': source,
+                                'relationship_type': rel_type,
+                                'confidence': confidence,
+                                'bidirectional': True,
+                                'reasoning': f"Reverse of bidirectional relationship: {reasoning}"
+                            }
+                            all_relationships.append(reverse_rel)
+                            logger.info(f"Added reverse relationship: ({target})-[{rel_type}]->({source}) (bidirectional)")
+                    else:
+                        logger.warning(f"Filtered out invalid relationship: {rel} - missing required fields or low confidence")
+        
+        # Log the final relationships
+        logger.info(f"Inferred {len(all_relationships)} valid relationships between entities")
+        
+        # Update the state with all valid relationships
+        state['entity_relationships'] = all_relationships
         
     except Exception as e:
         logger.error(f"Error inferring entity relationships: {str(e)}")

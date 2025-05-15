@@ -1,0 +1,39 @@
+Your task is to infer the relationship between two entity types in a Neo4j graph model based on a CSV dataset. 
+You will receive a 'METADATA' section with context information and a 'DATA' section with entity and property details, as well as a sample from the initial CSV file.
+
+METADATA:
+- Initial Metadata: {metadata_text}
+
+DATA:
+- Entity 1: {source_entity}
+- Entity 2: {target_entity}
+- Entity-Property Consensus: {entity_property_consensus}
+- Property-Entity Mapping: {property_entity_mapping}
+- Sample Data: {sample_data}
+
+Based on the METADATA and DATA sections, infer the relationship between these two entities:
+
+1. Determine if there is a meaningful relationship between these entities
+2. Determine the direction of the relationship (which entity should be the source and which should be the target)
+3. Name the relationship appropriately based on the semantic meaning
+4. Assign a confidence score based on how clear the relationship is in the data
+
+Return your entity relationship as JSON with the following structure:
+{
+    "entity_relationships": [
+        {
+            "source_entity": "ENTITY_THAT_SHOULD_BE_SOURCE",
+            "target_entity": "ENTITY_THAT_SHOULD_BE_TARGET",
+            "relationship_type": "APPROPRIATE_RELATIONSHIP_NAME",
+            "confidence": 0.0-1.0,
+            "bidirectional": false,
+            "reasoning": "Brief explanation of why this relationship exists and its direction"
+        }
+    ]
+}
+
+If there is a meaningful relationship in both directions, you can set "bidirectional" to true and provide a relationship that makes sense in the direction specified.
+
+If there is no clear relationship between these entities, return an empty array for entity_relationships.
+
+JSON response:

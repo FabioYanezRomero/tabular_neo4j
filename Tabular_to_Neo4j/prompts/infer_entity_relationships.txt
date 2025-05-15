@@ -9,10 +9,12 @@ DATA:
 - Property-Entity Mapping: {property_entity_mapping}
 - Sample Data: {sample_data}
 
-Based on the METADATA and DATA sections, infer relationships between entity types:
+Based on the METADATA and DATA sections, infer relationships ONLY between entity types (not between entities and properties):
 
 1. Determine the source and target entities for each relationship from the given columns
 2. Name the relationships appropriately
+3. IMPORTANT: Only infer relationships where BOTH the source and target are entities (not properties)
+4. DO NOT create relationships between entities and properties
 
 Return your entity relationships as JSON with the following structure:
 {

@@ -75,17 +75,21 @@ def map_properties_to_entities_node(state: GraphState, config: RunnableConfig) -
             logger.warning("No entities found, skipping property mapping")
             return state
             
-        # Use the first entity as our main entity
+        # Use the first entity as our main entity for properties
         main_entity = entities[0]
-        logger.info(f"Using {main_entity} as the main entity")
+        logger.info(f"Using {main_entity} as the main entity for properties")
         
-        # Create a simple property-entity mapping
-        property_entity_mapping = {
-            main_entity: {
+        # Create a property-entity mapping that includes ALL entities
+        property_entity_mapping = {}
+        
+        # Add all entities to the mapping
+        for entity in entities:
+            property_entity_mapping[entity] = {
                 'type': 'entity',
-                'properties': []
+                'properties': [],
+                'is_primary': entity == main_entity  # Mark the first entity as primary
             }
-        }
+            logger.info(f"Added entity '{entity}' to mapping")
         
         # Add all properties to the main entity
         for prop in properties:
@@ -95,6 +99,40 @@ def map_properties_to_entities_node(state: GraphState, config: RunnableConfig) -
                 'property_key': property_key
             })
             logger.info(f"Mapped property '{prop}' to entity '{main_entity}'")
+        
+        # Format a sample prompt for documentation purposes
+        # Get the processed dataframe for sample data if available
+        sample_data = ""
+        if state.get('processed_dataframe') is not None:
+            df = state['processed_dataframe']
+            if not df.empty:
+                # Get a small sample of the data (first MAX_SAMPLE_ROWS rows)
+                try:
+                    sample_data = df.head(MAX_SAMPLE_ROWS).to_dict(orient='records')
+                    sample_data = str(sample_data)  # Convert to string for the prompt
+                except Exception as e:
+                    logger.warning(f"Error converting dataframe to dict: {str(e)}")
+                    # Fallback to string representation
+                    sample_data = df.head(MAX_SAMPLE_ROWS).to_string(index=False)
+        
+        # Get metadata text if available
+        metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
+        
+        # Format the prompt with entity and property information
+        prompt = format_prompt('map_properties_to_entities.txt',
+                              entity_property_classification=str(classification),
+                              entities=str(entities),
+                              properties=str(properties),
+                              metadata_text=metadata_text,
+                              sample_data=sample_data)
+        
+        # Save the prompt sample without actually calling the LLM
+        from Tabular_to_Neo4j.utils.llm_manager import save_prompt_sample
+        save_prompt_sample('map_properties_to_entities.txt', prompt, {"state_name": "map_properties_to_entities"})
+        
+        # Save the result as if it was an LLM response
+        result_json = {"property_entity_mapping": property_entity_mapping}
+        save_prompt_sample('map_properties_to_entities_result.txt', str(result_json), {"state_name": "map_properties_to_entities"})
         
         # Update the state with the final mapping
         state['property_entity_mapping'] = property_entity_mapping
