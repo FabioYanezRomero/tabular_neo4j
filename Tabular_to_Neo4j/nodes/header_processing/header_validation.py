@@ -51,6 +51,22 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
         metadata = get_metadata_for_state(state)
         metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
         
+        # Log the header and metadata for debugging
+        logger.debug(f"Current header: {current_header}")
+        logger.debug(f"Metadata: {metadata}")
+        
+        # Set default values if validation fails
+        state['validated_header'] = current_header.copy() if isinstance(current_header, list) else current_header
+        
+        # Extract language from metadata if available
+        metadata_language = metadata.get('language', 'english') if metadata else 'english'
+        logger.info(f"Metadata language: {metadata_language}")
+        
+        # Store metadata language in state for language detection node
+        if 'metadata_language' not in state:
+            state['metadata_language'] = metadata_language
+            state['metadata_language_confidence'] = 1.0  # High confidence since it's from metadata
+        
         # Format the prompt with the data sample, current header, and metadata
         prompt = format_prompt('validate_header.txt',
                               file_name=file_name,

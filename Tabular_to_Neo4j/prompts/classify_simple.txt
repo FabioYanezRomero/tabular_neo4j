@@ -1,0 +1,17 @@
+You are a data modeling expert. Your task is to classify a column from a CSV dataset as either an entity or a property for a Neo4j graph model.
+
+COLUMN TO CLASSIFY: {column_name}
+
+METADATA:
+- General metadata: {metadata_text}
+
+DATA:
+- Sample Values: {sample_values}
+- Uniqueness Ratio: {uniqueness_ratio}
+- Cardinality: {cardinality}
+- Data Type: {data_type}
+- Missing Values: {missing_percentage}%
+
+INSTRUCTIONS:
+Analyze the column and determine if it represents an entity or a property.
+Return your classification as either "entity" or "property".

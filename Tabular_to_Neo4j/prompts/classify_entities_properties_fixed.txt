@@ -33,20 +33,20 @@ INSTRUCTIONS:
 2. Determine if this column represents an entity or a property
 3. Return ONLY a valid JSON object with the following structure:
 
-```json
+For entity classification:
+```
 {
-    "column_name": "COLUMN_NAME_HERE",
+    "column_name": "actual_column_name",
     "classification": "entity",
     "confidence": 0.9,
     "reasoning": "Brief explanation of your classification"
 }
 ```
 
-OR 
-
-```json
+For property classification:
+```
 {
-    "column_name": "COLUMN_NAME_HERE",
+    "column_name": "actual_column_name",
     "classification": "property",
     "confidence": 0.9,
     "reasoning": "Brief explanation of your classification"
@@ -55,3 +55,4 @@ OR
 
 IMPORTANT: Your response must be ONLY the JSON object, with no additional text before or after.
 IMPORTANT: Your classification MUST be either "entity" OR "property", not both.
+IMPORTANT: Replace "actual_column_name" with the name of the column you are classifying.

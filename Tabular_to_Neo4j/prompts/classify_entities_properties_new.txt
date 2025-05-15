@@ -35,7 +35,7 @@ INSTRUCTIONS:
 
 ```json
 {
-    "column_name": "COLUMN_NAME_HERE",
+    "column_name": "COLUMN_NAME_PLACEHOLDER",
     "classification": "entity",
     "confidence": 0.9,
     "reasoning": "Brief explanation of your classification"
@@ -46,7 +46,7 @@ OR
 
 ```json
 {
-    "column_name": "COLUMN_NAME_HERE",
+    "column_name": "COLUMN_NAME_PLACEHOLDER",
     "classification": "property",
     "confidence": 0.9,
     "reasoning": "Brief explanation of your classification"

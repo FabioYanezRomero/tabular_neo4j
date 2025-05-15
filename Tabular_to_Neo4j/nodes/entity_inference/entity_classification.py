@@ -108,14 +108,37 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                         continue
     
                     # Format the prompt with column information and metadata
-                    prompt = format_prompt('classify_entities_properties.txt',
-                                          column_name=column_name,
-                                          sample_values=str(sample_values),
-                                          uniqueness_ratio=analytics.get('uniqueness', 0),
-                                          cardinality=analytics.get('cardinality', 0),
-                                          data_type=analytics.get('data_type', 'unknown'),
-                                          missing_percentage=analytics.get('null_percentage', 0) * 100,
-                                          metadata_text=metadata_text)
+                    try:
+                        prompt = format_prompt('classify_entities_properties.txt',
+                                            column_name=column_name,
+                                            sample_values=str(sample_values),
+                                            uniqueness_ratio=analytics.get('uniqueness', 0),
+                                            cardinality=analytics.get('cardinality', 0),
+                                            data_type=analytics.get('data_type', 'unknown'),
+                                            missing_percentage=analytics.get('null_percentage', 0) * 100,
+                                            metadata_text=metadata_text)
+                    except Exception as e:
+                        error_msg = f"Error formatting prompt for column '{column_name}': {str(e)}"
+                        logger.error(error_msg)
+                        state['error_messages'].append(error_msg)
+                        
+                        # Use rule-based classification if available
+                        if column_name in rule_based:
+                            llm_classification[column_name] = rule_based[column_name]
+                            logger.info(f"Using rule-based classification for '{column_name}' due to prompt error: {rule_based[column_name]['classification']}")
+                            continue
+                        else:
+                            # Fallback to basic heuristics
+                            fallback_classification = 'entity' if uniqueness > UNIQUENESS_THRESHOLD else 'property'
+                            llm_classification[column_name] = {
+                                'column_name': column_name,
+                                'classification': fallback_classification,
+                                'confidence': 0.6,
+                                'analytics': analytics,
+                                'source': 'fallback_heuristic'
+                            }
+                            logger.info(f"Using fallback classification for '{column_name}': {fallback_classification}")
+                            continue
     
                     # Call the LLM for entity/property classification
                     logger.debug(f"Calling LLM for entity/property classification of column '{column_name}'")
@@ -143,23 +166,59 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                                 }
     
                         # Extract the classification results
-                        classification_result = response.get('classification', 'entity_property')
+                        classification_result = response.get('classification', '')
                         # Handle the case where classification_result is not a string
                         if not isinstance(classification_result, str):
                             if isinstance(classification_result, dict) and 'type' in classification_result:
                                 classification_result = classification_result['type']
                             else:
-                                classification_result = 'entity_property'  # Default fallback
+                                # Default to using rule-based classification if available
+                                if column_name in rule_based:
+                                    classification_result = rule_based[column_name]['classification']
+                                else:
+                                    # Fallback based on uniqueness
+                                    classification_result = 'entity' if uniqueness > UNIQUENESS_THRESHOLD else 'property'
                         
-                        # Normalize the classification result
-                        classification_result = classification_result.lower().strip()
-                        if classification_result not in ['entity', 'property', 'entity_property']:
-                            if 'entity' in classification_result:
-                                classification_result = 'entity'
-                            elif 'property' in classification_result:
-                                classification_result = 'property'
+                        # Normalize the classification to ensure it's either 'entity' or 'property'
+                        classification_result = classification_result.lower()
+                        if 'entity' in classification_result and 'property' not in classification_result:
+                            classification_result = 'entity'
+                        elif 'property' in classification_result:
+                            classification_result = 'property'
+                        else:
+                            # If the classification is ambiguous, use rule-based or analytics to decide
+                            if column_name in rule_based:
+                                classification_result = rule_based[column_name]['classification']
+                                logger.info(f"Ambiguous LLM classification for '{column_name}', using rule-based: {classification_result}")
                             else:
-                                classification_result = 'entity_property'
+                                # Make a decision based on column analytics
+                                data_type = analytics.get('data_type', 'unknown')
+                                
+                                # Numeric columns are usually properties
+                                if data_type in ['int', 'float', 'numeric']:
+                                    classification_result = 'property'
+                                # Date columns are usually properties
+                                elif data_type == 'datetime':
+                                    classification_result = 'property'
+                                # Email columns are usually properties
+                                elif 'email' in column_name.lower():
+                                    classification_result = 'property'
+                                # ID columns are usually properties
+                                elif 'id' in column_name.lower():
+                                    classification_result = 'property'
+                                # High uniqueness suggests entity
+                                elif uniqueness > UNIQUENESS_THRESHOLD:
+                                    classification_result = 'entity'
+                                # Default to property for safety
+                                else:
+                                    classification_result = 'property'
+                                
+                                logger.info(f"Ambiguous LLM classification for '{column_name}', using analytics-based decision: {classification_result}")
+                        
+                        # Double-check that we have a valid classification
+                        if classification_result not in ['entity', 'property']:
+                            logger.warning(f"Invalid classification '{classification_result}' for '{column_name}', defaulting to 'property'")
+                            classification_result = 'property'
                         
                         # Handle confidence value
                         confidence = response.get('confidence', 0.0)
@@ -204,7 +263,10 @@ def classify_entities_properties_node(state: GraphState, config: RunnableConfig)
                             logger.info(f"Using enhanced fallback classification for '{column_name}': {fallback_classification}")
                 except Exception as column_error:
                     # If processing a specific column fails, log it and continue with the next one
-                    logger.error(f"Error processing column '{column_name}': {str(column_error)}")
+                    error_msg = f"Error processing column '{column_name}': {str(column_error)}"
+                    logger.error(error_msg)
+                    state['error_messages'].append(error_msg)
+                    
                     # Use rule-based classification if available
                     if column_name in rule_based:
                         llm_classification[column_name] = rule_based[column_name]

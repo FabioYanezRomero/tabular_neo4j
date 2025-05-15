@@ -549,7 +549,54 @@ def format_prompt(template_name: str, **kwargs) -> str:
         The formatted prompt as a string
     """
     template = load_prompt_template(template_name)
-    return template.format(**kwargs)
+    
+    # Ensure all kwargs are properly formatted as strings
+    formatted_kwargs = {}
+    for key, value in kwargs.items():
+        if isinstance(value, (int, float)):
+            formatted_kwargs[key] = str(value)
+        elif isinstance(value, list):
+            # Convert lists to a readable string format
+            formatted_kwargs[key] = str(value)
+        elif isinstance(value, dict):
+            # Convert dicts to a readable string format
+            formatted_kwargs[key] = str(value)
+        else:
+            formatted_kwargs[key] = str(value) if value is not None else ""
+    
+    # Always save the template and kwargs for debugging, even if formatting fails
+    save_prompt_sample(template_name, template, formatted_kwargs, is_template=True)
+    
+    try:
+        # Use a simple string replacement approach instead of format
+        formatted_prompt = template
+        for key, value in formatted_kwargs.items():
+            placeholder = '{' + key + '}'
+            formatted_prompt = formatted_prompt.replace(placeholder, value)
+        
+        # Save the formatted prompt to the prompt_samples folder
+        save_prompt_sample(template_name, formatted_prompt, formatted_kwargs)
+        
+        return formatted_prompt
+    except KeyError as e:
+        error_msg = f"Error formatting prompt: missing key {e}. Available keys: {list(formatted_kwargs.keys())}"
+        logger.error(f"Missing key in prompt template {template_name}: {e}")
+        
+        # Save the error message as the formatted prompt for debugging
+        save_prompt_sample(template_name, error_msg, formatted_kwargs, is_error=True)
+        
+        # Return a simplified template with the error message
+        return error_msg
+    except Exception as e:
+        error_msg = f"Error formatting prompt: {str(e)}"
+        logger.error(f"Error formatting prompt template {template_name}: {e}")
+        
+        # Save the error message as the formatted prompt for debugging
+        save_prompt_sample(template_name, error_msg, formatted_kwargs, is_error=True)
+        
+        # Return a simplified template with the error message
+        return error_msg
+
 
 def call_llm_with_state(state_name: str, prompt: str) -> str:
     """
@@ -564,6 +611,119 @@ def call_llm_with_state(state_name: str, prompt: str) -> str:
     """
     with load_llm_for_state(state_name) as llm_func:
         return llm_func(prompt)
+
+# Global variable to store the current run's timestamp directory
+_CURRENT_RUN_TIMESTAMP_DIR = None
+
+def reset_prompt_sample_directory():
+    """
+    Reset the prompt sample directory for a new pipeline run.
+    This should be called at the beginning of each pipeline run to ensure
+    all prompt samples from the run are stored in a single directory.
+    """
+    global _CURRENT_RUN_TIMESTAMP_DIR
+    _CURRENT_RUN_TIMESTAMP_DIR = None
+
+def save_prompt_sample(template_name: str, formatted_prompt: str, kwargs: dict, is_template: bool = False, is_error: bool = False) -> None:
+    """
+    Save a formatted prompt sample to the prompt_samples folder.
+    All samples from a single run will be stored in the same directory.
+    
+    Args:
+        template_name: Name of the template file
+        formatted_prompt: The formatted prompt
+        kwargs: The arguments used to format the prompt
+        is_template: Whether this is the original template (not formatted)
+        is_error: Whether this is an error message
+    """
+    import os
+    import json
+    import time
+    from pathlib import Path
+    
+    global _CURRENT_RUN_TIMESTAMP_DIR
+    
+    base_dir = Path(__file__).parent.parent.parent
+    prompt_samples_dir = base_dir / "prompt_samples"
+    
+    # If this is the first prompt in the run, create a new timestamp directory
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    if _CURRENT_RUN_TIMESTAMP_DIR is None:
+        # Create a timestamp-based folder name
+        _CURRENT_RUN_TIMESTAMP_DIR = prompt_samples_dir / timestamp
+        
+        # Create the directory
+        os.makedirs(_CURRENT_RUN_TIMESTAMP_DIR, exist_ok=True)
+    
+    # Use the existing timestamp directory for this run
+    timestamp_dir = _CURRENT_RUN_TIMESTAMP_DIR
+    
+    # Determine the file prefix based on whether this is a template, error, or formatted prompt
+    file_prefix = "template" if is_template else "error" if is_error else "formatted"
+    
+    # Save the prompt content
+    prompt_file = timestamp_dir / f"{template_name.replace('.txt', '')}_{file_prefix}.txt"
+    with open(prompt_file, 'w', encoding='utf-8') as f:
+        f.write(formatted_prompt)
+    
+    # Save the kwargs used to format the prompt
+    kwargs_file = timestamp_dir / f"{template_name.replace('.txt', '')}_{file_prefix}_kwargs.json"
+    with open(kwargs_file, 'w', encoding='utf-8') as f:
+        # Convert any non-serializable objects to strings
+        serializable_kwargs = {}
+        for key, value in kwargs.items():
+            if isinstance(value, (str, int, float, bool, list, dict)) and not isinstance(value, type):
+                serializable_kwargs[key] = value
+            else:
+                serializable_kwargs[key] = str(value)
+        
+        json.dump(serializable_kwargs, f, indent=2)
+        
+    # Save metadata about the prompt sample if it doesn't exist yet
+    metadata_file = timestamp_dir / "metadata.json"
+    if not metadata_file.exists():
+        metadata = {
+            "run_timestamp": timestamp,
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "templates": []
+        }
+        with open(metadata_file, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, indent=2)
+    
+    # Update the metadata file with this template
+    try:
+        with open(metadata_file, 'r', encoding='utf-8') as f:
+            metadata = json.load(f)
+        
+        # Add this template to the list if not already present
+        template_info = {
+            "template_name": template_name,
+            "is_template": is_template,
+            "is_error": is_error,
+            "file_prefix": file_prefix,
+            "node_type": template_name.replace('.txt', ''),
+        }
+        
+        # Check if this template is already in the list
+        template_exists = False
+        for existing in metadata.get("templates", []):
+            if (existing.get("template_name") == template_name and 
+                existing.get("is_template") == is_template and
+                existing.get("is_error") == is_error):
+                template_exists = True
+                break
+        
+        if not template_exists:
+            if "templates" not in metadata:
+                metadata["templates"] = []
+            metadata["templates"].append(template_info)
+            
+            with open(metadata_file, 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, indent=2)
+    except Exception as e:
+        # If there's an error updating the metadata, just log it and continue
+        print(f"Error updating metadata: {e}")
+        pass
 
 def call_llm_with_json_output(prompt: str, state_name: str = None) -> Dict[str, Any]:
     """

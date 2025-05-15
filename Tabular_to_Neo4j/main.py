@@ -251,7 +251,7 @@ def format_schema_output(schema: Dict[str, Any]) -> str:
     return "\n".join(output)
 
 def run_analysis(csv_file_path: str, output_file: str = None, verbose: bool = False, 
-               save_node_outputs: bool = False, output_dir: str = "samples") -> Dict[str, Any]:
+                save_node_outputs: bool = False, output_dir: str = "samples") -> Dict[str, Any]:
     """
     Run the CSV analysis and Neo4j schema inference.
     
@@ -263,6 +263,11 @@ def run_analysis(csv_file_path: str, output_file: str = None, verbose: bool = Fa
     Returns:
         The final graph state
     """
+    # Import and reset the prompt sample directory to ensure all samples from this run
+    # are stored in the same directory
+    from Tabular_to_Neo4j.utils.llm_manager import reset_prompt_sample_directory
+    reset_prompt_sample_directory()
+    
     # Log analysis start with file details
     logger.info(f"Starting analysis of CSV file: {csv_file_path}")
     if not os.path.exists(csv_file_path):
