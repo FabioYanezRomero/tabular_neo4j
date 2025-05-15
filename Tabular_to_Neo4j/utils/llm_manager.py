@@ -609,8 +609,27 @@ def call_llm_with_state(state_name: str, prompt: str) -> str:
     Returns:
         The LLM response as a string
     """
+    # Save the prompt sample before calling the LLM
+    try:
+        # Use a generic template name based on the state name
+        template_name = f"{state_name}_prompt.txt"
+        save_prompt_sample(template_name, prompt, {"state_name": state_name})
+        logger.debug(f"Saved prompt sample for state '{state_name}'")
+    except Exception as e:
+        logger.warning(f"Failed to save prompt sample for state '{state_name}': {str(e)}")
+    
+    # Call the LLM with the loaded model for this state
     with load_llm_for_state(state_name) as llm_func:
-        return llm_func(prompt)
+        response = llm_func(prompt)
+        
+        # Save the response as well
+        try:
+            save_prompt_sample(f"{state_name}_response.txt", response, {"state_name": state_name}, is_template=False)
+            logger.debug(f"Saved response sample for state '{state_name}'")
+        except Exception as e:
+            logger.warning(f"Failed to save response sample for state '{state_name}': {str(e)}")
+        
+        return response
 
 # Global variable to store the current run's timestamp directory
 _CURRENT_RUN_TIMESTAMP_DIR = None
@@ -628,6 +647,7 @@ def save_prompt_sample(template_name: str, formatted_prompt: str, kwargs: dict, 
     """
     Save a formatted prompt sample to the prompt_samples folder.
     All samples from a single run will be stored in the same directory.
+    Includes numeric identifiers that align with the node order used in the samples directory.
     
     Args:
         template_name: Name of the template file
@@ -658,6 +678,42 @@ def save_prompt_sample(template_name: str, formatted_prompt: str, kwargs: dict, 
     # Use the existing timestamp directory for this run
     timestamp_dir = _CURRENT_RUN_TIMESTAMP_DIR
     
+    # Define node order mapping that aligns with the one in main.py
+    node_order = {
+        "load_csv": 1,
+        "detect_header": 2,
+        "infer_header": 3,
+        "validate_header": 4,
+        "detect_header_language": 5,
+        "translate_header": 6,
+        "apply_header": 7,
+        "analyze_columns": 8,
+        "classify_entities_properties": 9,
+        "reconcile_entity_property": 10,
+        "map_properties_to_entities": 11,
+        "infer_entity_relationships": 12,
+        "generate_cypher_templates": 13
+    }
+    
+    # Determine the numeric identifier based on the state name
+    state_name = kwargs.get("state_name", "")
+    numeric_id = 0
+    
+    # Extract the base state name from the template name or state_name
+    base_state_name = ""
+    if state_name:
+        base_state_name = state_name
+    else:
+        # Try to extract state name from template_name
+        for node_name in node_order.keys():
+            if node_name in template_name:
+                base_state_name = node_name
+                break
+    
+    # Get the numeric identifier if we found a matching state
+    if base_state_name in node_order:
+        numeric_id = node_order[base_state_name]
+    
     # Determine the file prefix based on whether this is a template, error, or formatted prompt
     file_prefix = "template" if is_template else "error" if is_error else "formatted"
     
@@ -666,13 +722,13 @@ def save_prompt_sample(template_name: str, formatted_prompt: str, kwargs: dict, 
     if "classify_entities_properties" in template_name and "column_name" in kwargs:
         column_suffix = f"_{kwargs['column_name']}"
     
-    # Save the prompt content
-    prompt_file = timestamp_dir / f"{template_name.replace('.txt', '')}{column_suffix}_{file_prefix}.txt"
+    # Save the prompt content with numeric identifier prefix
+    prompt_file = timestamp_dir / f"{numeric_id:02d}_{template_name.replace('.txt', '')}{column_suffix}_{file_prefix}.txt"
     with open(prompt_file, 'w', encoding='utf-8') as f:
         f.write(formatted_prompt)
     
-    # Save the kwargs used to format the prompt
-    kwargs_file = timestamp_dir / f"{template_name.replace('.txt', '')}{column_suffix}_{file_prefix}_kwargs.json"
+    # Save the kwargs used to format the prompt with the same numeric identifier
+    kwargs_file = timestamp_dir / f"{numeric_id:02d}_{template_name.replace('.txt', '')}{column_suffix}_{file_prefix}_kwargs.json"
     with open(kwargs_file, 'w', encoding='utf-8') as f:
         # Convert any non-serializable objects to strings
         serializable_kwargs = {}
@@ -753,11 +809,27 @@ def call_llm_with_json_output(prompt: str, state_name: str = None) -> Dict[str, 
     # Get the LLM configuration for this state
     state_config = LLM_CONFIGS.get(state_name, {})
     
+    # Save the original prompt sample
+    try:
+        template_name = f"{state_name}_original_prompt.txt"
+        save_prompt_sample(template_name, prompt, {"state_name": state_name})
+        logger.debug(f"Saved original prompt sample for state '{state_name}'")
+    except Exception as e:
+        logger.warning(f"Failed to save original prompt sample for state '{state_name}': {str(e)}")
+    
     # Check if LMStudio is available and should be used
     if LMSTUDIO_AVAILABLE:
         try:
             # Add explicit instructions to return JSON
             json_prompt = f"{prompt}\n\nPlease provide your response in valid JSON format."
+            
+            # Save the JSON-formatted prompt sample
+            try:
+                template_name = f"{state_name}_json_prompt.txt"
+                save_prompt_sample(template_name, json_prompt, {"state_name": state_name})
+                logger.debug(f"Saved JSON prompt sample for state '{state_name}'")
+            except Exception as e:
+                logger.warning(f"Failed to save JSON prompt sample for state '{state_name}': {str(e)}")
             
             # Get LMStudio client
             client = get_lmstudio_client()
@@ -768,6 +840,13 @@ def call_llm_with_json_output(prompt: str, state_name: str = None) -> Dict[str, 
             
             # Extract the text from the response
             response_text = client.extract_completion_text(response)
+            
+            # Save the response
+            try:
+                save_prompt_sample(f"{state_name}_json_response.txt", response_text, {"state_name": state_name}, is_template=False)
+                logger.debug(f"Saved JSON response sample for state '{state_name}'")
+            except Exception as e:
+                logger.warning(f"Failed to save JSON response sample for state '{state_name}': {str(e)}")
             
             # Try to parse the response as JSON
             json_data = extract_json_from_llm_response(response_text)
@@ -781,9 +860,24 @@ def call_llm_with_json_output(prompt: str, state_name: str = None) -> Dict[str, 
                 # If we couldn't extract JSON, try again with a more explicit prompt
                 retry_prompt = f"{prompt}\n\nYou MUST respond with ONLY valid JSON. No other text. No markdown formatting."
                 
+                # Save the retry prompt sample
+                try:
+                    template_name = f"{state_name}_retry_prompt.txt"
+                    save_prompt_sample(template_name, retry_prompt, {"state_name": state_name})
+                    logger.debug(f"Saved retry prompt sample for state '{state_name}'")
+                except Exception as e:
+                    logger.warning(f"Failed to save retry prompt sample for state '{state_name}': {str(e)}")
+                
                 # Call the LMStudio API again
                 retry_response = client.completion(retry_prompt)
                 retry_text = client.extract_completion_text(retry_response)
+                
+                # Save the retry response
+                try:
+                    save_prompt_sample(f"{state_name}_retry_response.txt", retry_text, {"state_name": state_name}, is_template=False)
+                    logger.debug(f"Saved retry response sample for state '{state_name}'")
+                except Exception as e:
+                    logger.warning(f"Failed to save retry response sample for state '{state_name}': {str(e)}")
                 
                 # Try to parse the retry response
                 retry_json = extract_json_from_llm_response(retry_text)
@@ -804,8 +898,18 @@ def call_llm_with_json_output(prompt: str, state_name: str = None) -> Dict[str, 
     # Add explicit instructions to return JSON
     json_prompt = f"{prompt}\n\nPlease provide your response in valid JSON format."
     
+    # Save the JSON-formatted prompt sample
+    try:
+        template_name = f"{state_name}_json_prompt.txt"
+        save_prompt_sample(template_name, json_prompt, {"state_name": state_name})
+        logger.debug(f"Saved JSON prompt sample for state '{state_name}'")
+    except Exception as e:
+        logger.warning(f"Failed to save JSON prompt sample for state '{state_name}': {str(e)}")
+    
     # Call the LLM
     response = call_llm_with_state(state_name, json_prompt)
+    
+    # Note: We don't need to save the response here as call_llm_with_state already does this
     
     # Try to parse the response as JSON
     try:
@@ -821,8 +925,18 @@ def call_llm_with_json_output(prompt: str, state_name: str = None) -> Dict[str, 
             # If we couldn't extract JSON, try again with a more explicit prompt
             retry_prompt = f"{prompt}\n\nYou MUST respond with ONLY valid JSON. No other text. No markdown formatting."
             
+            # Save the retry prompt sample
+            try:
+                template_name = f"{state_name}_retry_prompt.txt"
+                save_prompt_sample(template_name, retry_prompt, {"state_name": state_name})
+                logger.debug(f"Saved retry prompt sample for state '{state_name}'")
+            except Exception as e:
+                logger.warning(f"Failed to save retry prompt sample for state '{state_name}': {str(e)}")
+            
             # Call the LLM again
             retry_response = call_llm_with_state(state_name, retry_prompt)
+            
+            # Note: We don't need to save the retry response here as call_llm_with_state already does this
             
             # Try to parse the retry response
             retry_json = extract_json_from_llm_response(retry_response)

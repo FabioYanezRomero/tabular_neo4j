@@ -44,8 +44,8 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
         sample_rows = min(MAX_SAMPLE_ROWS, len(df))
         data_sample = df_to_json_sample(df, sample_rows)
         
-        # Get file name for the prompt
-        file_name = os.path.basename(state.get('csv_file_path', 'unknown.csv'))
+        # File name is no longer needed for the prompt as per requirements
+        # We'll keep the csv_file_path in the state for other nodes that might need it
         
         # Get metadata for the CSV file
         metadata = get_metadata_for_state(state)
@@ -67,25 +67,22 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
             state['metadata_language'] = metadata_language
             state['metadata_language_confidence'] = 1.0  # High confidence since it's from metadata
         
-        # Format the prompt with the data sample, current header, and metadata
         # Convert current_header to JSON string for consistent formatting
         import json
         headers_json = json.dumps(current_header)
         
         prompt = format_prompt('validate_header.txt',
-                              file_name=file_name,
-                              data_sample=data_sample,
-                              headers=headers_json,  # Pass headers instead of current_header
-                              column_count=len(df.columns),
-                              row_count=len(df),
-                              metadata_text=metadata_text)
+                               data_sample=data_sample,
+                               headers=headers_json,  # Pass headers instead of current_header
+                               column_count=len(df.columns),
+                               row_count=len(df),
+                               metadata_text=metadata_text)
         
         # Call the LLM to validate headers
         logger.debug("Calling LLM for header validation")
         response = call_llm_with_json_output(prompt, state_name="validate_header")
         
-        # Extract the validation results
-        is_correct = response.get('is_correct', False)
+        # Extract the validation results (no is_correct field as per requirements)
         validated_header = response.get('validated_header', current_header)
         suggestions = response.get('suggestions', '')
         
@@ -116,8 +113,11 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
         # Update the state with the validated headers
         state['validated_header'] = validated_header
         
-        # If the LLM suggested improvements, update the final header
-        if not is_correct:
+        # Check if the validated header is different from the current header
+        headers_changed = validated_header != current_header
+        
+        # If the headers changed or there are suggestions, update the final header
+        if headers_changed:
             logger.info(f"LLM suggested header improvements: {suggestions}")
             logger.info(f"Updated headers: {validated_header}")
             state['final_header'] = validated_header

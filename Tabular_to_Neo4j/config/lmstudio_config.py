@@ -13,6 +13,6 @@ LMSTUDIO_ENDPOINT = f"{LMSTUDIO_BASE_URL}/{LMSTUDIO_API_VERSION}"
 DEFAULT_MODEL = "local-model"  # This will be replaced with the actual model name from LMStudio
 
 # API parameters
-DEFAULT_TEMPERATURE = 0.7
+DEFAULT_TEMPERATURE = 0.0
 DEFAULT_MAX_TOKENS = 1024
 DEFAULT_TOP_P = 0.95

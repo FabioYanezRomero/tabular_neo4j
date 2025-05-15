@@ -1,30 +1,25 @@
 Your task is to refine a list of potential table headers based on provided metadata and a sample table. You will evaluate the headers and modify them to be more accurate and descriptive.
 
 METADATA:
-- File: {file_name}
 - Purpose: Validate and improve column headers for a CSV file
 - Current headers: {headers}
 
 TABLE:
 {data_sample}
 
-DATA:
-{headers}
-
-Based on the METADATA and TABLE sections, evaluate if the headers in the DATA section accurately describe the data in each column. Consider:
+Based on the METADATA and TABLE sections, evaluate if the headers accurately describe the data in each column. Consider:
 1. Do the headers match the data types and content?
 2. Are the headers descriptive and clear?
 3. Are there any inconsistencies or errors?
 
 Return your analysis as JSON with the following structure:
 {
-    "is_correct": true/false,
     "validated_header": ["header1", "header2", ...],
     "suggestions": "Your explanation of any issues found and suggestions for improvement"
 }
 
-If the headers are correct, set "is_correct" to true and keep "validated_header" the same as the input.
-If you find issues, set "is_correct" to false and provide improved headers in "validated_header".
+If the headers are correct, keep "validated_header" the same as the input.
+If you find issues, provide improved headers in "validated_header".
 The validated_header list MUST have the same length as the original headers list.
 
 JSON response:

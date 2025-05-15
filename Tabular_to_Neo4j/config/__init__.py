@@ -4,7 +4,7 @@ Configuration package for Tabular_to_Neo4j.
 
 # Default configuration values
 DEFAULT_SEED = 42
-DEFAULT_TEMPERATURE = 0.7
+DEFAULT_TEMPERATURE = 0.0
 
 # CSV configuration
 CSV_ENCODING = "utf-8"
