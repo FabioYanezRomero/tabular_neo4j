@@ -1,4 +1,4 @@
-.PHONY: build run stop shell clean help compose-build compose-up compose-down compose-shell check-lmstudio run-lmstudio
+.PHONY: build run stop shell clean help compose-build compose-up compose-down compose-shell check-lmstudio run-lmstudio run-lmstudio-with-outputs
 
 # Docker image and container names
 IMAGE_NAME = tabular-neo4j
@@ -18,6 +18,8 @@ help:
 	@echo "  compose-shell - Open a shell in the running docker-compose container"
 	@echo "  check-lmstudio - Check if LMStudio is reachable from the container"
 	@echo "  run-lmstudio <CSV_FILE> - Run analysis with LMStudio integration"
+	@echo "  run-lmstudio-with-outputs <CSV_FILE> - Run analysis with LMStudio integration and save node outputs"
+	@echo "  run-pipeline-with-outputs <CSV_FILE> - Run pipeline with node output saving"
 
 # Build the Docker image
 build:
@@ -76,6 +78,14 @@ run-lmstudio:
 		exit 1; \
 	fi
 	docker compose exec tabular-neo4j python -m Tabular_to_Neo4j.run_with_lmstudio $(CSV_FILE)
+
+# Run analysis with LMStudio integration and save node outputs
+run-lmstudio-with-outputs:
+	@if [ -z "$(CSV_FILE)" ]; then \
+		echo "Error: CSV_FILE parameter is required. Usage: make run-lmstudio-with-outputs CSV_FILE=/path/to/file.csv"; \
+		exit 1; \
+	fi
+	docker compose exec tabular-neo4j python -m Tabular_to_Neo4j.run_with_lmstudio $(CSV_FILE) --save-node-outputs --output-dir /app/samples
 
 # Rebuild and restart the container with docker-compose
 compose-restart: compose-down compose-build compose-up

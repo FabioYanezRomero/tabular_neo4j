@@ -67,6 +67,9 @@ from Tabular_to_Neo4j.nodes.db_schema import (
     generate_cypher_templates_node
 )
 
+# Import output saver
+from Tabular_to_Neo4j.utils.output_saver import initialize_output_saver, get_output_saver
+
 # Get a logger for this module
 logger = get_logger(__name__)
 
@@ -80,31 +83,51 @@ def create_graph() -> StateGraph:
     # Create the graph with the GraphState type
     graph = StateGraph(GraphState)
     
+    # Get the output saver
+    output_saver = get_output_saver()
+    
+    # Define node order for output file naming
+    node_order = {
+        "load_csv": 1,
+        "detect_header": 2,
+        "infer_header": 3,
+        "validate_header": 4,
+        "detect_header_language": 5,
+        "translate_header": 6,
+        "apply_header": 7,
+        "analyze_columns": 8,
+        "classify_entities_properties": 9,
+        "reconcile_entity_property": 10,
+        "map_properties_to_entities": 11,
+        "infer_entity_relationships": 12,
+        "generate_cypher_templates": 13
+    }
+    
     # Add nodes to the graph
 
     # Input nodes
-    graph.add_node("load_csv", load_csv_node)
-    graph.add_node("detect_header", detect_header_heuristic_node)
+    graph.add_node("load_csv", wrap_node_with_output_saving("load_csv", load_csv_node, node_order["load_csv"]))
+    graph.add_node("detect_header", wrap_node_with_output_saving("detect_header", detect_header_heuristic_node, node_order["detect_header"]))
     
     # Header processing nodes
-    graph.add_node("infer_header", infer_header_llm_node)
-    graph.add_node("validate_header", validate_header_llm_node)
-    graph.add_node("detect_header_language", detect_header_language_node)
-    graph.add_node("translate_header", translate_header_llm_node)
-    graph.add_node("apply_header", apply_header_node)
+    graph.add_node("infer_header", wrap_node_with_output_saving("infer_header", infer_header_llm_node, node_order["infer_header"]))
+    graph.add_node("validate_header", wrap_node_with_output_saving("validate_header", validate_header_llm_node, node_order["validate_header"]))
+    graph.add_node("detect_header_language", wrap_node_with_output_saving("detect_header_language", detect_header_language_node, node_order["detect_header_language"]))
+    graph.add_node("translate_header", wrap_node_with_output_saving("translate_header", translate_header_llm_node, node_order["translate_header"]))
+    graph.add_node("apply_header", wrap_node_with_output_saving("apply_header", apply_header_node, node_order["apply_header"]))
     
     # Analysis nodes
-    graph.add_node("analyze_columns", perform_column_analytics_node)
+    graph.add_node("analyze_columns", wrap_node_with_output_saving("analyze_columns", perform_column_analytics_node, node_order["analyze_columns"]))
     
     
     # Entity and Relationship Inference
-    graph.add_node("classify_entities_properties", classify_entities_properties_node)
-    graph.add_node("reconcile_entity_property", reconcile_entity_property_node)
-    graph.add_node("map_properties_to_entities", map_properties_to_entities_node)
-    graph.add_node("infer_entity_relationships", infer_entity_relationships_node)
+    graph.add_node("classify_entities_properties", wrap_node_with_output_saving("classify_entities_properties", classify_entities_properties_node, node_order["classify_entities_properties"]))
+    graph.add_node("reconcile_entity_property", wrap_node_with_output_saving("reconcile_entity_property", reconcile_entity_property_node, node_order["reconcile_entity_property"]))
+    graph.add_node("map_properties_to_entities", wrap_node_with_output_saving("map_properties_to_entities", map_properties_to_entities_node, node_order["map_properties_to_entities"]))
+    graph.add_node("infer_entity_relationships", wrap_node_with_output_saving("infer_entity_relationships", infer_entity_relationships_node, node_order["infer_entity_relationships"]))
     
     # Database Schema Generation
-    graph.add_node("generate_cypher_templates", generate_cypher_templates_node)
+    graph.add_node("generate_cypher_templates", wrap_node_with_output_saving("generate_cypher_templates", generate_cypher_templates_node, node_order["generate_cypher_templates"]))
     
     # Define the edges
     # Start with loading the CSV
@@ -227,7 +250,8 @@ def format_schema_output(schema: Dict[str, Any]) -> str:
     
     return "\n".join(output)
 
-def run_analysis(csv_file_path: str, output_file: str = None, verbose: bool = False) -> Dict[str, Any]:
+def run_analysis(csv_file_path: str, output_file: str = None, verbose: bool = False, 
+               save_node_outputs: bool = False, output_dir: str = "samples") -> Dict[str, Any]:
     """
     Run the CSV analysis and Neo4j schema inference.
     
@@ -248,6 +272,11 @@ def run_analysis(csv_file_path: str, output_file: str = None, verbose: bool = Fa
     # Log file size and basic info
     file_size = os.path.getsize(csv_file_path) / 1024  # KB
     logger.info(f"File size: {file_size:.2f} KB")
+    
+    # Initialize output saver if requested
+    if save_node_outputs:
+        logger.info(f"Initializing output saver with directory: {output_dir}")
+        initialize_output_saver(output_dir)
     
     # Create the graph
     logger.debug("Creating state graph")
@@ -359,14 +388,48 @@ def main():
     """
     Main entry point for the command-line interface.
     """
-    parser = argparse.ArgumentParser(description='Analyze a CSV file and infer a Neo4j schema.')
+    parser = argparse.ArgumentParser(description='Run Tabular to Neo4j converter.')
     parser.add_argument('csv_file', help='Path to the CSV file to analyze')
-    parser.add_argument('--output', '-o', help='Path to save the results as JSON')
+    parser.add_argument('--output', '-o', help='Path to save the results')
     parser.add_argument('--verbose', '-v', action='store_true', help='Print verbose output')
+    parser.add_argument('--save-node-outputs', '-s', action='store_true', 
+                        help='Save the output of each node to files')
+    parser.add_argument('--output-dir', '-d', default="samples",
+                        help='Directory to save node outputs to (default: samples)')
     
     args = parser.parse_args()
     
-    run_analysis(args.csv_file, args.output, args.verbose)
+    try:
+        run_analysis(args.csv_file, args.output, args.verbose, 
+                     args.save_node_outputs, args.output_dir)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        sys.exit(1)
+
+def wrap_node_with_output_saving(node_name: str, node_func, node_order: int = 0):
+    """
+    Wrap a node function with output saving functionality.
+    
+    Args:
+        node_name: Name of the node
+        node_func: Node function to wrap
+        node_order: Order of the node in the pipeline (for file naming)
+        
+    Returns:
+        Wrapped node function
+    """
+    def wrapped_node(state, config=None):
+        # Call the original node function with the config parameter
+        result = node_func(state, config) if config is not None else node_func(state)
+        
+        # Save the output if output saver is initialized
+        output_saver = get_output_saver()
+        if output_saver:
+            output_saver.save_node_output(node_name, result, node_order)
+        
+        return result
+    
+    return wrapped_node
 
 if __name__ == "__main__":
     main()

@@ -37,7 +37,7 @@ def map_properties_to_entities_node(state: GraphState, config: RunnableConfig) -
     
     try:
         # Get the reconciled entity-property classification
-        classification = state.get('reconciled_classification', {})
+        classification = state.get('entity_property_consensus', {})
         if not classification:
             error_msg = "Cannot map properties to entities: missing reconciled classification"
             logger.error(error_msg)

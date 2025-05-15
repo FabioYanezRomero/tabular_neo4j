@@ -30,6 +30,10 @@ def main():
     parser.add_argument('--lmstudio-port', type=int, default=int(os.environ.get('LMSTUDIO_PORT', 1234)), 
                       help='LMStudio port number (default: from env or 1234)')
     parser.add_argument('--retries', type=int, default=3, help='Number of connection retries')
+    parser.add_argument('--save-node-outputs', '-s', action='store_true',
+                      help='Save the output of each node to files')
+    parser.add_argument('--output-dir', '-d', default="samples",
+                      help='Directory to save node outputs to (default: samples)')
     
     args = parser.parse_args()
     
@@ -78,7 +82,8 @@ def main():
     # Run the analysis
     print(f"Running analysis on {args.csv_file} with LMStudio integration...")
     try:
-        final_state = run_analysis(args.csv_file, args.output, args.verbose)
+        final_state = run_analysis(args.csv_file, args.output, args.verbose,
+                                   args.save_node_outputs, args.output_dir)
         print("✅ Analysis completed successfully!")
         
         # Check if Cypher templates were generated

@@ -144,7 +144,7 @@ def reconcile_entity_property_node(state: GraphState, config: RunnableConfig) ->
         for column_name, info in consensus.items():
             if info['classification'] == 'entity':
                 analytics = state.get('column_analytics', {}).get(column_name, {})
-                info['uniqueness_ratio'] = analytics.get('uniqueness_ratio', 0)
+                info['uniqueness_ratio'] = analytics.get('uniqueness', 0)  # Updated field name
         
         # Update the state
         state['entity_property_consensus'] = consensus
