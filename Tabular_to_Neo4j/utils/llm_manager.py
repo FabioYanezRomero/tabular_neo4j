@@ -791,13 +791,18 @@ def save_prompt_sample(template_name: str, formatted_prompt: str, kwargs: dict, 
         print(f"Error updating metadata: {e}")
         pass
 
-def call_llm_with_json_output(prompt: str, state_name: str = None) -> Dict[str, Any]:
+def call_llm_with_json_output(
+    prompt: str,
+    state_name: str = None,
+    **kwargs,
+) -> Dict[str, Any]:
     """
     Call the LLM and parse the response as JSON.
     
     Args:
         prompt: The prompt to send to the LLM
         state_name: The name of the state to use the LLM for
+        **kwargs: Optional parameters for future extensions
         
     Returns:
         The parsed JSON response as a dictionary
