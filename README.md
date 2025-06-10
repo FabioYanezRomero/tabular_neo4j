@@ -207,7 +207,7 @@ The system exclusively uses LM Studio for all LLM interactions:
 
 ## Configuration
 
-You can customize the system behavior in `config.py`:
+You can customize the system behavior via environment variables or by editing `config.py`:
 
 ```python
 # LLM Configuration
@@ -218,6 +218,12 @@ TARGET_HEADER_LANGUAGE = "English"  # Target language for headers
 # Analysis Settings
 UNIQUENESS_THRESHOLD = 0.9  # Threshold for considering a column as a unique identifier
 ```
+
+Key environment variables include:
+
+- `LMSTUDIO_HOST` and `LMSTUDIO_PORT` – location of the LMStudio server
+- `LMSTUDIO_DEFAULT_MODEL` – fallback model for LLM interactions
+- `LMSTUDIO_MODEL_<STATE_NAME>` – override the model for a specific graph state
 
 ## Project Structure
 
