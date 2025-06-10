@@ -10,7 +10,11 @@ DEFAULT_SEED = 42  # Default seed for reproducibility
 DEFAULT_TEMPERATURE = 0.0  # Default temperature (0.0 for deterministic results)
 
 # LMStudio settings for GGUF models
-LMSTUDIO_BASE_URL = "http://localhost:1234/v1"  # Default LMStudio local server
+import os
+
+LMSTUDIO_BASE_URL = os.environ.get(
+    "LMSTUDIO_BASE_URL", "http://localhost:1234/v1"
+)
 
 # Per-State LLM Configuration with GGUF models through LMStudio
 # Each state has its own model and output format specification
@@ -162,7 +166,9 @@ LLM_CONFIGS = {
 }
 
 # Default model to use if not specified in LLM_CONFIGS
-DEFAULT_LMSTUDIO_MODEL = "Mistral-7B-Instruct-v0.2-GGUF"  # Default model for LM Studio
+DEFAULT_LMSTUDIO_MODEL = os.environ.get(
+    "LMSTUDIO_DEFAULT_MODEL", "Mistral-7B-Instruct-v0.2-GGUF"
+)  # Default model for LM Studio
 
 # CSV Processing Settings
 MAX_SAMPLE_ROWS = 5  # Maximum number of rows to include in LLM prompts
