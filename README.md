@@ -228,6 +228,10 @@ TARGET_HEADER_LANGUAGE = "English"  # Target language for headers
 UNIQUENESS_THRESHOLD = 0.9  # Threshold for considering a column as a unique identifier
 ```
 
+The order of nodes and their connections are defined declaratively in
+`Tabular_to_Neo4j/pipeline_config.py`.  Updating this configuration file is all
+that's required to adjust the pipeline structure.
+
 ## Project Structure
 
 ```
