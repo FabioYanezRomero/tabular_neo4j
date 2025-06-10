@@ -97,7 +97,7 @@ LLM_CONFIGS = {
 Run this script to verify your LMStudio connection:
 
 ```python
-from Tabular_to_Neo4j.utils.llm_manager import get_lmstudio_models, list_loaded_models
+from Tabular_to_Neo4j.utils.llm_api import get_lmstudio_models, list_loaded_models
 
 # Get available models from LMStudio
 models = get_lmstudio_models()
