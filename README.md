@@ -207,7 +207,16 @@ The system exclusively uses LM Studio for all LLM interactions:
 
 ## Configuration
 
-You can customize the system behavior in `config.py`:
+Environment variables are loaded from a `.env` file at the repository root. A
+sample file `.env.example` is provided. Copy it to `.env` and adjust the values
+for your environment:
+
+```bash
+cp .env.example .env
+# edit .env with your preferred settings
+```
+
+You can also customize the system behavior in `config.py`:
 
 ```python
 # LLM Configuration

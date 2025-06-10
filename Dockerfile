@@ -5,9 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Set environment variable for LM Studio connection
-ENV LMSTUDIO_HOST=host.docker.internal
-ENV LMSTUDIO_PORT=1234
+# Default LMStudio connection parameters can be provided via environment variables
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
