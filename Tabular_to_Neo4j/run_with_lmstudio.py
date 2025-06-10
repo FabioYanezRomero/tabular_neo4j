@@ -9,6 +9,10 @@ import sys
 import time
 from pathlib import Path
 
+from Tabular_to_Neo4j.utils.logging_config import get_logger, setup_logging
+
+logger = get_logger(__name__)
+
 # Add the repository root to the Python path if needed
 repo_root = Path(__file__).parent.absolute()
 if str(repo_root.parent) not in sys.path:
@@ -36,16 +40,22 @@ def main():
                       help='Directory to save node outputs to (default: samples)')
     
     args = parser.parse_args()
-    
+
+    setup_logging()
+
     # Check if CSV file exists
     csv_path = Path(args.csv_file)
     if not csv_path.exists():
-        print(f"❌ CSV file not found: {args.csv_file}")
-        print(f"   Please check the path and try again.")
+        logger.error("❌ CSV file not found: %s", args.csv_file)
+        logger.error("   Please check the path and try again.")
         sys.exit(1)
-    
+
     # Check if LMStudio is reachable
-    print(f"Checking LMStudio connection at {args.lmstudio_host}:{args.lmstudio_port}...")
+    logger.info(
+        "Checking LMStudio connection at %s:%s...",
+        args.lmstudio_host,
+        args.lmstudio_port,
+    )
     lmstudio_available = check_lmstudio_connection(
         host=args.lmstudio_host,
         port=args.lmstudio_port,
@@ -53,9 +63,15 @@ def main():
     )
     
     if not lmstudio_available:
-        print("❌ LMStudio is not available. Please make sure LMStudio is running and properly configured.")
-        print("   You can start LMStudio and make sure it's listening on the specified host and port.")
-        print("   If running in Docker, make sure the container has access to the host network.")
+        logger.error(
+            "❌ LMStudio is not available. Please make sure LMStudio is running and properly configured."
+        )
+        logger.error(
+            "   You can start LMStudio and make sure it's listening on the specified host and port."
+        )
+        logger.error(
+            "   If running in Docker, make sure the container has access to the host network."
+        )
         sys.exit(1)
     
     # Update the LMStudio configuration
@@ -80,23 +96,30 @@ def main():
             f.write(config_content)
     
     # Run the analysis
-    print(f"Running analysis on {args.csv_file} with LMStudio integration...")
+    logger.info(
+        "Running analysis on %s with LMStudio integration...",
+        args.csv_file,
+    )
     try:
         final_state = run_analysis(args.csv_file, args.output, args.verbose,
                                    args.save_node_outputs, args.output_dir)
-        print("✅ Analysis completed successfully!")
+        logger.info("✅ Analysis completed successfully!")
         
         # Check if Cypher templates were generated
         if final_state.get('cypher_query_templates'):
             templates = final_state['cypher_query_templates']
             entity_count = len(templates.get('entity_creation_queries', []))
             relationship_count = len(templates.get('relationship_queries', []))
-            print(f"Generated {entity_count} entity creation queries and {relationship_count} relationship queries.")
+            logger.info(
+                "Generated %s entity creation queries and %s relationship queries.",
+                entity_count,
+                relationship_count,
+            )
         else:
-            print("⚠️ No Cypher templates were generated.")
+            logger.warning("⚠️ No Cypher templates were generated.")
             
     except Exception as e:
-        print(f"❌ Error during analysis: {str(e)}")
+        logger.error("❌ Error during analysis: %s", e)
         sys.exit(1)
 
 if __name__ == "__main__":

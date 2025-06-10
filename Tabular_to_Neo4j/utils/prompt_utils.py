@@ -144,7 +144,7 @@ def save_prompt_sample(
             with open(metadata_file, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2)
     except Exception as e:
-        print(f"Error updating metadata: {e}")
+        logger.error("Error updating metadata: %s", e)
 
 
 def format_prompt(template_name: str, **kwargs) -> str:
