@@ -1,16 +1,20 @@
-"""
-Configuration settings for the Tabular to Neo4j converter.
-"""
+"""Configuration settings for the Tabular to Neo4j converter."""
+
+import os
+from dotenv import load_dotenv, find_dotenv
+
+# Load environment variables from a .env file if present
+load_dotenv(find_dotenv())
 
 # General LLM Configuration
-LLM_API_KEY = ""  # Not used with LM Studio but kept for compatibility
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")  # Not used with LM Studio but kept for compatibility
 TARGET_HEADER_LANGUAGE = "English"  # Target language for headers
-DEFAULT_LLM_PROVIDER = "lmstudio"  # Using LMStudio exclusively for all LLM interactions
+DEFAULT_LLM_PROVIDER = os.getenv("LLM_PROVIDER", "lmstudio")
 DEFAULT_SEED = 42  # Default seed for reproducibility
 DEFAULT_TEMPERATURE = 0.0  # Default temperature (0.0 for deterministic results)
 
 # LMStudio settings for GGUF models
-LMSTUDIO_BASE_URL = "http://localhost:1234/v1"  # Default LMStudio local server
+LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
 
 # Per-State LLM Configuration with GGUF models through LMStudio
 # Each state has its own model and output format specification

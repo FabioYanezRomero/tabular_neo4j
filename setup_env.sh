@@ -15,14 +15,20 @@ pip install -e .
 
 # Create a .env file for configuration
 if [ ! -f .env ]; then
-    echo "Creating .env file for configuration..."
-    cat > .env << EOF
+    echo "Creating .env file from template..."
+    if [ -f .env.example ]; then
+        cp .env.example .env
+    else
+        cat > .env << EOF
 # LLM API Configuration
-LLM_API_KEY=""  # Set your API key here
-LLM_PROVIDER="lmstudio"  # Options: "openai", "ollama", "anthropic", "lmstudio", "huggingface"
-LMSTUDIO_BASE_URL="http://localhost:1234/v1"  # Default LMStudio local server
+LLM_API_KEY=""
+LLM_PROVIDER="lmstudio"
+LMSTUDIO_HOST="127.0.0.1"
+LMSTUDIO_PORT="1234"
+LMSTUDIO_BASE_URL="http://127.0.0.1:1234/v1"
 EOF
-    echo ".env file created. Please edit it to add your API keys."
+    fi
+    echo ".env file created. Please edit it to add your API keys and settings."
 fi
 
 echo ""
