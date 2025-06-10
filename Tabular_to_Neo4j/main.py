@@ -293,31 +293,28 @@ def run_analysis(
     if verbose:
         logger.info("Displaying analysis results")
 
-        # Print any errors
+        # Log any errors
         if final_state.get("error_messages"):
-            print("\nErrors/Warnings encountered during analysis:")
+            logger.info("\nErrors/Warnings encountered during analysis:")
             for error in final_state.get("error_messages", []):
-                print(f"  - {error}")
+                logger.info("  - %s", error)
 
-        # Print the generated Cypher templates
+        # Log the generated Cypher templates
         if final_state.get("cypher_query_templates"):
             templates = final_state["cypher_query_templates"]
-            print("\nGenerated Cypher Templates:")
+            logger.info("\nGenerated Cypher Templates:")
 
-            print("\nENTITY CREATION QUERIES:")
+            logger.info("\nENTITY CREATION QUERIES:")
             for i, query in enumerate(templates.get("entity_creation_queries", [])):
-                print(f"\nQuery {i+1}:")
-                print(query.get("query", ""))
+                logger.info("\nQuery %s:\n%s", i + 1, query.get("query", ""))
 
-            print("\nRELATIONSHIP QUERIES:")
+            logger.info("\nRELATIONSHIP QUERIES:")
             for i, query in enumerate(templates.get("relationship_queries", [])):
-                print(f"\nQuery {i+1}:")
-                print(query.get("query", ""))
+                logger.info("\nQuery %s:\n%s", i + 1, query.get("query", ""))
 
-            print("\nEXAMPLE QUERIES:")
+            logger.info("\nEXAMPLE QUERIES:")
             for i, query in enumerate(templates.get("example_queries", [])):
-                print(f"\nQuery {i+1}:")
-                print(query.get("query", ""))
+                logger.info("\nQuery %s:\n%s", i + 1, query.get("query", ""))
 
     return final_state
 
@@ -356,7 +353,7 @@ def main():
             args.output_dir,
         )
     except Exception as e:
-        print(f"Error: {str(e)}")
+        logger.error("Error: %s", e)
         sys.exit(1)
 
 
