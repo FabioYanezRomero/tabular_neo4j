@@ -6,10 +6,14 @@ This module handles mapping properties to their respective entities.
 from typing import Dict, Any, List
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
-from Tabular_to_Neo4j.utils.llm_manager import format_prompt, call_llm_with_json_output
+from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
+from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output
 from Tabular_to_Neo4j.nodes.entity_inference.utils import to_neo4j_property_name
 from Tabular_to_Neo4j.utils.logging_config import get_logger
-from Tabular_to_Neo4j.utils.metadata_utils import load_metadata_for_csv, format_metadata_for_prompt
+from Tabular_to_Neo4j.utils.metadata_utils import (
+    load_metadata_for_csv,
+    format_metadata_for_prompt,
+)
 from Tabular_to_Neo4j.utils.csv_utils import get_sample_rows
 from Tabular_to_Neo4j.utils.analytics_utils import analyze_column
 from Tabular_to_Neo4j.config import MAX_SAMPLE_ROWS
@@ -18,128 +22,146 @@ from Tabular_to_Neo4j.config import MAX_SAMPLE_ROWS
 logger = get_logger(__name__)
 
 
-def map_properties_to_entities_node(state: GraphState, config: RunnableConfig) -> GraphState:
+def map_properties_to_entities_node(
+    state: GraphState, config: RunnableConfig
+) -> GraphState:
     """
     Map properties to their respective entities and create a clear property-entity mapping.
-    
+
     Args:
         state: The current graph state
         config: LangGraph runnable configuration
-        
+
     Returns:
         Updated graph state with property_entity_mapping
     """
     logger.info("Starting property-to-entity mapping process")
-    
+
     # Initialize error messages list if it doesn't exist
-    if 'error_messages' not in state:
-        state['error_messages'] = []
-    
+    if "error_messages" not in state:
+        state["error_messages"] = []
+
     try:
         # Get the reconciled entity-property classification
-        classification = state.get('entity_property_consensus', {})
+        classification = state.get("entity_property_consensus", {})
         if not classification:
-            error_msg = "Cannot map properties to entities: missing reconciled classification"
+            error_msg = (
+                "Cannot map properties to entities: missing reconciled classification"
+            )
             logger.error(error_msg)
-            state['error_messages'].append(error_msg)
+            state["error_messages"].append(error_msg)
             return state
-        
+
         # Get the metadata if available
         metadata = None
-        if 'csv_file_path' in state:
-            csv_file_path = state['csv_file_path']
+        if "csv_file_path" in state:
+            csv_file_path = state["csv_file_path"]
             metadata = load_metadata_for_csv(csv_file_path)
-            
+
         # Get the column analytics
-        column_analytics = state.get('column_analytics', {})
-        
+        column_analytics = state.get("column_analytics", {})
+
         # Separate entities and properties
         entities = []
         properties = []
-        
+
         for column_name, info in classification.items():
-            column_class = info.get('classification', '')
-            
-            if column_class == 'entity':
+            column_class = info.get("classification", "")
+
+            if column_class == "entity":
                 entities.append(column_name)
                 logger.debug(f"Identified entity column: {column_name}")
-            
-            elif column_class == 'property':
+
+            elif column_class == "property":
                 properties.append(column_name)
                 logger.debug(f"Identified property column: {column_name}")
-        
+
         logger.info(f"Found {len(entities)} entities and {len(properties)} properties")
-        
+
         # If no entities or properties, return the state unchanged
         if not entities:
             logger.warning("No entities found, skipping property mapping")
             return state
-            
+
         # Use the first entity as our main entity for properties
         main_entity = entities[0]
         logger.info(f"Using {main_entity} as the main entity for properties")
-        
+
         # Create a property-entity mapping that includes ALL entities
         property_entity_mapping = {}
-        
+
         # Add all entities to the mapping
         for entity in entities:
             property_entity_mapping[entity] = {
-                'type': 'entity',
-                'properties': [],
-                'is_primary': entity == main_entity  # Mark the first entity as primary
+                "type": "entity",
+                "properties": [],
+                "is_primary": entity == main_entity,  # Mark the first entity as primary
             }
             logger.info(f"Added entity '{entity}' to mapping")
-        
+
         # Add all properties to the main entity
         for prop in properties:
             property_key = to_neo4j_property_name(prop)
-            property_entity_mapping[main_entity]['properties'].append({
-                'column_name': prop,
-                'property_key': property_key
-            })
+            property_entity_mapping[main_entity]["properties"].append(
+                {"column_name": prop, "property_key": property_key}
+            )
             logger.info(f"Mapped property '{prop}' to entity '{main_entity}'")
-        
+
         # Format a sample prompt for documentation purposes
         # Get the processed dataframe for sample data if available
         sample_data = ""
-        if state.get('processed_dataframe') is not None:
-            df = state['processed_dataframe']
+        if state.get("processed_dataframe") is not None:
+            df = state["processed_dataframe"]
             if not df.empty:
                 # Get a small sample of the data (first MAX_SAMPLE_ROWS rows)
                 try:
-                    sample_data = df.head(MAX_SAMPLE_ROWS).to_dict(orient='records')
+                    sample_data = df.head(MAX_SAMPLE_ROWS).to_dict(orient="records")
                     sample_data = str(sample_data)  # Convert to string for the prompt
                 except Exception as e:
                     logger.warning(f"Error converting dataframe to dict: {str(e)}")
                     # Fallback to string representation
                     sample_data = df.head(MAX_SAMPLE_ROWS).to_string(index=False)
-        
+
         # Get metadata text if available
-        metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
-        
+        metadata_text = (
+            format_metadata_for_prompt(metadata)
+            if metadata
+            else "No metadata available."
+        )
+
         # Format the prompt with entity and property information
-        prompt = format_prompt('map_properties_to_entities.txt',
-                              entity_property_classification=str(classification),
-                              entities=str(entities),
-                              properties=str(properties),
-                              metadata_text=metadata_text,
-                              sample_data=sample_data)
-        
+        prompt = format_prompt(
+            "map_properties_to_entities.txt",
+            entity_property_classification=str(classification),
+            entities=str(entities),
+            properties=str(properties),
+            metadata_text=metadata_text,
+            sample_data=sample_data,
+        )
+
         # Save the prompt sample without actually calling the LLM
-        from Tabular_to_Neo4j.utils.llm_manager import save_prompt_sample
-        save_prompt_sample('map_properties_to_entities.txt', prompt, {"state_name": "map_properties_to_entities"})
-        
+        from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
+
+        save_prompt_sample(
+            "map_properties_to_entities.txt",
+            prompt,
+            {"state_name": "map_properties_to_entities"},
+        )
+
         # Save the result as if it was an LLM response
         result_json = {"property_entity_mapping": property_entity_mapping}
-        save_prompt_sample('map_properties_to_entities_result.txt', str(result_json), {"state_name": "map_properties_to_entities"})
-        
+        save_prompt_sample(
+            "map_properties_to_entities_result.txt",
+            str(result_json),
+            {"state_name": "map_properties_to_entities"},
+        )
+
         # Update the state with the final mapping
-        state['property_entity_mapping'] = property_entity_mapping
-        
+        state["property_entity_mapping"] = property_entity_mapping
+
     except Exception as e:
         logger.error(f"Error in property mapping: {str(e)}")
-        state['error_messages'].append(f"Error in property mapping: {str(e)}")
-        state['property_entity_mapping'] = {}
-    
+        state["error_messages"].append(f"Error in property mapping: {str(e)}")
+        state["property_entity_mapping"] = {}
+
     return state
