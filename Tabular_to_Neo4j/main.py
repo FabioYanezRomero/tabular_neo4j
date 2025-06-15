@@ -36,30 +36,11 @@ from langgraph.graph import StateGraph, END
 from Tabular_to_Neo4j.app_state import GraphState
 
 # Import input nodes
-from Tabular_to_Neo4j.nodes.input import load_csv_node, detect_header_heuristic_node
-
-# Import header processing nodes
-from Tabular_to_Neo4j.nodes.header_processing import (
-    infer_header_llm_node,
-    validate_header_llm_node,
-    detect_header_language_node,
-    translate_header_llm_node,
-    apply_header_node,
+from Tabular_to_Neo4j.pipeline_config import (
+    PIPELINE_NODES,
+    PIPELINE_EDGES,
+    ENTRY_POINT,
 )
-
-# Import analysis nodes
-from Tabular_to_Neo4j.nodes.analysis import perform_column_analytics_node
-
-# Import entity inference nodes
-from Tabular_to_Neo4j.nodes.entity_inference import (
-    classify_entities_properties_node,
-    reconcile_entity_property_node,
-    map_properties_to_entities_node,
-    infer_entity_relationships_node,
-)
-
-# Import database schema generation nodes
-from Tabular_to_Neo4j.nodes.db_schema import generate_cypher_templates_node
 
 # Import output saver
 from Tabular_to_Neo4j.utils.output_saver import (
@@ -84,180 +65,25 @@ def create_graph() -> StateGraph:
     # Get the output saver
     output_saver = get_output_saver()
 
-    # Define node order for output file naming
-    node_order = {
-        "load_csv": 1,
-        "detect_header": 2,
-        "infer_header": 3,
-        "validate_header": 4,
-        "detect_header_language": 5,
-        "translate_header": 6,
-        "apply_header": 7,
-        "analyze_columns": 8,
-        "classify_entities_properties": 9,
-        "reconcile_entity_property": 10,
-        "map_properties_to_entities": 11,
-        "infer_entity_relationships": 12,
-        "generate_cypher_templates": 13,
-    }
+    # Determine node order based on configuration
+    node_order = {name: idx + 1 for idx, (name, _) in enumerate(PIPELINE_NODES)}
 
-    # Add nodes to the graph
+    # Add nodes using the declarative configuration
+    for node_name, node_func in PIPELINE_NODES:
+        graph.add_node(
+            node_name,
+            wrap_node_with_output_saving(node_name, node_func, node_order[node_name]),
+        )
 
-    # Input nodes
-    graph.add_node(
-        "load_csv",
-        wrap_node_with_output_saving("load_csv", load_csv_node, node_order["load_csv"]),
-    )
-    graph.add_node(
-        "detect_header",
-        wrap_node_with_output_saving(
-            "detect_header", detect_header_heuristic_node, node_order["detect_header"]
-        ),
-    )
-
-    # Header processing nodes
-    graph.add_node(
-        "infer_header",
-        wrap_node_with_output_saving(
-            "infer_header", infer_header_llm_node, node_order["infer_header"]
-        ),
-    )
-    graph.add_node(
-        "validate_header",
-        wrap_node_with_output_saving(
-            "validate_header", validate_header_llm_node, node_order["validate_header"]
-        ),
-    )
-    graph.add_node(
-        "detect_header_language",
-        wrap_node_with_output_saving(
-            "detect_header_language",
-            detect_header_language_node,
-            node_order["detect_header_language"],
-        ),
-    )
-    graph.add_node(
-        "translate_header",
-        wrap_node_with_output_saving(
-            "translate_header",
-            translate_header_llm_node,
-            node_order["translate_header"],
-        ),
-    )
-    graph.add_node(
-        "apply_header",
-        wrap_node_with_output_saving(
-            "apply_header", apply_header_node, node_order["apply_header"]
-        ),
-    )
-
-    # Analysis nodes
-    graph.add_node(
-        "analyze_columns",
-        wrap_node_with_output_saving(
-            "analyze_columns",
-            perform_column_analytics_node,
-            node_order["analyze_columns"],
-        ),
-    )
-
-    # Entity and Relationship Inference
-    graph.add_node(
-        "classify_entities_properties",
-        wrap_node_with_output_saving(
-            "classify_entities_properties",
-            classify_entities_properties_node,
-            node_order["classify_entities_properties"],
-        ),
-    )
-    graph.add_node(
-        "reconcile_entity_property",
-        wrap_node_with_output_saving(
-            "reconcile_entity_property",
-            reconcile_entity_property_node,
-            node_order["reconcile_entity_property"],
-        ),
-    )
-    graph.add_node(
-        "map_properties_to_entities",
-        wrap_node_with_output_saving(
-            "map_properties_to_entities",
-            map_properties_to_entities_node,
-            node_order["map_properties_to_entities"],
-        ),
-    )
-    graph.add_node(
-        "infer_entity_relationships",
-        wrap_node_with_output_saving(
-            "infer_entity_relationships",
-            infer_entity_relationships_node,
-            node_order["infer_entity_relationships"],
-        ),
-    )
-
-    # Database Schema Generation
-    graph.add_node(
-        "generate_cypher_templates",
-        wrap_node_with_output_saving(
-            "generate_cypher_templates",
-            generate_cypher_templates_node,
-            node_order["generate_cypher_templates"],
-        ),
-    )
-
-    # Define the edges
-    # Start with loading the CSV
-    graph.add_edge("load_csv", "detect_header")
-
-    # Conditional edge from detect_header based on has_header_heuristic
-    graph.add_conditional_edges(
-        "detect_header",
-        lambda state: (
-            "has_header" if state.get("has_header_heuristic", False) else "no_header"
-        ),
-        {
-            "has_header": "validate_header",  # If header detected, skip inference
-            "no_header": "infer_header",  # If no header detected, infer headers
-        },
-    )
-
-    # Continue the flow from infer_header to validate_header
-    graph.add_edge("infer_header", "validate_header")
-
-    # Add language detection after header validation
-    graph.add_edge("validate_header", "detect_header_language")
-
-    # Conditional edge from detect_header_language based on is_header_in_target_language
-    graph.add_conditional_edges(
-        "detect_header_language",
-        lambda state: (
-            "same_language"
-            if state.get("is_header_in_target_language", False)
-            else "different_language"
-        ),
-        {
-            "same_language": "apply_header",  # If header already in target language, skip translation
-            "different_language": "translate_header",  # If header in different language, translate it
-        },
-    )
-
-    # Continue with header translation (if needed) and application
-    graph.add_edge("translate_header", "apply_header")
-
-    # Column analysis
-    graph.add_edge("apply_header", "analyze_columns")
-    # Schema synthesis pipeline
-    graph.add_edge("analyze_columns", "classify_entities_properties")
-    graph.add_edge("classify_entities_properties", "reconcile_entity_property")
-    graph.add_edge("reconcile_entity_property", "map_properties_to_entities")
-    graph.add_edge("map_properties_to_entities", "infer_entity_relationships")
-    graph.add_edge("infer_entity_relationships", "generate_cypher_templates")
-
-    # End the graph after cypher template generation
-    graph.add_edge("generate_cypher_templates", END)
+    # Define edges using the declarative configuration
+    for edge in PIPELINE_EDGES:
+        if isinstance(edge, tuple):
+            graph.add_edge(edge[0], edge[1])
+        else:
+            graph.add_conditional_edges(edge["from"], edge["condition"], edge["edges"])
 
     # Set the entry point
-    graph.set_entry_point("load_csv")
+    graph.set_entry_point(ENTRY_POINT)
 
     return graph
 
@@ -467,31 +293,28 @@ def run_analysis(
     if verbose:
         logger.info("Displaying analysis results")
 
-        # Print any errors
+        # Log any errors
         if final_state.get("error_messages"):
-            print("\nErrors/Warnings encountered during analysis:")
+            logger.info("\nErrors/Warnings encountered during analysis:")
             for error in final_state.get("error_messages", []):
-                print(f"  - {error}")
+                logger.info("  - %s", error)
 
-        # Print the generated Cypher templates
+        # Log the generated Cypher templates
         if final_state.get("cypher_query_templates"):
             templates = final_state["cypher_query_templates"]
-            print("\nGenerated Cypher Templates:")
+            logger.info("\nGenerated Cypher Templates:")
 
-            print("\nENTITY CREATION QUERIES:")
+            logger.info("\nENTITY CREATION QUERIES:")
             for i, query in enumerate(templates.get("entity_creation_queries", [])):
-                print(f"\nQuery {i+1}:")
-                print(query.get("query", ""))
+                logger.info("\nQuery %s:\n%s", i + 1, query.get("query", ""))
 
-            print("\nRELATIONSHIP QUERIES:")
+            logger.info("\nRELATIONSHIP QUERIES:")
             for i, query in enumerate(templates.get("relationship_queries", [])):
-                print(f"\nQuery {i+1}:")
-                print(query.get("query", ""))
+                logger.info("\nQuery %s:\n%s", i + 1, query.get("query", ""))
 
-            print("\nEXAMPLE QUERIES:")
+            logger.info("\nEXAMPLE QUERIES:")
             for i, query in enumerate(templates.get("example_queries", [])):
-                print(f"\nQuery {i+1}:")
-                print(query.get("query", ""))
+                logger.info("\nQuery %s:\n%s", i + 1, query.get("query", ""))
 
     return final_state
 
@@ -530,7 +353,7 @@ def main():
             args.output_dir,
         )
     except Exception as e:
-        print(f"Error: {str(e)}")
+        logger.error("Error: %s", e)
         sys.exit(1)
 
 

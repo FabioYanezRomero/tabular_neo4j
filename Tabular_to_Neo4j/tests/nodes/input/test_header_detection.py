@@ -9,6 +9,10 @@ from Tabular_to_Neo4j.nodes.input.header_detection import (
     detect_header_heuristic_node as detect_header_node,
 )
 from Tabular_to_Neo4j.app_state import GraphState
+from Tabular_to_Neo4j.utils.logging_config import get_logger, setup_logging
+
+logger = get_logger(__name__)
+setup_logging()
 
 
 @pytest.mark.unit
@@ -74,7 +78,10 @@ def test_detect_header_node_without_header(runnable_config):
     # or additional heuristics to improve accuracy
 
     # Document the current behavior for reference
-    print(f"Current heuristic detection result: {result_state['has_header_heuristic']}")
+    logger.info(
+        "Current heuristic detection result: %s",
+        result_state["has_header_heuristic"],
+    )
     # This output helps us understand the current behavior without failing the test
 
 

@@ -237,6 +237,9 @@ TARGET_HEADER_LANGUAGE = "English"  # Target language for headers
 UNIQUENESS_THRESHOLD = 0.9  # Threshold for considering a column as a unique identifier
 ```
 
+The pipeline itself is described in `pipeline_config.py`. Modify this file to
+reorder nodes or change how they connect.
+
 ## Project Structure
 
 ```

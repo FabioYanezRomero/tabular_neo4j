@@ -8,6 +8,13 @@ This guide explains how to use the Tabular to Neo4j converter with LMStudio inte
 2. Docker and Docker Compose installed (if running in Docker)
 3. Python 3.8+ (if running locally)
 
+Before running the application, copy the provided `.env.example` file to `.env`
+and adjust the values if needed:
+
+```bash
+cp .env.example .env
+```
+
 ## Setting Up LMStudio
 
 1. Open LMStudio on your local machine

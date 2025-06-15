@@ -207,7 +207,16 @@ The system exclusively uses LM Studio for all LLM interactions:
 
 ## Configuration
 
-You can customize the system behavior in `config.py`:
+Environment variables are loaded from a `.env` file at the repository root. A
+sample file `.env.example` is provided. Copy it to `.env` and adjust the values
+for your environment:
+
+```bash
+cp .env.example .env
+# edit .env with your preferred settings
+```
+
+You can also customize the system behavior in `config.py`:
 
 ```python
 # LLM Configuration
@@ -218,6 +227,10 @@ TARGET_HEADER_LANGUAGE = "English"  # Target language for headers
 # Analysis Settings
 UNIQUENESS_THRESHOLD = 0.9  # Threshold for considering a column as a unique identifier
 ```
+
+The order of nodes and their connections are defined declaratively in
+`Tabular_to_Neo4j/pipeline_config.py`.  Updating this configuration file is all
+that's required to adjust the pipeline structure.
 
 ## Project Structure
 
