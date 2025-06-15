@@ -62,6 +62,22 @@ def call_llm_with_state(state_name: str, prompt: str) -> str:
 
 
 def call_llm_with_json_output(
+    prompt: str,
+    state_name: str = None,
+    **kwargs,
+) -> Dict[str, Any]:
+    """
+    Call the LLM and parse the response as JSON.
+    
+    Args:
+        prompt: The prompt to send to the LLM
+        state_name: The name of the state to use the LLM for
+        **kwargs: Optional parameters for future extensions
+        
+    Returns:
+        The parsed JSON response as a dictionary
+    """
+    # If no state is specified, use a default state
     prompt: str, state_name: str | None = None
 ) -> Dict[str, Any]:
     """Call the LLM and parse the response as JSON."""

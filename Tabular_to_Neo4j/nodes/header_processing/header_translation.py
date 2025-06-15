@@ -72,6 +72,12 @@ def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> Grap
 
         # Call the LLM to translate headers
         logger.debug("Calling LLM for header translation")
+        response = call_llm_with_json_output(
+            prompt,
+            state_name="translate_header",
+            is_translation=True,
+        )
+        
         response = call_llm_with_json_output(prompt, state_name="translate_header")
 
         # Extract the translated headers
@@ -94,6 +100,7 @@ def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> Grap
 
         # Update the state with the translated headers
         logger.info(
+            f"Successfully translated headers from {header_language} to {metadata_language}"
             f"Successfully translated headers from {source_language} to {TARGET_HEADER_LANGUAGE}"
         )
         logger.debug(f"Original headers: {header}")
