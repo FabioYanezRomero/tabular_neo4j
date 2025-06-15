@@ -23,6 +23,20 @@ cp .env.example .env
 4. Click "Start Server"
 5. Make sure the server is running on port 1234 (default)
 
+## Environment Variables
+
+The application reads the LMStudio host, port and default model from the
+environment. You can override the defaults by setting the following variables:
+
+```
+LMSTUDIO_HOST=<host IP or name>
+LMSTUDIO_PORT=<port number>
+LMSTUDIO_DEFAULT_MODEL=<model id>
+```
+
+These variables can be set in your shell, in a `.env` file, or passed via Docker
+`-e` options.
+
 ## Running with Docker
 
 The repository includes Docker configuration to connect to LMStudio running on your host machine. You can use either Docker Compose directly or the provided Makefile targets.

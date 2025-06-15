@@ -19,7 +19,6 @@ if str(repo_root.parent) not in sys.path:
     sys.path.insert(0, str(repo_root.parent))
 
 from Tabular_to_Neo4j.utils.check_lmstudio import check_lmstudio_connection
-from Tabular_to_Neo4j.main import run_analysis
 
 def main():
     """
@@ -41,6 +40,10 @@ def main():
     
     args = parser.parse_args()
 
+    # Set environment variables for LMStudio before importing the main module
+    os.environ["LMSTUDIO_HOST"] = args.lmstudio_host
+    os.environ["LMSTUDIO_PORT"] = str(args.lmstudio_port)
+    
     setup_logging()
 
     # Check if CSV file exists
@@ -74,26 +77,8 @@ def main():
         )
         sys.exit(1)
     
-    # Update the LMStudio configuration
-    config_dir = os.path.join(repo_root, "config")
-    config_file = os.path.join(config_dir, "lmstudio_config.py")
-    
-    if os.path.exists(config_file):
-        with open(config_file, "r") as f:
-            config_content = f.read()
-        
-        # Update the host and port
-        config_content = config_content.replace(
-            f'LMSTUDIO_HOST = "host.docker.internal"',
-            f'LMSTUDIO_HOST = "{args.lmstudio_host}"'
-        )
-        config_content = config_content.replace(
-            f'LMSTUDIO_PORT = 1234',
-            f'LMSTUDIO_PORT = {args.lmstudio_port}'
-        )
-        
-        with open(config_file, "w") as f:
-            f.write(config_content)
+    # Import run_analysis only after environment variables are set
+    from Tabular_to_Neo4j.main import run_analysis
     
     # Run the analysis
     logger.info(
