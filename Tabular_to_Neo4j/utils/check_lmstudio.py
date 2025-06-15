@@ -9,6 +9,10 @@ import requests
 import time
 import os
 
+from Tabular_to_Neo4j.utils.logging_config import get_logger, setup_logging
+
+logger = get_logger(__name__)
+
 def check_lmstudio_connection(host=None, port=None, retries=3, retry_delay=2):
     # Use environment variables if host or port are not provided
     if host is None:
@@ -28,30 +32,38 @@ def check_lmstudio_connection(host=None, port=None, retries=3, retry_delay=2):
         True if connection successful, False otherwise
     """
     url = f"http://{host}:{port}/v1/models"
-    
+
     for attempt in range(retries):
         try:
-            print(f"Attempt {attempt + 1}/{retries}: Connecting to LMStudio at {url}...")
+            logger.info(
+                f"Attempt {attempt + 1}/{retries}: Connecting to LMStudio at {url}..."
+            )
             response = requests.get(url, timeout=5)
-            
+
             if response.status_code == 200:
-                print(f"✅ Connection successful! LMStudio server is reachable.")
-                print(f"Available models: {response.json()}")
+                logger.info("✅ Connection successful! LMStudio server is reachable.")
+                logger.debug("Available models: %s", response.json())
                 return True
             else:
-                print(f"❌ Connection failed with status code: {response.status_code}")
-                
+                logger.error(
+                    "❌ Connection failed with status code: %s", response.status_code
+                )
+
         except requests.exceptions.RequestException as e:
-            print(f"❌ Connection error: {e}")
-            
+            logger.error("❌ Connection error: %s", e)
+
         if attempt < retries - 1:
-            print(f"Retrying in {retry_delay} seconds...")
+            logger.info("Retrying in %s seconds...", retry_delay)
             time.sleep(retry_delay)
-    
-    print("❌ All connection attempts failed. Please check if LMStudio is running and properly configured.")
+
+    logger.error(
+        "❌ All connection attempts failed. Please check if LMStudio is running and properly configured."
+    )
     return False
 
 def main():
+    setup_logging()
+
     # Get default values from environment variables
     default_host = os.environ.get("LMSTUDIO_HOST", "host.docker.internal")
     default_port = int(os.environ.get("LMSTUDIO_PORT", 1234))

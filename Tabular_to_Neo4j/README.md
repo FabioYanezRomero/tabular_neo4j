@@ -97,7 +97,7 @@ LLM_CONFIGS = {
 Run this script to verify your LMStudio connection:
 
 ```python
-from Tabular_to_Neo4j.utils.llm_manager import get_lmstudio_models, list_loaded_models
+from Tabular_to_Neo4j.utils.llm_api import get_lmstudio_models, list_loaded_models
 
 # Get available models from LMStudio
 models = get_lmstudio_models()
@@ -236,6 +236,9 @@ TARGET_HEADER_LANGUAGE = "English"  # Target language for headers
 # Analysis Settings
 UNIQUENESS_THRESHOLD = 0.9  # Threshold for considering a column as a unique identifier
 ```
+
+The pipeline itself is described in `pipeline_config.py`. Modify this file to
+reorder nodes or change how they connect.
 
 ## Project Structure
 

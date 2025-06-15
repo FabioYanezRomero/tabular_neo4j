@@ -1,33 +1,87 @@
-from typing import TypedDict, List, Dict, Any, Optional, Set, Tuple
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Dict, Any, Optional, List, Iterator
+from collections.abc import MutableMapping
 import pandas as pd
 
-class GraphState(TypedDict):
-    csv_file_path: str
-    raw_dataframe: Optional[pd.DataFrame]
-    has_header_heuristic: Optional[bool]  # Result of initial heuristic check
-    header_row_if_present: Optional[List[str]]  # Stores the original first row if heuristic says header
-    
+
+@dataclass
+class GraphState(MutableMapping):
+    """State container used throughout the analysis pipeline."""
+
+    csv_file_path: str = ""
+    raw_dataframe: Optional[pd.DataFrame] = None
+    has_header_heuristic: Optional[bool] = None
+    header_row_if_present: Optional[List[str]] = None
+
     # Header processing state
-    inferred_header: Optional[List[str]]
-    validated_header: Optional[List[str]]
-    is_header_correct_llm: Optional[bool]
-    header_correction_suggestions: Optional[str]
-    translated_header: Optional[List[str]]
-    is_header_in_target_language: Optional[bool]
-    final_header: Optional[List[str]]  # The header to be used for the DataFrame
-    processed_dataframe: Optional[pd.DataFrame]  # DataFrame with the final_header applied
+    inferred_header: Optional[List[str]] = None
+    validated_header: Optional[List[str]] = None
+    is_header_correct_llm: Optional[bool] = None
+    header_correction_suggestions: Optional[str] = None
+    translated_header: Optional[List[str]] = None
+    is_header_in_target_language: Optional[bool] = None
+    final_header: Optional[List[str]] = None
+    processed_dataframe: Optional[pd.DataFrame] = None
 
     # Column analysis state
-    column_analytics: Optional[Dict[str, Dict[str, Any]]]  # {col_name: {uniqueness: 0.9, ...}}
-    llm_column_semantics: Optional[Dict[str, Dict[str, Any]]]  # {col_name: {semantic_type: "City", neo4j_role: "POTENTIAL_LINKED_NODE", ...}}
+    column_analytics: Optional[Dict[str, Dict[str, Any]]] = None
+    llm_column_semantics: Optional[Dict[str, Dict[str, Any]]] = None
 
     # Schema synthesis intermediate states
-    entity_property_classification: Optional[Dict[str, Dict[str, Any]]]  # Classification of columns as entities or properties
-    entity_property_consensus: Optional[Dict[str, Dict[str, Any]]]  # Consensus between analytics and LLM classification
-    entity_relationships: Optional[List[Dict[str, Any]]]  # Relationships between entity types
-    property_entity_mapping: Optional[Dict[str, str]]  # Mapping of properties to their entity types
-    cypher_query_templates: Optional[List[Dict[str, Any]]]  # Template Cypher queries for the schema
-    
+    entity_property_classification: Optional[Dict[str, Dict[str, Any]]] = None
+    entity_property_consensus: Optional[Dict[str, Dict[str, Any]]] = None
+    entity_relationships: Optional[List[Dict[str, Any]]] = None
+    property_entity_mapping: Optional[Dict[str, str]] = None
+    cypher_query_templates: Optional[List[Dict[str, Any]]] = None
+
     # Final output
-    inferred_neo4j_schema: Optional[Dict[str, Any]]  # { "primary_entity_label": "inferred_from_filename", "columns": [{ "name": "col_A", "role": "NODE_PROPERTY", "neo4j_property": "propA"}, ...]}
-    error_messages: List[str]
+    inferred_neo4j_schema: Optional[Dict[str, Any]] = None
+    error_messages: List[str] = field(default_factory=list)
+
+    # Container for dynamic extra fields
+    _extra: Dict[str, Any] = field(default_factory=dict, repr=False, init=False)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "GraphState":
+        """Create a ``GraphState`` instance from a dictionary."""
+        instance = cls()
+        for key, value in data.items():
+            instance[key] = value
+        return instance
+
+    # Mapping protocol methods -------------------------------------------------
+    def __getitem__(self, key: str) -> Any:
+        if key in self.__dataclass_fields__:
+            return getattr(self, key)
+        return self._extra[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        if key in self.__dataclass_fields__:
+            setattr(self, key, value)
+        else:
+            self._extra[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        if key in self.__dataclass_fields__:
+            setattr(self, key, None)
+        else:
+            del self._extra[key]
+
+    def __iter__(self) -> Iterator[str]:
+        for key in self.__dataclass_fields__:
+            yield key
+        for key in self._extra:
+            yield key
+
+    def __len__(self) -> int:
+        return len(self.__dataclass_fields__) + len(self._extra)
+
+    def __contains__(self, key: object) -> bool:
+        if not isinstance(key, str):
+            return False
+        return key in self.__dataclass_fields__ or key in self._extra
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self[key] if key in self else default

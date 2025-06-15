@@ -7,9 +7,8 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./:/app
-    environment:
-      - LMSTUDIO_HOST=127.0.0.1
-      - LMSTUDIO_PORT=1234
+    env_file:
+      - .env
     network_mode: "host"
 
 networks:

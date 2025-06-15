@@ -9,6 +9,10 @@ import re
 import glob
 from pathlib import Path
 
+from Tabular_to_Neo4j.utils.logging_config import get_logger, setup_logging
+
+logger = get_logger(__name__)
+
 def update_logging_imports(file_path):
     """Update logging imports in a file to use the centralized logging configuration."""
     with open(file_path, 'r') as f:
@@ -16,7 +20,7 @@ def update_logging_imports(file_path):
     
     # Check if file already uses our logging config
     if 'from Tabular_to_Neo4j.utils.logging_config import get_logger' in content:
-        print(f"File already updated: {file_path}")
+        logger.info("File already updated: %s", file_path)
         return False
     
     # Replace standard logging import with our centralized config
@@ -47,12 +51,14 @@ def update_logging_imports(file_path):
         with open(file_path, 'w') as f:
             f.write(content)
         
-        print(f"Updated logging in: {file_path}")
+        logger.info("Updated logging in: %s", file_path)
         return True
     
     return False
 
 def main():
+    setup_logging()
+
     """Update logging configuration in all Python files in the project."""
     # Get the project root directory
     project_root = Path(__file__).parent
@@ -70,7 +76,11 @@ def main():
         if update_logging_imports(file_path):
             updated_count += 1
     
-    print(f"\nUpdated logging in {updated_count} files out of {len(python_files)} total Python files.")
+    logger.info(
+        "\nUpdated logging in %s files out of %s total Python files.",
+        updated_count,
+        len(python_files),
+    )
 
 if __name__ == "__main__":
     main()
