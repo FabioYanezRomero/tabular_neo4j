@@ -14,6 +14,8 @@ setup(
         "requests>=2.25.0",
         "python-dotenv>=0.19.0",
         "langdetect>=1.0.9",
+        "langchain-openai>=0.0.1",
+        "langchain-community>=0.0.1",
     ],
     extras_require={
         "dev": [

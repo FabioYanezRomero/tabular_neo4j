@@ -40,7 +40,7 @@ def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> Grap
 
     # Get the header language and metadata language
     header_language = state.get("header_language", "Unknown")
-    metadata_language = state.get("metadata_language", "English")
+    metadata_language = state.get("metadata_language")  # Set by language detection
 
     logger.info(
         f"Using LLM to translate headers from {header_language} to {metadata_language}"
@@ -75,10 +75,9 @@ def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> Grap
         response = call_llm_with_json_output(
             prompt,
             state_name="translate_header",
+            config=config,
             is_translation=True,
         )
-        
-        response = call_llm_with_json_output(prompt, state_name="translate_header")
 
         # Extract the translated headers
         translated_header = response
@@ -101,7 +100,6 @@ def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> Grap
         # Update the state with the translated headers
         logger.info(
             f"Successfully translated headers from {header_language} to {metadata_language}"
-            f"Successfully translated headers from {source_language} to {TARGET_HEADER_LANGUAGE}"
         )
         logger.debug(f"Original headers: {header}")
         logger.debug(f"Translated headers: {translated_header}")

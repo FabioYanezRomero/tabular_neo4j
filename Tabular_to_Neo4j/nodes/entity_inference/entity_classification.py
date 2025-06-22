@@ -203,8 +203,9 @@ def classify_entities_properties_node(
                     )
                     try:
                         # Call the LLM for classification
+                        llm_model = config['configurable'].get('llm_model', 'default')
                         response = call_llm_with_json_output(
-                            prompt, state_name="classify_entities_properties"
+                            prompt, state_name="classify_entities_properties", config=config, llm_model=llm_model
                         )
                         logger.debug(
                             f"Received LLM classification response for '{column_name}': {response}"

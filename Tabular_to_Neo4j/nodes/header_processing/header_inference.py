@@ -69,8 +69,8 @@ def infer_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphSta
 
         # Call the LLM to infer headers
         logger.debug("Calling LLM for header inference")
-        response = call_llm_with_json_output(prompt, state_name="infer_header")
-
+        response = call_llm_with_json_output(prompt, state_name="infer_header", config=config)
+        # config['configurable']['llm_model'] can be set per node for Ollama
         # Extract the inferred headers
         inferred_header = response
 

@@ -100,8 +100,8 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
 
         # Call the LLM to validate headers
         logger.debug("Calling LLM for header validation")
-        response = call_llm_with_json_output(prompt, state_name="validate_header")
-
+        response = call_llm_with_json_output(prompt, state_name="validate_header", config=config)
+        # config['configurable']['llm_model'] can be set per node for Ollama
         # Extract the validation results (no is_correct field as per requirements)
         validated_header = response.get("validated_header", current_header)
         suggestions = response.get("suggestions", "")
