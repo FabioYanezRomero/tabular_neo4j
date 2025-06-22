@@ -25,7 +25,7 @@ LLM_API_KEY=""
 LLM_PROVIDER="lmstudio"
 LMSTUDIO_HOST="127.0.0.1"
 LMSTUDIO_PORT="1234"
-LMSTUDIO_BASE_URL="http://127.0.0.1:1234/v1"
+LMSTUDIO_BASE_URL="http://127.0.0.1:1234/"
 EOF
     fi
     echo ".env file created. Please edit it to add your API keys and settings."

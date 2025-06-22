@@ -17,9 +17,9 @@ DEFAULT_TEMPERATURE = 0.0  # Default temperature (0.0 for deterministic results)
 import os
 
 LMSTUDIO_BASE_URL = os.environ.get(
-    "LMSTUDIO_BASE_URL", "http://localhost:1234/v1"
+    "LMSTUDIO_BASE_URL", "http://localhost:1234"
 )
-LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234")
 
 # Per-State LLM Configuration with GGUF models through LMStudio
 # Each state has its own model and output format specification

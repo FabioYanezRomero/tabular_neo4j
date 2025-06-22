@@ -38,7 +38,11 @@ class LMStudioClient:
             max_tokens: Maximum number of tokens to generate
             top_p: Top-p sampling parameter
         """
-        self.api_base = api_base
+        # Normalize api_base: remove trailing slash and trailing '/v1' if present
+        base = api_base.rstrip('/')
+        if base.endswith('/v1'):
+            base = base[:-3]
+        self.api_base = base
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -50,7 +54,8 @@ class LMStudioClient:
     def _check_connection(self) -> None:
         """Check if LMStudio is available and get available models."""
         try:
-            response = requests.get(f"{self.api_base}/models", timeout=5)
+            # Always call /v1/models
+            response = requests.get(f"{self.api_base}/v1/models", timeout=5)
             if response.status_code == 200:
                 models = response.json()
                 logger.info(f"Connected to LMStudio. Available models: {models}")
@@ -86,7 +91,8 @@ class LMStudioClient:
         Returns:
             The completion response
         """
-        url = f"{self.api_base}/completions"
+        # Always call /v1/completions
+        url = f"{self.api_base}/v1/completions"
         
         payload = {
             "model": self.model,
@@ -119,7 +125,27 @@ class LMStudioClient:
     ) -> Dict[str, Any]:
         """
         Generate a chat completion for the given messages.
-        
+        """
+        # Always call /v1/chat/completions
+        url = f"{self.api_base}/v1/chat/completions"
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature if temperature is not None else self.temperature,
+            "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
+            "top_p": top_p if top_p is not None else self.top_p,
+        }
+        if stop:
+            payload["stop"] = stop
+        logger.debug(f"Sending chat completion request to LMStudio: {payload}")
+        try:
+            response = requests.post(url, json=payload, timeout=30)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error in LMStudio chat completion request: {e}")
+            raise
+
         Args:
             messages: List of messages in the conversation
             temperature: Sampling temperature

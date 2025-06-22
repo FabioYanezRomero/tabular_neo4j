@@ -1,8 +1,11 @@
 """API helpers for interacting with LMStudio models."""
 
-import time
+import os
+import logging
 import random
+import time
 import requests
+import json
 from contextlib import contextmanager
 from typing import Any, Dict, List
 
@@ -24,7 +27,7 @@ except Exception:  # pragma: no cover - optional dependency
         "LMStudio configuration not found, falling back to default LLM provider"
     )
     LMSTUDIO_AVAILABLE = False
-    LMSTUDIO_BASE_URL = "http://localhost:1234/v1"
+    LMSTUDIO_BASE_URL = "http://localhost:1234/"
 
 logger = get_logger(__name__)
 
@@ -55,10 +58,13 @@ def set_seed(seed: int) -> None:
 
 
 def get_lmstudio_models() -> List[Dict[str, Any]]:
-    base_url = LMSTUDIO_BASE_URL
+    # Normalize base_url: remove trailing slash and trailing '/v1' if present
+    base_url = LMSTUDIO_BASE_URL.rstrip('/')
+    if base_url.endswith('/v1'):
+        base_url = base_url[:-3]
     try:
         response = requests.get(
-            f"{base_url}/models", headers={"Content-Type": "application/json"}
+            f"{base_url}/v1/models", headers={"Content-Type": "application/json"}
         )
         response.raise_for_status()
         return response.json().get("data", [])

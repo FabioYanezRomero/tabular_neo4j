@@ -10,11 +10,12 @@ import os
 # LMStudio server configuration
 LMSTUDIO_HOST = os.environ.get("LMSTUDIO_HOST", "127.0.0.1")
 LMSTUDIO_PORT = int(os.environ.get("LMSTUDIO_PORT", 1234))
+# LMSTUDIO_BASE_URL should NOT include '/v1' (it will be appended automatically)
 LMSTUDIO_BASE_URL = os.environ.get(
     "LMSTUDIO_BASE_URL", f"http://{LMSTUDIO_HOST}:{LMSTUDIO_PORT}"
-)
+).rstrip('/')
 LMSTUDIO_API_VERSION = os.environ.get("LMSTUDIO_API_VERSION", "v1")
-LMSTUDIO_ENDPOINT = f"{LMSTUDIO_BASE_URL.rstrip('/')}/{LMSTUDIO_API_VERSION}"
+LMSTUDIO_ENDPOINT = f"{LMSTUDIO_BASE_URL}/{LMSTUDIO_API_VERSION}"
 
 # Default model to use
 DEFAULT_MODEL = os.environ.get("LMSTUDIO_DEFAULT_MODEL", "local-model")

@@ -13,26 +13,70 @@ A Python repository using LangGraph to analyze CSV files and infer Neo4j graph d
   - Related entity detection
   - Relationship modeling
 
-## Installation
+## Quick Start (Containerized Workflow)
 
-1. Clone this repository:
+The recommended way to use this repository is via Docker and Docker Compose. All experiments and pipeline runs are performed using bash scripts **inside the running container**.
+
+### 1. Clone the repository
 ```bash
 git clone https://github.com/yourusername/tabular_neo4j.git
-cd tabular_neo4j/Tabular_to_Neo4j
+cd tabular_neo4j
 ```
 
-2. Install the required dependencies:
+### 2. Build and start the container
 ```bash
-pip install -r requirements.txt
+# Build the Docker image
+make build
+
+# Start the container (detached)
+make run
+
+# Or use Docker Compose (recommended for development):
+make compose-build
+make compose-up
 ```
 
-3. Configure your LLM provider in `config.py`:
-```python
-# Set your API key here or use environment variables
-LLM_API_KEY = "your-api-key"
-# This application exclusively uses LM Studio
-LLM_PROVIDER = "lmstudio"  # Using LMStudio exclusively for all LLM interactions
+### 3. Open a shell inside the container
+```bash
+make shell
+# or (if using compose)
+make compose-shell
 ```
+
+### 4. Run the pipeline on sample data
+```bash
+# Inside the container shell:
+./scripts/run_example.sh --save-node-outputs --log-level INFO
+```
+- You can specify a different CSV and metadata by editing the script or passing arguments.
+- Use `--log-level WARNING` to suppress debug/info logs.
+
+### 5. LMStudio Setup
+- Download and install LMStudio from [lmstudio.ai](https://lmstudio.ai/)
+- Import your GGUF models and start the LMStudio API server on port 1234
+- Ensure LMStudio is running and accessible from your container (host networking is used by default)
+
+### 6. Configuration
+- Edit `.env` for API keys and LMStudio settings if needed
+- Advanced model config: edit `Tabular_to_Neo4j/config.py` to match your LMStudio model names
+
+## How It Works
+- The pipeline analyzes your CSV and metadata, infers entities/properties/relationships, and generates Neo4j Cypher queries
+- All logs and outputs are controlled via the bash script arguments
+- No Makefile targets are used to run experiments; **all runs are done via scripts inside the container**
+
+## Example: Running Your Own Data
+```bash
+./scripts/run_example.sh /app/Tabular_to_Neo4j/sample_data/csv/your_data.csv --save-node-outputs --log-level DEBUG
+```
+
+## Troubleshooting
+- Use `make compose-shell` to debug inside the container
+- Use `make compose-down` and `make compose-up` to restart the environment
+- Use `make check-lmstudio` to verify LMStudio connectivity
+
+## Legacy/Manual Installation
+If you wish to run outside Docker, create a virtualenv and install with `pip install -e .[dev]`, but container usage is recommended for reproducibility and dependency management.
 
 ## LMStudio Integration
 

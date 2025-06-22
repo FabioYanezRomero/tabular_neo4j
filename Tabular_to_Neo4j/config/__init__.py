@@ -6,6 +6,10 @@ Configuration package for Tabular_to_Neo4j.
 DEFAULT_SEED = 42
 DEFAULT_TEMPERATURE = 0.0
 
+# Default LMStudio model (should match config/lmstudio_config.py logic)
+import os
+DEFAULT_LMSTUDIO_MODEL = os.environ.get("LMSTUDIO_DEFAULT_MODEL", "local-model")
+
 # CSV configuration
 CSV_ENCODING = "utf-8"
 CSV_DELIMITER = ","
