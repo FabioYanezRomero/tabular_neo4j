@@ -44,4 +44,5 @@ env/
 .DS_Store
 Thumbs.db
 
-#samples/
+samples/
+prompt_samples/

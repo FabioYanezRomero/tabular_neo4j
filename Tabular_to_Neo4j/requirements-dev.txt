@@ -1,2 +1,0 @@
-# All development dependencies are managed in setup.py (extras_require['dev'])
-# Please install using: pip install -e .[dev]

@@ -43,8 +43,10 @@ def main():
     # Set environment variables for LMStudio before importing the main module
     os.environ["LMSTUDIO_HOST"] = args.lmstudio_host
     os.environ["LMSTUDIO_PORT"] = str(args.lmstudio_port)
-    
-    setup_logging()
+
+    # Set up logging with log level from env var (set by shell script)
+    log_level = os.environ.get("LOG_LEVEL", "INFO")
+    setup_logging(log_level=log_level)
 
     # Check if CSV file exists
     csv_path = Path(args.csv_file)

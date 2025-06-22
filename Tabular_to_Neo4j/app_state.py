@@ -8,6 +8,21 @@ import pandas as pd
 
 @dataclass
 class GraphState(MutableMapping):
+    def __init__(self, *args, **kwargs):
+        # Remove _extra from kwargs if present
+        extra = kwargs.pop('_extra', None)
+        # Call dataclass-generated __init__
+        super().__init__()
+        # Manually assign dataclass fields
+        for field_name, field_def in self.__dataclass_fields__.items():
+            if field_name in kwargs:
+                setattr(self, field_name, kwargs.pop(field_name))
+            else:
+                setattr(self, field_name, field_def.default_factory() if callable(field_def.default_factory) else field_def.default)
+        # Anything left in kwargs is dynamic
+        self._extra = kwargs.get('_extra', {}) if extra is None else extra
+        if not isinstance(self._extra, dict):
+            self._extra = {}
     """State container used throughout the analysis pipeline."""
 
     csv_file_path: str = ""
@@ -45,10 +60,16 @@ class GraphState(MutableMapping):
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GraphState":
-        """Create a ``GraphState`` instance from a dictionary."""
+        """Create a `[GraphState](cci:2://file:///app/Tabular_to_Neo4j/app_state.py:8:0-86:52)` instance from a dictionary."""
+        # Remove _extra from data before passing to constructor
+        data = dict(data)  # make a copy
+        extra = data.pop('_extra', {})
         instance = cls()
         for key, value in data.items():
             instance[key] = value
+        # Restore any extra fields
+        if isinstance(extra, dict):
+            instance._extra.update(extra)
         return instance
 
     # Mapping protocol methods -------------------------------------------------
@@ -85,3 +106,10 @@ class GraphState(MutableMapping):
 
     def get(self, key: str, default: Any = None) -> Any:
         return self[key] if key in self else default
+
+    def copy(self) -> "GraphState":
+        import copy
+        new_state = GraphState.from_dict(dict(self.items()))
+        # Deep copy _extra explicitly
+        new_state._extra = copy.deepcopy(self._extra)
+        return new_state

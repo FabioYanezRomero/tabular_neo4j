@@ -28,7 +28,7 @@ class OutputSaver:
         self.base_dir = base_dir
         self.timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.output_dir = os.path.join(self.base_dir, self.timestamp)
-        self.previous_state = {}
+        self.previous_state = None
         
         # Create the output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
@@ -74,37 +74,61 @@ class OutputSaver:
         new_info = {}
         
         # If this is the first node, return the entire state
-        if not self.previous_state:
+        if self.previous_state is None:
             return current_state
         
         # Compare each key in the current state with the previous state
         for key, value in current_state.items():
-            # If the key is new or the value has changed, include it in the new info
-            if key not in self.previous_state or self._is_different(value, self.previous_state[key]):
+            # Only call _is_different if key is present in previous_state
+            if key not in self.previous_state:
+                new_info[key] = value
+            elif self._is_different(value, self.previous_state[key]):
                 new_info[key] = value
         
         return new_info
     
     def _is_different(self, value1: Any, value2: Any) -> bool:
-        """
-        Check if two values are different.
+        import numpy as np
+        import pandas as pd
+        logger.debug(f"Comparing {type(value1)} and {type(value2)}")
         
-        Args:
-            value1: First value
-            value2: Second value
-            
-        Returns:
-            True if the values are different, False otherwise
-        """
-        # Handle pandas DataFrames separately
+        # Handle pandas DataFrames
         if isinstance(value1, pd.DataFrame) and isinstance(value2, pd.DataFrame):
             try:
-                return not value1.equals(value2)
-            except:
+                result = not value1.equals(value2)
+                logger.debug(f"DataFrame comparison result: {result}")
+                return result
+            except Exception as e:
+                logger.warning(f"DataFrame comparison failed: {e}. Treating as different.")
                 return True
         
-        # For other types, use direct comparison
-        return value1 != value2
+        # Handle pandas Series
+        if isinstance(value1, pd.Series) and isinstance(value2, pd.Series):
+            try:
+                result = not value1.equals(value2)
+                logger.debug(f"Series comparison result: {result}")
+                return result
+            except Exception as e:
+                logger.warning(f"Series comparison failed: {e}. Treating as different.")
+                return True
+        
+        # Handle numpy arrays
+        if isinstance(value1, np.ndarray) and isinstance(value2, np.ndarray):
+            result = not np.array_equal(value1, value2)
+            logger.debug(f"NumPy array comparison result: {result}")
+            return result
+        
+        # Fallback for all other types
+        try:
+            result = value1 != value2
+            logger.debug(f"Comparison result for {type(value1)}: {result}")
+            if not isinstance(result, bool):
+                logger.warning(f"Comparison returned non-bool value {result} for {type(value1)}. Treating as different.")
+                return True
+            return result
+        except Exception as e:
+            logger.warning(f"Comparison failed for {type(value1)}: {e}. Treating as different.")
+            return True
     
     def _make_serializable(self, obj: Any) -> Any:
         """
