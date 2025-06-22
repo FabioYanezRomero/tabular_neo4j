@@ -1,7 +1,2 @@
--r requirements.txt
-pytest>=7.0.0
-pytest-cov>=2.12.0
-pytest-mock>=3.6.0
-tox>=3.24.0
-flake8>=4.0.0
-black>=22.0.0
+# All development dependencies are managed in setup.py (extras_require['dev'])
+# Please install using: pip install -e .[dev]

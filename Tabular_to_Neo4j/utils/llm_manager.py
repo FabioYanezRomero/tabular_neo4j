@@ -78,9 +78,7 @@ def call_llm_with_json_output(
         The parsed JSON response as a dictionary
     """
     # If no state is specified, use a default state
-    prompt: str, state_name: str | None = None
-) -> Dict[str, Any]:
-    """Call the LLM and parse the response as JSON."""
+
     if state_name is None:
         state_name = next(iter(LLM_CONFIGS.keys()), None)
 
