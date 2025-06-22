@@ -23,13 +23,31 @@ LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234")
 
 # Per-State LLM Configuration with GGUF models through LMStudio
 # Each state has its own model and output format specification
-LLM_CONFIGS = {
+class DynamicLLMConfigs(dict):
+    """
+    A dictionary that returns the config for 'infer_entity_relationships' for any key starting with 'infer_relationship_'.
+    """
+    def __getitem__(self, key):
+        if key in super().keys():
+            return super().__getitem__(key)
+        if key.startswith('infer_relationship_'):
+            return super().__getitem__('infer_entity_relationships')
+        raise KeyError(key)
+
+    def get(self, key, default=None):
+        if key in super().keys():
+            return super().get(key, default)
+        if key.startswith('infer_relationship_'):
+            return super().get('infer_entity_relationships', default)
+        return default
+
+LLM_CONFIGS = DynamicLLMConfigs({
     # Header processing states
     "infer_header": {
         "provider": "lmstudio",
-        "model_name": "Mistral-7B-Instruct-v0.2-GGUF",  # Name of the model in LMStudio
-        "temperature": 0.0,
-        "seed": 42,
+        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
         "description": "Model for inferring headers when none are detected",
         "output_format": {
             "type": "json_array",
@@ -41,9 +59,9 @@ LLM_CONFIGS = {
     },
     "validate_header": {
         "provider": "lmstudio",
-        "model_name": "Llama-2-7B-Chat-GGUF",  # Name of the model in LMStudio
-        "temperature": 0.0,
-        "seed": 42,
+        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
         "description": "Model for validating and improving headers",
         "output_format": {
             "type": "json_object",
@@ -55,9 +73,9 @@ LLM_CONFIGS = {
     },
     "translate_header": {
         "provider": "lmstudio",
-        "model_name": "Mistral-7B-Instruct-v0.2-GGUF",  # Name of the model in LMStudio
-        "temperature": 0.0,
-        "seed": 42,
+        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
         "description": "Model for translating headers to target language",
         "output_format": {
             "type": "json_object",
@@ -71,9 +89,9 @@ LLM_CONFIGS = {
     # Analysis states
     "analyze_column_semantics": {
         "provider": "lmstudio",
-        "model_name": "Llama-2-13B-Chat-GGUF",  # Name of the model in LMStudio
-        "temperature": 0.0,
-        "seed": 42,
+        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
         "description": "Model for semantic analysis of columns",
         "output_format": {
             "type": "json_object",
@@ -86,9 +104,9 @@ LLM_CONFIGS = {
     # Schema synthesis states
     "classify_entities_properties": {
         "provider": "lmstudio",
-        "model_name": "Llama-2-13B-Chat-GGUF",  # Name of the model in LMStudio
-        "temperature": 0.0,
-        "seed": 42,
+        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
         "description": "Model for classifying columns as entities or properties",
         "output_format": {
             "type": "json_object",
@@ -100,9 +118,9 @@ LLM_CONFIGS = {
     },
     "reconcile_entity_property": {
         "provider": "lmstudio",
-        "model_name": "Llama-2-13B-Chat-GGUF",  # Name of the model in LMStudio
-        "temperature": 0.0,
-        "seed": 42,
+        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
         "description": "Model for reconciling entity/property classifications",
         "output_format": {
             "type": "json_object",
@@ -114,9 +132,9 @@ LLM_CONFIGS = {
     },
     "map_properties_to_entity": {
         "provider": "lmstudio",
-        "model_name": "Llama-2-13B-Chat-GGUF",  # Name of the model in LMStudio
-        "temperature": 0.0,
-        "seed": 42,
+        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
         "description": "Model for mapping properties to entities",
         "output_format": {
             "type": "json_object",
@@ -128,9 +146,9 @@ LLM_CONFIGS = {
     },
     "infer_entity_relationships": {
         "provider": "lmstudio",
-        "model_name": "Llama-2-13B-Chat-GGUF",  # Name of the model in LMStudio
-        "temperature": 0.0,
-        "seed": 42,
+        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
         "description": "Model for inferring relationships between entities",
         "output_format": {
             "type": "json_object",
@@ -142,9 +160,9 @@ LLM_CONFIGS = {
     },
     "generate_cypher_templates": {
         "provider": "lmstudio",
-        "model_name": "Llama-2-13B-Chat-GGUF",  # Name of the model in LMStudio
-        "temperature": 0.0,
-        "seed": 42,
+        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
         "description": "Model for generating Cypher query templates",
         "output_format": {
             "type": "json_object",
@@ -156,9 +174,9 @@ LLM_CONFIGS = {
     },
     "synthesize_final_schema": {
         "provider": "lmstudio",
-        "model_name": "Llama-2-13B-Chat-GGUF",  # Name of the model in LMStudio
-        "temperature": 0.0,
-        "seed": 42,
+        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
         "description": "Model for synthesizing the final Neo4j schema",
         "output_format": {
             "type": "json_object",
@@ -168,7 +186,8 @@ LLM_CONFIGS = {
         "auto_load": True,
         "auto_unload": True
     }
-}
+})
+
 
 # Default model to use if not specified in LLM_CONFIGS
 DEFAULT_LMSTUDIO_MODEL = os.environ.get(

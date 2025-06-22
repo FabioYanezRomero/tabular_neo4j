@@ -299,6 +299,15 @@ def run_analysis(
             for error in final_state.get("error_messages", []):
                 logger.info("  - %s", error)
 
+        # Save the final state as individual JSON files in state/<timestamp>/
+        try:
+            from Tabular_to_Neo4j.utils.state_saver import save_state_snapshot
+            from Tabular_to_Neo4j.utils.prompt_utils import _CURRENT_RUN_TIMESTAMP_DIR
+            timestamp = _CURRENT_RUN_TIMESTAMP_DIR if _CURRENT_RUN_TIMESTAMP_DIR is not None else datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            save_state_snapshot(final_state, timestamp)
+        except Exception as e:
+            logger.error(f"Failed to save state snapshot: {e}")
+
         # Log the generated Cypher templates
         if final_state.get("cypher_query_templates"):
             templates = final_state["cypher_query_templates"]

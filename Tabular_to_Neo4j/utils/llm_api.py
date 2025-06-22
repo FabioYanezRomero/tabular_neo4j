@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, List
 
 from Tabular_to_Neo4j.utils.logging_config import get_logger
-from Tabular_to_Neo4j.config import DEFAULT_SEED, DEFAULT_TEMPERATURE, LLM_CONFIGS
+from Tabular_to_Neo4j.config.settings import DEFAULT_SEED, DEFAULT_TEMPERATURE, LLM_CONFIGS
 
 try:
     from Tabular_to_Neo4j.config.lmstudio_config import (
@@ -89,11 +89,12 @@ def load_model_in_lmstudio(
     models = get_lmstudio_models()
     model_id = None
     for model in models:
-        if model.get("name") == model_name:
+        # Accept match if either 'id' or 'name' matches model_name
+        if model.get("id") == model_name or model.get("name") == model_name:
             model_id = model.get("id")
             break
     if not model_id:
-        logger.error(f"❌ Model '{model_name}' not found in LMStudio{state_info}")
+        logger.error(f"❌ Model '{model_name}' not found in LMStudio{state_info} (available: {[m.get('id') for m in models]})")
         return False
 
     logger.info(f"⏳ Loading model '{model_name}'{state_info}...")
@@ -187,7 +188,7 @@ def call_lmstudio_api(
     state_name: str | None = None,
     max_retries: int = 3,
 ) -> str:
-    from Tabular_to_Neo4j.config import DEFAULT_LMSTUDIO_MODEL
+    from Tabular_to_Neo4j.config.settings import LLM_CONFIGS, DEFAULT_LMSTUDIO_MODEL
 
     set_seed(seed)
     base_url = LMSTUDIO_BASE_URL
@@ -290,7 +291,9 @@ def call_lmstudio_api(
 def load_llm_for_state(state_name: str):
     config = LLM_CONFIGS.get(state_name, {})
     provider = config.get("provider", "lmstudio")
-    model_name = config.get("model_name")
+    model_name = config.get("model_name") or config.get("model")
+    if not model_name:
+        logger.warning(f"No model_name or model specified in LLM_CONFIGS for state '{state_name}', will fall back to default model.")
     temperature = config.get("temperature", DEFAULT_TEMPERATURE)
     seed = config.get("seed", DEFAULT_SEED)
     auto_load = config.get("auto_load", True)

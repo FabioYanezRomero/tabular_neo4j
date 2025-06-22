@@ -6,6 +6,10 @@ import json
 import requests
 from typing import Dict, Any, List, Optional, Union
 import logging
+try:
+    from Tabular_to_Neo4j.config.settings import LLM_CONFIGS, DEFAULT_LMSTUDIO_MODEL
+except ImportError:
+    from Tabular_to_Neo4j.config import LLM_CONFIGS, DEFAULT_LMSTUDIO_MODEL
 from Tabular_to_Neo4j.config.lmstudio_config import (
     LMSTUDIO_ENDPOINT,
     DEFAULT_MODEL,

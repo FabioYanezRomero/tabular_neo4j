@@ -4,6 +4,7 @@ This module handles inferring relationships between entity types.
 """
 
 from typing import Dict, Any, List
+import os
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
@@ -222,9 +223,25 @@ def infer_entity_relationships_node(
                 )
 
                 # Call the LLM for this specific entity pair
+                state_name = f"infer_relationship_{pair[0]}_{pair[1]}"
                 pair_response = call_llm_with_json_output(
-                    focused_prompt, state_name=f"infer_relationship_{pair[0]}_{pair[1]}"
+                    focused_prompt, state_name=state_name
                 )
+                # Save the resolved config for this dynamic state
+                try:
+                    from Tabular_to_Neo4j.utils.prompt_utils import _CURRENT_RUN_TIMESTAMP_DIR
+                except ImportError:
+                    _CURRENT_RUN_TIMESTAMP_DIR = None
+                timestamp = None
+                if _CURRENT_RUN_TIMESTAMP_DIR is not None:
+                    timestamp = os.path.basename(str(_CURRENT_RUN_TIMESTAMP_DIR))
+                else:
+                    import datetime
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                from Tabular_to_Neo4j.utils.state_saver import save_dynamic_config
+                from Tabular_to_Neo4j.config.settings import LLM_CONFIGS
+                config = LLM_CONFIGS[state_name]
+                save_dynamic_config(state_name, config, timestamp)
 
                 # Extract the inferred relationship
                 pair_relationships = pair_response.get("entity_relationships", [])
