@@ -102,7 +102,7 @@ This project is designed to work with LMStudio for using GGUF format models. Eac
 LLM_CONFIGS = {
     "infer_header": {
         "provider": "lmstudio",
-        "model_name": "Mistral-7B-Instruct-v0.2-GGUF",  # Must match exactly with LMStudio
+        "model_name": "lmstudio-community/gemma-3-12b-it-GGUF",  # Must match exactly with LMStudio
         "temperature": 0.0,
         "seed": 42,
         "description": "Model for inferring headers when none are detected",
