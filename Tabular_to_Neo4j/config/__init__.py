@@ -20,11 +20,60 @@ UNIQUENESS_THRESHOLD = 0.8
 
 LLM_CONFIGS = {
     "header_inference": {
-        "model": "default",
-        "temperature": 0.2
+        "model": "lmstudio-community/gemma-3-12b-it-GGUF",
+        "temperature": 0.0,
+        "seed": 42,
+        "description": "Model for inferring headers when none are detected",
+        "auto_load": True,
+        "auto_unload": True
+    },
+    "header_validation": {
+        "model": "lmstudio-community/gemma-3-12b-it-GGUF",
+        "temperature": 0.0,
+        "seed": 42,
+        "description": "Model for validating and improving headers",
+        "auto_load": True,
+        "auto_unload": True
+    },
+    "header_translation": {
+        "model": "lmstudio-community/gemma-3-12b-it-GGUF",
+        "temperature": 0.0,
+        "seed": 42,
+        "description": "Model for translating headers to target language",
+        "auto_load": True,
+        "auto_unload": True
+    },
+    "entity_classification": {
+        "model": "lmstudio-community/gemma-3-12b-it-GGUF",
+        "temperature": 0.0,
+        "seed": 42,
+        "description": "Model for classifying columns as entities or properties",
+        "auto_load": True,
+        "auto_unload": True
+    },
+    "entity_reconciliation": {
+        "model": "lmstudio-community/gemma-3-12b-it-GGUF",
+        "temperature": 0.0,
+        "seed": 42,
+        "description": "Model for reconciling entity/property classifications",
+        "auto_load": True,
+        "auto_unload": True
     },
     "relationship_inference": {
-        "model": "default",
-        "temperature": 0.3
+        "model": "lmstudio-community/gemma-3-12b-it-GGUF",
+        "temperature": 0.0,
+        "seed": 42,
+        "description": "Model for inferring relationships between entities",
+        "auto_load": True,
+        "auto_unload": True
+    },
+    "cypher_generation": {
+        "model": "lmstudio-community/gemma-3-12b-it-GGUF",
+        "temperature": 0.0,
+        "seed": 42,
+        "description": "Model for generating Cypher templates",
+        "auto_load": True,
+        "auto_unload": True
     }
 }
+
