@@ -35,7 +35,5 @@ echo ""
 echo "Setup complete! To activate the environment, run:"
 echo "source venv/bin/activate"
 echo ""
-echo "To test the system with the sample data, run:"
-echo "python Tabular_to_Neo4j/test_sample.py"
-echo ""
+
 echo "Note: Make sure to configure your LLM provider in the .env file or in Tabular_to_Neo4j/config.py"
