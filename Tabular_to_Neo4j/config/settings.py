@@ -2,13 +2,14 @@
 
 import os
 from dotenv import load_dotenv, find_dotenv
+from .model_name_mapping import MODEL_NAME_MAPPING  # Mapping LMStudio to Ollama models
 
 # Load environment variables from a .env file if present
 load_dotenv(find_dotenv())
 
 # General LLM Configuration
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")  # Not used with LM Studio but kept for compatibility
-DEFAULT_LLM_PROVIDER = "lm_studio"  # [lm_studio, ollama]
+DEFAULT_LLM_PROVIDER = "ollama"  # [lm_studio, ollama]
 DEFAULT_SEED = 42  # Default seed for reproducibility
 DEFAULT_TEMPERATURE = 0.0  # Default temperature (0.0 for deterministic results)
 
@@ -40,11 +41,12 @@ class DynamicLLMConfigs(dict):
             return super().get('infer_entity_relationships', default)
         return default
 
+# NOTE: For Ollama, use MODEL_NAME_MAPPING[model_name] to get the quantized equivalent.
 LLM_CONFIGS = DynamicLLMConfigs({
     # Header processing states
     "infer_header": {
-        "provider": "lmstudio",
-        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
         "temperature": DEFAULT_TEMPERATURE,
         "seed": DEFAULT_SEED,
         "description": "Model for inferring headers when none are detected",
@@ -57,8 +59,8 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_unload": True  # Whether to automatically unload this model when the state ends
     },
     "validate_header": {
-        "provider": "lmstudio",
-        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
         "temperature": DEFAULT_TEMPERATURE,
         "seed": DEFAULT_SEED,
         "description": "Model for validating and improving headers",
@@ -71,8 +73,8 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_unload": True
     },
     "translate_header": {
-        "provider": "lmstudio",
-        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
         "temperature": DEFAULT_TEMPERATURE,
         "seed": DEFAULT_SEED,
         "description": "Model for translating headers to target language",
@@ -87,8 +89,8 @@ LLM_CONFIGS = DynamicLLMConfigs({
     },
     # Analysis states
     "analyze_column_semantics": {
-        "provider": "lmstudio",
-        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
         "temperature": DEFAULT_TEMPERATURE,
         "seed": DEFAULT_SEED,
         "description": "Model for semantic analysis of columns",
@@ -102,8 +104,8 @@ LLM_CONFIGS = DynamicLLMConfigs({
     },
     # Schema synthesis states
     "classify_entities_properties": {
-        "provider": "lmstudio",
-        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
         "temperature": DEFAULT_TEMPERATURE,
         "seed": DEFAULT_SEED,
         "description": "Model for classifying columns as entities or properties",
@@ -116,8 +118,8 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_unload": True
     },
     "reconcile_entity_property": {
-        "provider": "lmstudio",
-        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
         "temperature": DEFAULT_TEMPERATURE,
         "seed": DEFAULT_SEED,
         "description": "Model for reconciling entity/property classifications",
@@ -130,8 +132,8 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_unload": True
     },
     "map_properties_to_entity": {
-        "provider": "lmstudio",
-        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
         "temperature": DEFAULT_TEMPERATURE,
         "seed": DEFAULT_SEED,
         "description": "Model for mapping properties to entities",
@@ -144,8 +146,8 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_unload": True
     },
     "infer_entity_relationships": {
-        "provider": "lmstudio",
-        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
         "temperature": DEFAULT_TEMPERATURE,
         "seed": DEFAULT_SEED,
         "description": "Model for inferring relationships between entities",
@@ -158,8 +160,8 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_unload": True
     },
     "generate_cypher_templates": {
-        "provider": "lmstudio",
-        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
         "temperature": DEFAULT_TEMPERATURE,
         "seed": DEFAULT_SEED,
         "description": "Model for generating Cypher query templates",
@@ -172,8 +174,8 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_unload": True
     },
     "synthesize_final_schema": {
-        "provider": "lmstudio",
-        "model_name": "gemma-3-12b-it",  # Name of the model in LMStudio
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
         "temperature": DEFAULT_TEMPERATURE,
         "seed": DEFAULT_SEED,
         "description": "Model for synthesizing the final Neo4j schema",

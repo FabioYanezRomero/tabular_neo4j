@@ -43,7 +43,15 @@ for arg in "$@"; do
 done
 
 echo "[INFO] Running Tabular_to_Neo4j pipeline on $CSV_PATH ..."
-LOG_LEVEL="$LOG_LEVEL" python -m Tabular_to_Neo4j.run_with_lmstudio "$CSV_PATH" $EXTRA_ARGS
+
+# Detect the default LLM provider from settings.py
+LLM_PROVIDER=$(python -c "import sys; sys.path.insert(0, '/app'); from Tabular_to_Neo4j.config.settings import DEFAULT_LLM_PROVIDER; print(DEFAULT_LLM_PROVIDER)")
+
+if [ "$LLM_PROVIDER" = "ollama" ]; then
+    LOG_LEVEL="$LOG_LEVEL" python -m Tabular_to_Neo4j.run_with_ollama "$CSV_PATH" $EXTRA_ARGS
+else
+    LOG_LEVEL="$LOG_LEVEL" python -m Tabular_to_Neo4j.run_with_lmstudio "$CSV_PATH" $EXTRA_ARGS
+fi
 
 if [ $? -eq 0 ]; then
     echo "[SUCCESS] Pipeline run complete. Check Neo4j or output directories for results."

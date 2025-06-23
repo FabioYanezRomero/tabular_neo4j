@@ -10,24 +10,34 @@ from contextlib import contextmanager
 from typing import Any, Dict, List
 
 from Tabular_to_Neo4j.utils.logging_config import get_logger
-from Tabular_to_Neo4j.config.settings import DEFAULT_SEED, DEFAULT_TEMPERATURE, LLM_CONFIGS
+from Tabular_to_Neo4j.config.settings import DEFAULT_SEED, DEFAULT_TEMPERATURE, LLM_CONFIGS, DEFAULT_LLM_PROVIDER
+from Tabular_to_Neo4j.utils.ollama_api import load_model_in_ollama, unload_model_from_ollama
 
+LMSTUDIO_AVAILABLE = False
+OLLAMA_AVAILABLE = False
+
+# Try to import LMStudio config only if needed
+if DEFAULT_LLM_PROVIDER == "lmstudio":
+    try:
+        from Tabular_to_Neo4j.config.lmstudio_config import (
+            LMSTUDIO_ENDPOINT,
+            LMSTUDIO_BASE_URL,
+            DEFAULT_MODEL,
+        )
+        from Tabular_to_Neo4j.utils.lmstudio_client import get_lmstudio_client
+        LMSTUDIO_AVAILABLE = True
+    except Exception:
+        logger = get_logger(__name__)
+        logger.warning("LMStudio configuration not found, LMStudio features disabled.")
+
+# Ollama config always importable
 try:
-    from Tabular_to_Neo4j.config.lmstudio_config import (
-        LMSTUDIO_ENDPOINT,
-        LMSTUDIO_BASE_URL,
-        DEFAULT_MODEL,
-    )
-    from Tabular_to_Neo4j.utils.lmstudio_client import get_lmstudio_client
-
-    LMSTUDIO_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+    from Tabular_to_Neo4j.utils.ollama_api import load_model_in_ollama, unload_model_from_ollama
+    OLLAMA_AVAILABLE = True
+except Exception:
     logger = get_logger(__name__)
-    logger.warning(
-        "LMStudio configuration not found, falling back to default LLM provider"
-    )
-    LMSTUDIO_AVAILABLE = False
-    LMSTUDIO_BASE_URL = "http://localhost:1234/"
+    logger.warning("Ollama API not available, Ollama features disabled.")
+    OLLAMA_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -180,6 +190,52 @@ def unload_model_from_lmstudio(
                 return False
 
 
+def call_ollama_api(
+    prompt: str,
+    model_name: str = None,
+    temperature: float = 0.7,
+    seed: int = DEFAULT_SEED,
+    state_name: str = None,
+    max_retries: int = 3,
+) -> str:
+    """
+    Call Ollama API for chat completion.
+    """
+    from Tabular_to_Neo4j.config.settings import OLLAMA_URL, OLLAMA_MODEL
+    set_seed(seed)
+    if not model_name:
+        model_name = OLLAMA_MODEL if 'OLLAMA_MODEL' in globals() else "gemma3:12b-it-qat"
+    url = f"{OLLAMA_URL}/api/chat"
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": temperature,
+        "stream": False,
+    }
+    headers = {"Content-Type": "application/json"}
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=180)
+            response.raise_for_status()
+            response_data = response.json()
+            if "message" in response_data:
+                return response_data["message"]["content"]
+            elif "choices" in response_data and len(response_data["choices"]):
+                return response_data["choices"][0]["message"]["content"]
+            else:
+                logger.error(f"Unexpected Ollama API response: {response_data}")
+                return str(response_data)
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt
+                logger.warning(f"Ollama API call failed: {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                logger.error(f"Ollama API call failed after {max_retries} attempts: {e}")
+                raise
+
 def call_lmstudio_api(
     prompt: str,
     model_name: str | None = None,
@@ -188,6 +244,125 @@ def call_lmstudio_api(
     state_name: str | None = None,
     max_retries: int = 3,
 ) -> str:
+    from Tabular_to_Neo4j.config.settings import LLM_CONFIGS, DEFAULT_LMSTUDIO_MODEL
+    set_seed(seed)
+    base_url = LMSTUDIO_BASE_URL
+    if not model_name:
+        model_name = DEFAULT_LMSTUDIO_MODEL
+        logger.info(f"No model specified, using default model: {model_name}")
+    system_prompt = (
+        "You are a helpful assistant that specializes in data analysis and Neo4j graph modeling. "
+        "Always return valid JSON when asked to do so."
+    )
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": temperature,
+        "max_tokens": 2048,
+        "stream": False,
+    }
+    if seed is not None:
+        payload["seed"] = seed
+    headers = {"Content-Type": "application/json"}
+    logger.debug(
+        f"Calling LMStudio API with model '{model_name}', temperature {temperature}"
+    )
+    logger.debug(f"Prompt length: {len(prompt)} characters")
+    for attempt in range(max_retries):
+        try:
+            logger.debug(f"API call attempt {attempt + 1}/{max_retries}")
+            response = requests.post(
+                f"{base_url}/v1/chat/completions",
+                headers=headers,
+                data=json.dumps(payload),
+                timeout=180,
+            )
+            if response.status_code != 200:
+                logger.error(f"HTTP error {response.status_code}: {response.text}")
+                if attempt < max_retries - 1:
+                    wait_time = 2**attempt
+                    logger.warning(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    response.raise_for_status()
+            try:
+                response_data = response.json()
+                logger.debug(
+                    f"Received response from LMStudio API: {str(response_data)[:200]}..."
+                )
+                if "choices" in response_data and len(response_data["choices"]):
+                    if "message" in response_data["choices"][0]:
+                        return response_data["choices"][0]["message"]["content"]
+                    else:
+                        logger.error(f"Unexpected response format: {response_data}")
+                        return str(response_data)
+                else:
+                    logger.error(f"No choices in response: {response_data}")
+                    return str(response_data)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON response: {e}")
+                logger.debug(f"Raw response: {response.text[:500]}...")
+                return response.text
+        except requests.exceptions.ConnectionError:
+            logger.error(
+                f"Connection error: Could not connect to LM Studio at {base_url}"
+            )
+            logger.error(
+                "Please ensure LM Studio is running and accessible at the configured URL"
+            )
+            if attempt < max_retries - 1:
+                wait_time = 2**attempt
+                logger.warning(f"Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                raise ValueError(
+                    f"Could not connect to LM Studio after {max_retries} attempts. Please ensure LM Studio is running at {base_url}"
+                )
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = 2**attempt
+                logger.warning(
+                    f"LMStudio API call failed: {e}. Retrying in {wait_time}s..."
+                )
+                time.sleep(wait_time)
+            else:
+                logger.error(
+                    f"LMStudio API call failed after {max_retries} attempts: {e}"
+                )
+                raise
+    raise RuntimeError(
+        f"Failed to get a valid response from LMStudio after {max_retries} attempts"
+    )
+
+
+def call_llm_api(prompt: str, config: dict = None) -> str:
+    """
+    Unified LLM dispatcher for all providers (Ollama, LMStudio).
+    Args:
+        prompt: The prompt to send to the LLM.
+        config: Dictionary with provider/model/temperature/seed, etc.
+    Returns:
+        The LLM response as a string.
+    """
+    if config is None:
+        config = {}
+    provider = config.get("provider", DEFAULT_LLM_PROVIDER)
+    model_name = config.get("model_name") or config.get("model")
+    temperature = config.get("temperature", DEFAULT_TEMPERATURE)
+    seed = config.get("seed", DEFAULT_SEED)
+    state_name = config.get("state_name") if "state_name" in config else None
+    if provider == "ollama":
+        return call_ollama_api(prompt, model_name, temperature, seed, state_name)
+    elif provider == "lmstudio":
+        return call_lmstudio_api(prompt, model_name, temperature, seed, state_name)
+    else:
+        logger.error(f"Unsupported LLM provider: {provider}")
+        raise ValueError(f"Unsupported LLM provider: {provider}")
+
     from Tabular_to_Neo4j.config.settings import LLM_CONFIGS, DEFAULT_LMSTUDIO_MODEL
 
     set_seed(seed)
@@ -304,8 +479,12 @@ def load_llm_for_state(state_name: str):
         f"Setting up LLM for state '{state_name}' using provider '{provider}' and model '{model_name}'"
     )
 
-    if auto_load and provider == "lmstudio" and model_name:
-        load_model_in_lmstudio(model_name, state_name)
+    # Load model if needed
+    if auto_load and model_name:
+        if provider == "lmstudio":
+            load_model_in_lmstudio(model_name, state_name)
+        elif provider == "ollama":
+            load_model_in_ollama(model_name)
 
     def call_llm_func(prompt: str) -> str:
         nonlocal provider, model_name, temperature, seed, output_format, state_name
@@ -316,18 +495,29 @@ def load_llm_for_state(state_name: str):
                 format_instruction = f"\n\nPlease provide your response in {format_type} format. Example: {format_example}"
                 prompt += format_instruction
         set_seed(seed)
-        if provider != "lmstudio":
-            logger.warning(
-                f"Provider '{provider}' is not supported. Using LM Studio instead."
-            )
-            provider = "lmstudio"
-        return call_lmstudio_api(prompt, model_name, temperature, seed, state_name)
+        if provider == "lmstudio" and LMSTUDIO_AVAILABLE:
+            return call_lmstudio_api(prompt, model_name, temperature, seed, state_name)
+        elif provider == "ollama" and OLLAMA_AVAILABLE:
+            return call_ollama_api(prompt, model_name, temperature, seed, state_name)
+        else:
+            logger.warning(f"Provider '{provider}' is not supported or not available. Using Ollama if possible.")
+            if OLLAMA_AVAILABLE:
+                return call_ollama_api(prompt, model_name, temperature, seed, state_name)
+            elif LMSTUDIO_AVAILABLE:
+                return call_lmstudio_api(prompt, model_name, temperature, seed, state_name)
+            else:
+                raise RuntimeError("No valid LLM provider available.")
+
 
     try:
         yield call_llm_func
     finally:
-        if auto_unload and provider == "lmstudio" and model_name:
-            unload_model_from_lmstudio(model_name, state_name)
+        if auto_unload and model_name:
+            if provider == "lmstudio":
+                unload_model_from_lmstudio(model_name, state_name)
+            elif provider == "ollama":
+                unload_model_from_ollama(model_name)
+
 
 
 def get_model_info(state_name: str) -> Dict[str, Any]:

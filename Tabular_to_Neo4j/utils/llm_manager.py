@@ -34,7 +34,14 @@ from Tabular_to_Neo4j.utils.prompt_utils import (
 
 
 def call_llm_with_state(state_name: str, prompt: str, config: dict = None) -> str:
-    """Call the LLM for a specific pipeline state."""
+    """
+    Call the LLM for a specific pipeline state using the unified dispatcher.
+    Logs prompt and response for debugging.
+    """
+    from Tabular_to_Neo4j.config.settings import LLM_CONFIGS
+    from Tabular_to_Neo4j.utils.llm_api import call_llm_api
+
+    # Save prompt sample for traceability
     try:
         template_name = f"{state_name}_prompt.txt"
         save_prompt_sample(template_name, prompt, {"state_name": state_name})
@@ -42,23 +49,16 @@ def call_llm_with_state(state_name: str, prompt: str, config: dict = None) -> st
     except Exception as exc:
         logger.warning("Failed to save prompt sample for state '%s': %s", state_name, exc)
 
-    # Dynamic provider selection
-    provider = "lm_studio"
-    if config and "configurable" in config:
-        provider = config["configurable"].get("llm_provider", "lm_studio")
-    if provider == "lm_studio":
-        model = models["lm_studio"]()
-    elif provider == "ollama":
-        model_name = None
-        if config and "configurable" in config:
-            model_name = config["configurable"].get("llm_model")
-        model = models["ollama"](model_name)
-    else:
-        logger.error(f"LLM provider '{provider}' not found. Please check your configuration.")
-        raise ValueError(f"LLM provider '{provider}' not found in llm_providers.models. Valid options are: {list(models.keys())}")
+    # Use LLM_CONFIGS for state-specific config
+    state_config = LLM_CONFIGS.get(state_name, {})
+    if config:
+        state_config.update(config)
+
     try:
-        response = model.invoke([{"role": "user", "content": prompt}])
-        response_text = response.content if hasattr(response, "content") else str(response)
+        # Unified call via llm_api dispatcher
+        response_text = call_llm_api(prompt, state_config)
+        logger.info(f"[LLM][{state_name}] Prompt: {prompt}")
+        logger.info(f"[LLM][{state_name}] Response: {response_text}")
         try:
             save_prompt_sample(
                 f"{state_name}_response.txt",
@@ -71,7 +71,7 @@ def call_llm_with_state(state_name: str, prompt: str, config: dict = None) -> st
             logger.warning("Failed to save response sample for state '%s': %s", state_name, exc)
         return response_text
     except Exception as exc:
-        logger.error(f"Error invoking LLM provider '{provider}': {exc}")
+        logger.error(f"Error invoking LLM for state '{state_name}': {exc}")
         return ""
 
 
@@ -82,44 +82,31 @@ def call_llm_with_json_output(
     **kwargs,
 ) -> Dict[str, Any]:
     """
-    Call the LLM and parse the response as JSON.
-    
-    Args:
-        prompt: The prompt to send to the LLM
-        state_name: The name of the state to use the LLM for
-        **kwargs: Optional parameters for future extensions
-        
-    Returns:
-        The parsed JSON response as a dictionary
+    Call the LLM and parse the response as JSON, using unified dispatcher and robust parsing.
     """
-    # If no state is specified, use a default state
+    from Tabular_to_Neo4j.config.settings import LLM_CONFIGS
+    from Tabular_to_Neo4j.utils.llm_api import call_llm_api
 
     if state_name is None:
         state_name = "default"
 
+    # Save original prompt for traceability
     try:
         template_name = f"{state_name}_original_prompt.txt"
         save_prompt_sample(template_name, prompt, {"state_name": state_name})
     except Exception as exc:
         logger.warning("Failed to save original prompt sample for state '%s': %s", state_name, exc)
 
+    # Augment prompt to ask for JSON output
     json_prompt = f"{prompt}\n\nPlease provide your response in valid JSON format."
-    provider = "lm_studio"
-    if config and "configurable" in config:
-        provider = config["configurable"].get("llm_provider", "lm_studio")
-    if provider == "lm_studio":
-        model = models["lm_studio"]()
-    elif provider == "ollama":
-        model_name = None
-        if config and "configurable" in config:
-            model_name = config["configurable"].get("llm_model")
-        model = models["ollama"](model_name)
-    else:
-        logger.error(f"LLM provider '{provider}' not found. Please check your configuration.")
-        raise ValueError(f"LLM provider '{provider}' not found in llm_providers.models. Valid options are: {list(models.keys())}")
+    state_config = LLM_CONFIGS.get(state_name, {})
+    if config:
+        state_config.update(config)
+
     try:
-        response = model.invoke([{"role": "user", "content": json_prompt}])
-        response_text = response.content if hasattr(response, "content") else str(response)
+        response_text = call_llm_api(json_prompt, state_config)
+        logger.info(f"[LLM][{state_name}] Prompt: {json_prompt}")
+        logger.info(f"[LLM][{state_name}] Response: {response_text}")
         try:
             template_name = f"{state_name}_json_response.txt"
             save_prompt_sample(
@@ -141,23 +128,22 @@ def call_llm_with_json_output(
             save_prompt_sample(template_name, retry_prompt, {"state_name": state_name})
         except Exception as exc:
             logger.warning("Failed to save retry prompt sample for state '%s': %s", state_name, exc)
-        retry_response = model.invoke([{"role": "user", "content": retry_prompt}])
-        retry_text = retry_response.content if hasattr(retry_response, "content") else str(retry_response)
+        retry_response_text = call_llm_api(retry_prompt, state_config)
         try:
             template_name = f"{state_name}_retry_response.txt"
             save_prompt_sample(
                 template_name,
-                retry_text,
+                retry_response_text,
                 {"state_name": state_name},
                 is_template=False,
             )
         except Exception as exc:
             logger.warning("Failed to save retry response sample for state '%s': %s", state_name, exc)
-        retry_json = extract_json_from_llm_response(retry_text)
+        retry_json = extract_json_from_llm_response(retry_response_text)
         if retry_json:
             return retry_json
-        logger.error(f"Failed to parse JSON from retry response for state '%s'. Response: %s", state_name, retry_text)
+        logger.error(f"Failed to parse JSON from retry response for state '%s'. Response: %s", state_name, retry_response_text)
         return {}
     except Exception as exc:
-        logger.error(f"Error invoking LLM provider '{provider}': {exc}")
+        logger.error(f"Error invoking LLM for state '{state_name}': {exc}")
         return {"error": str(exc), "raw_response": ""}
