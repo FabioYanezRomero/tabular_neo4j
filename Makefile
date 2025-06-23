@@ -17,6 +17,7 @@ help:
 	@echo "  compose-down - Stop and remove the container using docker-compose"
 	@echo "  compose-shell - Open a shell in the running docker-compose container"
 	@echo "  check-lmstudio - Check if LMStudio is reachable from the container"
+	@echo "  run-and-load - Build, start containers, run pipeline, and load Cypher into Neo4j"
 
 # Build the Docker image
 build:
@@ -38,6 +39,16 @@ shell:
 # Stop the running container
 stop:
 	docker stop $(CONTAINER_NAME) || true
+
+# Build, up, run pipeline, and load Cypher into Neo4j
+default_csv ?= /app/Tabular_to_Neo4j/sample_data/csv/customers.csv
+run-and-load:
+	docker compose build
+	docker compose up -d
+	# Wait for Neo4j to be healthy
+	@echo "Waiting for Neo4j to be healthy..." && sleep 20
+	docker compose exec tabular-neo4j python -m Tabular_to_Neo4j.main $(default_csv) --save-node-outputs
+	@echo "Pipeline run complete. Cypher should be loaded into Neo4j. Access Neo4j at http://localhost:7474 (neo4j/password)"
 	docker rm $(CONTAINER_NAME) || true
 
 # Remove the container and image

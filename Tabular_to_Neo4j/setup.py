@@ -16,6 +16,7 @@ setup(
         "langdetect>=1.0.9",
         "langchain-openai>=0.0.1",
         "langchain-community>=0.0.1",
+        "neo4j>=5.18",
     ],
     extras_require={
         "dev": [

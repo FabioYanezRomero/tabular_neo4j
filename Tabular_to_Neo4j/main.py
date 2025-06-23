@@ -375,6 +375,14 @@ def main():
             args.save_node_outputs,
             args.output_dir,
         )
+        # After successful pipeline run, try to push Cypher queries to Neo4j
+        from Tabular_to_Neo4j.utils.neo4j_loader import run_neo4j_loader
+        try:
+            print("\n[Neo4j Integration] Attempting to load generated Cypher queries into Neo4j...")
+            loader_out = run_neo4j_loader()
+            print(loader_out)
+        except Exception as loader_exc:
+            print(f"[Neo4j Integration] Loader error: {loader_exc}")
     except Exception as e:
         logger.error("Error: %s", e)
         sys.exit(1)

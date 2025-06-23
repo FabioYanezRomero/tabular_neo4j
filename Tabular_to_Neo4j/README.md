@@ -43,13 +43,37 @@ make shell
 make compose-shell
 ```
 
-### 4. Run the pipeline on sample data
+### 4. Run the pipeline and load Cypher into Neo4j (automated)
+
+You can run the full pipeline and automatically load the generated Cypher queries into Neo4j using:
+
 ```bash
-# Inside the container shell:
-./scripts/run_example.sh --save-node-outputs --log-level INFO
+make run-and-load
 ```
-- You can specify a different CSV and metadata by editing the script or passing arguments.
-- Use `--log-level WARNING` to suppress debug/info logs.
+
+- This will build the image, start all services, run the pipeline on the sample CSV, and push the generated Cypher queries to Neo4j.
+- The default sample CSV is `/app/Tabular_to_Neo4j/sample_data/csv/customers.csv`. To use a different CSV, run:
+  ```bash
+  make run-and-load default_csv=/app/Tabular_to_Neo4j/sample_data/csv/YOUR_FILE.csv
+  ```
+- All pipeline outputs are saved under `samples/<timestamp>/node_outputs/`.
+- The Cypher JSON file used for loading is: `samples/<timestamp>/node_outputs/13_generate_cypher_templates.json`.
+
+### 5. Access Neo4j Browser
+
+- After the pipeline completes, open your browser and go to: [http://localhost:7474](http://localhost:7474)
+- Login with:
+  - Username: `neo4j`
+  - Password: `password`
+- You can now explore your imported graph and run Cypher queries interactively.
+
+### 6. LMStudio Setup
+- Download and install LMStudio from [lmstudio.ai](https://lmstudio.ai/)
+- Import your GGUF models and start the LMStudio API server on port 1234
+- Ensure LMStudio is running and accessible from your container (host networking is used by default)
+
+### 7. Configuration
+- Edit `.env` for API keys and LMStudio settings if needed
 
 ### 5. LMStudio Setup
 - Download and install LMStudio from [lmstudio.ai](https://lmstudio.ai/)
