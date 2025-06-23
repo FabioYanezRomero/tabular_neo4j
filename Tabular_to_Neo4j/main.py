@@ -199,6 +199,13 @@ def run_analysis(
     # Always initialize OutputSaver to guarantee a single timestamp per run
     initialize_output_saver(output_dir)
     output_saver = get_output_saver()
+    # Set up log file handler for this run
+    if output_saver:
+        logs_dir = os.path.join(output_saver.base_dir, output_saver.timestamp, "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        log_file_path = os.path.join(logs_dir, "pipeline.log")
+        from Tabular_to_Neo4j.utils.logging_config import set_log_file_path
+        set_log_file_path(log_file_path)
     # Use the OutputSaver timestamp for all prompt samples and outputs
     reset_prompt_sample_directory(base_dir=output_dir, timestamp=output_saver.timestamp if output_saver else None)
 

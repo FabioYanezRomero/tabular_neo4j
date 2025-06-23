@@ -31,6 +31,8 @@ DEFAULT_LOG_LEVELS = {
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 DETAILED_LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
 
+_LOG_FILE_HANDLER = None
+
 def setup_logging(
     log_level: Optional[str] = None,
     log_file: Optional[str] = None,
@@ -64,18 +66,20 @@ def setup_logging(
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(logging.Formatter(DETAILED_LOG_FORMAT if detailed_format else LOG_FORMAT))
-    handlers.append(console_handler)
-    
-    # File handler if log_file is specified
     if log_file:
         # Ensure directory exists
         log_dir = os.path.dirname(log_file)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
             
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(logging.Formatter(DETAILED_LOG_FORMAT))
-        handlers.append(file_handler)
+        global _LOG_FILE_HANDLER
+        _LOG_FILE_HANDLER = logging.FileHandler(log_file)
+        _LOG_FILE_HANDLER.setFormatter(logging.Formatter(log_format))
+        handlers.append(_LOG_FILE_HANDLER)
+    else:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter(log_format))
+        handlers.append(handler)
     
     # Configure root logger
     root_logger = logging.getLogger()
@@ -103,6 +107,20 @@ def setup_logging(
         root_logger.info("Using detailed log format with file and line information")
     if log_file:
         root_logger.info(f"Logging to file: {log_file}")
+
+def set_log_file_path(log_file_path: str, detailed_format: bool = False):
+    """
+    Dynamically update the log file handler to write logs to a new file (e.g., after OutputSaver is initialized).
+    """
+    global _LOG_FILE_HANDLER
+    log_format = DETAILED_LOG_FORMAT if detailed_format else LOG_FORMAT
+    root_logger = logging.getLogger()
+    if _LOG_FILE_HANDLER:
+        root_logger.removeHandler(_LOG_FILE_HANDLER)
+    _LOG_FILE_HANDLER = logging.FileHandler(log_file_path)
+    _LOG_FILE_HANDLER.setFormatter(logging.Formatter(log_format))
+    root_logger.addHandler(_LOG_FILE_HANDLER)
+    root_logger.info(f"Log file handler updated to: {log_file_path}")
 
 def get_logger(name: str) -> logging.Logger:
     """
