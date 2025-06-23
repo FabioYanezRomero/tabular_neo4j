@@ -142,10 +142,17 @@ def map_properties_to_entities_node(
         # Save the prompt sample without actually calling the LLM
         from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
 
+        from Tabular_to_Neo4j.utils.output_saver import get_output_saver
+        output_saver = get_output_saver()
+        base_dir = output_saver.base_dir if output_saver else "samples"
+        timestamp = output_saver.timestamp if output_saver else None
         save_prompt_sample(
             "map_properties_to_entities.txt",
             prompt,
             {"state_name": "map_properties_to_entities"},
+            base_dir=base_dir,
+            timestamp=timestamp,
+            subfolder="prompts",
         )
 
         # Save the result as if it was an LLM response
@@ -154,6 +161,9 @@ def map_properties_to_entities_node(
             "map_properties_to_entities_result.txt",
             str(result_json),
             {"state_name": "map_properties_to_entities"},
+            base_dir=base_dir,
+            timestamp=timestamp,
+            subfolder="prompts",
         )
 
         # Update the state with the final mapping

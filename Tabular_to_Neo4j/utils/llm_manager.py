@@ -18,6 +18,19 @@ from Tabular_to_Neo4j.utils.response_utils import extract_json_from_llm_response
 
 logger = get_logger(__name__)
 
+# Utility to get node order for consistent file prefixing, avoiding circular import
+_node_order_map_cache = None
+
+def get_node_order_for_state(state_name: str) -> int:
+    global _node_order_map_cache
+    if _node_order_map_cache is None:
+        try:
+            from Tabular_to_Neo4j.pipeline_config import PIPELINE_NODES
+            _node_order_map_cache = {name: idx + 1 for idx, (name, _) in enumerate(PIPELINE_NODES)}
+        except Exception:
+            _node_order_map_cache = {}
+    return _node_order_map_cache.get(state_name, 0)
+
 __all__ = [
     "format_prompt",
     "call_llm_with_state",
@@ -79,9 +92,14 @@ def call_llm_with_state(state_name: str, prompt: str, config: dict = None) -> st
         # --- Save raw LLM output for traceability ---
         try:
             import os, json
+            from Tabular_to_Neo4j.utils.llm_manager import get_node_order_for_state
             llm_output_dir = os.path.join(base_dir, timestamp, "llm_output")
             os.makedirs(llm_output_dir, exist_ok=True)
-            llm_output_file = os.path.join(llm_output_dir, f"{state_name}.json")
+            node_order = get_node_order_for_state(state_name)
+            llm_output_file = os.path.join(
+                llm_output_dir,
+                f"{node_order:02d}_{state_name}.json" if node_order else f"{state_name}.json"
+            )
             with open(llm_output_file, "w", encoding="utf-8") as f:
                 json.dump({
                     "prompt": prompt,
@@ -145,6 +163,25 @@ def call_llm_with_json_output(
             )
         except Exception as exc:
             logger.warning("Failed to save JSON response sample for state '%s': %s", state_name, exc)
+        # --- Save raw LLM output for traceability ---
+        try:
+            import os, json
+            from Tabular_to_Neo4j.utils.llm_manager import get_node_order_for_state
+            node_outputs_dir = os.path.join(base_dir, timestamp, "node_outputs")
+            os.makedirs(node_outputs_dir, exist_ok=True)
+            node_order = get_node_order_for_state(state_name)
+            node_output_file = os.path.join(
+                node_outputs_dir,
+                f"{node_order:02d}_{state_name}.json" if node_order else f"{state_name}.json"
+            )
+            with open(node_output_file, "w", encoding="utf-8") as f:
+                json.dump({
+                    "prompt": json_prompt,
+                    "response": response_text
+                }, f, indent=2)
+            logger.debug(f"Saved raw LLM output for state '{state_name}' to {node_output_file}")
+        except Exception as exc:
+            logger.warning("Failed to save raw LLM output for state '%s': %s", state_name, exc)
         json_data = extract_json_from_llm_response(response_text)
         if json_data:
             return json_data

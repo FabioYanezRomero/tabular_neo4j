@@ -62,16 +62,15 @@ def setup_logging(
     
     # Create handlers
     handlers = []
-    
+    log_format = DETAILED_LOG_FORMAT if detailed_format else LOG_FORMAT
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(logging.Formatter(DETAILED_LOG_FORMAT if detailed_format else LOG_FORMAT))
+    console_handler.setFormatter(logging.Formatter(log_format))
     if log_file:
         # Ensure directory exists
         log_dir = os.path.dirname(log_file)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
-            
         global _LOG_FILE_HANDLER
         _LOG_FILE_HANDLER = logging.FileHandler(log_file)
         _LOG_FILE_HANDLER.setFormatter(logging.Formatter(log_format))

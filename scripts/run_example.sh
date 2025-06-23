@@ -6,6 +6,8 @@ set -e
 # Paths to sample data
 CSV_PATH="/app/Tabular_to_Neo4j/sample_data/csv/customers.csv"
 
+LOG_LEVEL="DEBUG"
+
 # Allow user to override CSV path or add --save-node-outputs
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     echo "Usage: ./scripts/run_example.sh [CSV_PATH] [--save-node-outputs] [--log-level LEVEL]"
@@ -25,7 +27,7 @@ if [ ! -f "$CSV_PATH" ]; then
 fi
 
 EXTRA_ARGS=""
-LOG_LEVEL="INFO"
+
 for arg in "$@"; do
     if [[ "$arg" == --save-node-outputs ]]; then
         EXTRA_ARGS="--save-node-outputs"
