@@ -2,8 +2,7 @@
 
 import os
 from dotenv import load_dotenv, find_dotenv
-from .model_name_mapping import MODEL_NAME_MAPPING  # Mapping LMStudio to Ollama models
-from .utils import DynamicLLMConfigs
+from .utils import DynamicLLMConfigs, MODEL_NAME_MAPPING
 
 # Load environment variables from a .env file if present
 load_dotenv(find_dotenv())
