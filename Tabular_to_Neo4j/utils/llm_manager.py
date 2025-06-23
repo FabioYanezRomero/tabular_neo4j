@@ -44,7 +44,11 @@ def call_llm_with_state(state_name: str, prompt: str, config: dict = None) -> st
     # Save prompt sample for traceability
     try:
         template_name = f"{state_name}_prompt.txt"
-        save_prompt_sample(template_name, prompt, {"state_name": state_name})
+        from Tabular_to_Neo4j.utils.output_saver import get_output_saver
+        output_saver = get_output_saver()
+        base_dir = output_saver.base_dir
+        timestamp = output_saver.timestamp
+        save_prompt_sample(template_name, prompt, {"state_name": state_name}, base_dir=base_dir, timestamp=timestamp, subfolder="prompts")
         logger.debug("Saved prompt sample for state '%s'", state_name)
     except Exception as exc:
         logger.warning("Failed to save prompt sample for state '%s': %s", state_name, exc)
@@ -65,10 +69,27 @@ def call_llm_with_state(state_name: str, prompt: str, config: dict = None) -> st
                 response_text,
                 {"state_name": state_name},
                 is_template=False,
+                base_dir=base_dir,
+                timestamp=timestamp,
+                subfolder="prompts",
             )
             logger.debug("Saved response sample for state '%s'", state_name)
         except Exception as exc:
             logger.warning("Failed to save response sample for state '%s': %s", state_name, exc)
+        # --- Save raw LLM output for traceability ---
+        try:
+            import os, json
+            llm_output_dir = os.path.join(base_dir, timestamp, "llm_output")
+            os.makedirs(llm_output_dir, exist_ok=True)
+            llm_output_file = os.path.join(llm_output_dir, f"{state_name}.json")
+            with open(llm_output_file, "w", encoding="utf-8") as f:
+                json.dump({
+                    "prompt": prompt,
+                    "response": response_text
+                }, f, indent=2)
+            logger.debug(f"Saved raw LLM output for state '{state_name}' to {llm_output_file}")
+        except Exception as exc:
+            logger.warning("Failed to save raw LLM output for state '%s': %s", state_name, exc)
         return response_text
     except Exception as exc:
         logger.error(f"Error invoking LLM for state '{state_name}': {exc}")
@@ -93,7 +114,11 @@ def call_llm_with_json_output(
     # Save original prompt for traceability
     try:
         template_name = f"{state_name}_original_prompt.txt"
-        save_prompt_sample(template_name, prompt, {"state_name": state_name})
+        from Tabular_to_Neo4j.utils.output_saver import get_output_saver
+        output_saver = get_output_saver()
+        base_dir = output_saver.base_dir
+        timestamp = output_saver.timestamp
+        save_prompt_sample(template_name, prompt, {"state_name": state_name}, base_dir=base_dir, timestamp=timestamp, subfolder="prompts")
     except Exception as exc:
         logger.warning("Failed to save original prompt sample for state '%s': %s", state_name, exc)
 
@@ -114,6 +139,9 @@ def call_llm_with_json_output(
                 response_text,
                 {"state_name": state_name},
                 is_template=False,
+                base_dir=base_dir,
+                timestamp=timestamp,
+                subfolder="prompts",
             )
         except Exception as exc:
             logger.warning("Failed to save JSON response sample for state '%s': %s", state_name, exc)
@@ -125,7 +153,7 @@ def call_llm_with_json_output(
         retry_prompt = f"{prompt}\n\nYou MUST respond with ONLY valid JSON. No other text. No markdown formatting."
         try:
             template_name = f"{state_name}_retry_prompt.txt"
-            save_prompt_sample(template_name, retry_prompt, {"state_name": state_name})
+            save_prompt_sample(template_name, retry_prompt, {"state_name": state_name}, base_dir=base_dir, timestamp=timestamp, subfolder="prompts")
         except Exception as exc:
             logger.warning("Failed to save retry prompt sample for state '%s': %s", state_name, exc)
         retry_response_text = call_llm_api(retry_prompt, state_config)
@@ -136,6 +164,9 @@ def call_llm_with_json_output(
                 retry_response_text,
                 {"state_name": state_name},
                 is_template=False,
+                base_dir=base_dir,
+                timestamp=timestamp,
+                subfolder="prompts",
             )
         except Exception as exc:
             logger.warning("Failed to save retry response sample for state '%s': %s", state_name, exc)

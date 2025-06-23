@@ -13,10 +13,13 @@ logger = get_logger(__name__)
 _CURRENT_RUN_TIMESTAMP_DIR = None
 
 
-def reset_prompt_sample_directory() -> None:
-    """Reset the prompt sample directory for a new pipeline run."""
+def reset_prompt_sample_directory(base_dir: str = "samples", timestamp: str = None) -> None:
+    """Reset the prompt sample directory for a new pipeline run, optionally with a base_dir and timestamp."""
     global _CURRENT_RUN_TIMESTAMP_DIR
-    _CURRENT_RUN_TIMESTAMP_DIR = None
+    if timestamp:
+        _CURRENT_RUN_TIMESTAMP_DIR = Path(base_dir) / timestamp
+    else:
+        _CURRENT_RUN_TIMESTAMP_DIR = None
 
 
 def load_prompt_template(template_name: str) -> str:
@@ -38,19 +41,28 @@ def save_prompt_sample(
     *,
     is_template: bool = False,
     is_error: bool = False,
+    base_dir: str = "samples",
+    timestamp: str = None,
+    subfolder: str = None,
 ) -> None:
-    """Save a formatted prompt sample to the prompt_samples folder."""
+    """Save a formatted prompt sample to the output folder, optionally specifying base_dir and timestamp."""
     global _CURRENT_RUN_TIMESTAMP_DIR
 
-    base_dir = Path(__file__).parent.parent.parent
-    prompt_samples_dir = base_dir / "prompt_samples"
+    # Use provided timestamp and base_dir if given, else fallback to current logic
+    if timestamp:
+        out_dir = Path(base_dir) / (timestamp if not subfolder else f"{timestamp}/{subfolder}")
+    else:
+        # If not provided, try to use global, else fallback to new timestamp
+        if _CURRENT_RUN_TIMESTAMP_DIR is None:
+            default_base = Path(base_dir)
+            ts = time.strftime("%Y%m%d_%H%M%S")
+            out_dir = default_base / (ts if not subfolder else f"{ts}/{subfolder}")
+            _CURRENT_RUN_TIMESTAMP_DIR = out_dir
+        else:
+            out_dir = _CURRENT_RUN_TIMESTAMP_DIR
 
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    if _CURRENT_RUN_TIMESTAMP_DIR is None:
-        _CURRENT_RUN_TIMESTAMP_DIR = prompt_samples_dir / timestamp
-        os.makedirs(_CURRENT_RUN_TIMESTAMP_DIR, exist_ok=True)
-
-    timestamp_dir = _CURRENT_RUN_TIMESTAMP_DIR
+    os.makedirs(out_dir, exist_ok=True)
+    timestamp_dir = out_dir
 
     node_order = {
         "load_csv": 1,
@@ -149,6 +161,8 @@ def save_prompt_sample(
 
 def format_prompt(template_name: str, **kwargs) -> str:
     """Format a prompt template with the given arguments."""
+    from Tabular_to_Neo4j.utils.output_saver import get_output_saver
+    import time
     template = load_prompt_template(template_name)
 
     formatted_kwargs: Dict[str, str] = {}
@@ -162,22 +176,27 @@ def format_prompt(template_name: str, **kwargs) -> str:
         else:
             formatted_kwargs[key] = str(value) if value is not None else ""
 
-    save_prompt_sample(template_name, template, formatted_kwargs, is_template=True)
+    output_saver = get_output_saver()
+    base_dir = output_saver.base_dir if output_saver else "samples"
+    timestamp = output_saver.timestamp if output_saver else time.strftime("%Y%m%d_%H%M%S")
+
+    save_prompt_sample(template_name, template, formatted_kwargs, is_template=True, base_dir=base_dir, timestamp=timestamp, subfolder="prompts")
 
     try:
         formatted_prompt = template
         for key, value in formatted_kwargs.items():
             placeholder = "{" + key + "}"
             formatted_prompt = formatted_prompt.replace(placeholder, value)
-        save_prompt_sample(template_name, formatted_prompt, formatted_kwargs)
+        save_prompt_sample(template_name, formatted_prompt, formatted_kwargs, base_dir=base_dir, timestamp=timestamp, subfolder="prompts")
         return formatted_prompt
     except KeyError as e:
         error_msg = f"Error formatting prompt: missing key {e}. Available keys: {list(formatted_kwargs.keys())}"
         logger.error(f"Missing key in prompt template {template_name}: {e}")
-        save_prompt_sample(template_name, error_msg, formatted_kwargs, is_error=True)
+        save_prompt_sample(template_name, error_msg, formatted_kwargs, is_error=True, base_dir=base_dir, timestamp=timestamp)
         return error_msg
     except Exception as e:
         error_msg = f"Error formatting prompt: {str(e)}"
         logger.error(f"Error formatting prompt template {template_name}: {e}")
-        save_prompt_sample(template_name, error_msg, formatted_kwargs, is_error=True)
+        save_prompt_sample(template_name, error_msg, formatted_kwargs, is_error=True, base_dir=base_dir, timestamp=timestamp)
+
         return error_msg

@@ -49,8 +49,10 @@ class OutputSaver:
         # Create a serializable copy of the new information
         serializable_new_info = self._make_serializable(new_info)
         
-        # Save the new information to a file with order prefix
-        output_file = os.path.join(self.output_dir, f"{node_order:02d}_{node_name}.json")
+        # Save the new information to a file with order prefix inside node_outputs/
+        node_outputs_dir = os.path.join(self.output_dir, "other_outputs")
+        os.makedirs(node_outputs_dir, exist_ok=True)
+        output_file = os.path.join(node_outputs_dir, f"{node_order:02d}_{node_name}.json")
         try:
             with open(output_file, 'w') as f:
                 json.dump(serializable_new_info, f, indent=2)

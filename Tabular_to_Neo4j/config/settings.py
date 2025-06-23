@@ -8,17 +8,20 @@ from .model_name_mapping import MODEL_NAME_MAPPING  # Mapping LMStudio to Ollama
 load_dotenv(find_dotenv())
 
 # General LLM Configuration
-LLM_API_KEY = os.getenv("LLM_API_KEY", "")  # Not used with LM Studio but kept for compatibility
 DEFAULT_LLM_PROVIDER = "ollama"  # [lm_studio, ollama]
+
+if DEFAULT_LLM_PROVIDER == "lm_studio":
+    LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234")
+else:
+    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+
 DEFAULT_SEED = 42  # Default seed for reproducibility
 DEFAULT_TEMPERATURE = 0.0  # Default temperature (0.0 for deterministic results)
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")  # Not used with LM Studio but kept for compatibility
 
 # LMStudio settings for GGUF models
 import os
 
-LMSTUDIO_BASE_URL = os.environ.get(
-    "LMSTUDIO_BASE_URL", "http://localhost:1234"
-)
 LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234")
 
 # Per-State LLM Configuration with GGUF models through LMStudio

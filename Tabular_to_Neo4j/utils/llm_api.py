@@ -197,15 +197,17 @@ def call_ollama_api(
     seed: int = DEFAULT_SEED,
     state_name: str = None,
     max_retries: int = 3,
+    url: str = None,
 ) -> str:
     """
     Call Ollama API for chat completion.
     """
-    from Tabular_to_Neo4j.config.settings import OLLAMA_URL, OLLAMA_MODEL
     set_seed(seed)
     if not model_name:
-        model_name = OLLAMA_MODEL if 'OLLAMA_MODEL' in globals() else "gemma3:12b-it-qat"
-    url = f"{OLLAMA_URL}/api/chat"
+        raise ValueError("Model name is required for Ollama API call")
+    if not url:
+        raise ValueError("URL is required for Ollama API call")
+    url = f"{url}/api/chat"
     payload = {
         "model": model_name,
         "messages": [
@@ -350,13 +352,15 @@ def call_llm_api(prompt: str, config: dict = None) -> str:
     """
     if config is None:
         config = {}
+    from Tabular_to_Neo4j.config.settings import OLLAMA_URL, DEFAULT_LLM_PROVIDER
     provider = config.get("provider", DEFAULT_LLM_PROVIDER)
     model_name = config.get("model_name") or config.get("model")
     temperature = config.get("temperature", DEFAULT_TEMPERATURE)
     seed = config.get("seed", DEFAULT_SEED)
     state_name = config.get("state_name") if "state_name" in config else None
     if provider == "ollama":
-        return call_ollama_api(prompt, model_name, temperature, seed, state_name)
+        url = config.get("url") or OLLAMA_URL
+        return call_ollama_api(prompt, model_name, temperature, seed, state_name, url=url)
     elif provider == "lmstudio":
         return call_lmstudio_api(prompt, model_name, temperature, seed, state_name)
     else:
@@ -498,11 +502,13 @@ def load_llm_for_state(state_name: str):
         if provider == "lmstudio" and LMSTUDIO_AVAILABLE:
             return call_lmstudio_api(prompt, model_name, temperature, seed, state_name)
         elif provider == "ollama" and OLLAMA_AVAILABLE:
-            return call_ollama_api(prompt, model_name, temperature, seed, state_name)
+            from Tabular_to_Neo4j.config.settings import OLLAMA_URL
+            return call_ollama_api(prompt, model_name, temperature, seed, state_name, url=OLLAMA_URL)
         else:
             logger.warning(f"Provider '{provider}' is not supported or not available. Using Ollama if possible.")
             if OLLAMA_AVAILABLE:
-                return call_ollama_api(prompt, model_name, temperature, seed, state_name)
+                from Tabular_to_Neo4j.config.settings import OLLAMA_URL
+                return call_ollama_api(prompt, model_name, temperature, seed, state_name, url=OLLAMA_URL)
             elif LMSTUDIO_AVAILABLE:
                 return call_lmstudio_api(prompt, model_name, temperature, seed, state_name)
             else:

@@ -194,8 +194,13 @@ def run_analysis(
     # Import and reset the prompt sample directory to ensure all samples from this run
     # are stored in the same directory
     from Tabular_to_Neo4j.utils.prompt_utils import reset_prompt_sample_directory
+    from Tabular_to_Neo4j.utils.output_saver import initialize_output_saver, get_output_saver
 
-    reset_prompt_sample_directory()
+    # Always initialize OutputSaver to guarantee a single timestamp per run
+    initialize_output_saver(output_dir)
+    output_saver = get_output_saver()
+    # Use the OutputSaver timestamp for all prompt samples and outputs
+    reset_prompt_sample_directory(base_dir=output_dir, timestamp=output_saver.timestamp if output_saver else None)
 
     # Log analysis start with file details
     logger.info(f"Starting analysis of CSV file: {csv_file_path}")
@@ -302,9 +307,11 @@ def run_analysis(
         # Save the final state as individual JSON files in state/<timestamp>/
         try:
             from Tabular_to_Neo4j.utils.state_saver import save_state_snapshot
-            from Tabular_to_Neo4j.utils.prompt_utils import _CURRENT_RUN_TIMESTAMP_DIR
-            timestamp = _CURRENT_RUN_TIMESTAMP_DIR if _CURRENT_RUN_TIMESTAMP_DIR is not None else datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            save_state_snapshot(final_state, timestamp)
+            from Tabular_to_Neo4j.utils.output_saver import get_output_saver
+            output_saver = get_output_saver()
+            base_dir = output_saver.base_dir if output_saver else "samples"
+            timestamp = output_saver.timestamp if output_saver else None
+            save_state_snapshot(final_state, timestamp=timestamp, base_dir=base_dir)
         except Exception as e:
             logger.error(f"Failed to save state snapshot: {e}")
 
