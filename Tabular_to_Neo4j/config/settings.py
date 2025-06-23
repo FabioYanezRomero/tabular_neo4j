@@ -3,46 +3,46 @@
 import os
 from dotenv import load_dotenv, find_dotenv
 from .model_name_mapping import MODEL_NAME_MAPPING  # Mapping LMStudio to Ollama models
+from .utils import DynamicLLMConfigs
 
 # Load environment variables from a .env file if present
 load_dotenv(find_dotenv())
 
-# General LLM Configuration
-DEFAULT_LLM_PROVIDER = "ollama"  # [lm_studio, ollama]
 
+# General LLM Configuration
+DEFAULT_LLM_PROVIDER = os.getenv("DEFAULT_LLM_PROVIDER", "lmstudio")  # [lm_studio, ollama]
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")  # Not used with LM Studio but kept for compatibility
+
+
+# LMStudio Configuration
+DEFAULT_LMSTUDIO_MODEL = os.environ.get("LMSTUDIO_DEFAULT_MODEL", "gemma-3-12b-it")
+
+
+# Ollama Configuration
+DEFAULT_OLLAMA_MODEL = os.environ.get("OLLAMA_DEFAULT_MODEL", "gemma-3-12b-it")
+
+
+# Server URLs
 if DEFAULT_LLM_PROVIDER == "lm_studio":
     LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234")
 else:
     OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
+# LLM randomness Settings
 DEFAULT_SEED = 42  # Default seed for reproducibility
 DEFAULT_TEMPERATURE = 0.0  # Default temperature (0.0 for deterministic results)
-LLM_API_KEY = os.getenv("LLM_API_KEY", "")  # Not used with LM Studio but kept for compatibility
 
-# LMStudio settings for GGUF models
-import os
 
-LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234")
+# CSV Processing Settings
+MAX_SAMPLE_ROWS = 5  # Maximum number of rows to include in LLM prompts
+CSV_ENCODING = "utf-8"  # Default encoding for CSV files
+CSV_DELIMITER = ","  # Default delimiter for CSV files
 
-# Per-State LLM Configuration with GGUF models through LMStudio
-# Each state has its own model and output format specification
-class DynamicLLMConfigs(dict):
-    """
-    A dictionary that returns the config for 'infer_entity_relationships' for any key starting with 'infer_relationship_'.
-    """
-    def __getitem__(self, key):
-        if key in super().keys():
-            return super().__getitem__(key)
-        if key.startswith('infer_relationship_'):
-            return super().__getitem__('infer_entity_relationships')
-        raise KeyError(key)
 
-    def get(self, key, default=None):
-        if key in super().keys():
-            return super().get(key, default)
-        if key.startswith('infer_relationship_'):
-            return super().get('infer_entity_relationships', default)
-        return default
+# Analysis Settings
+UNIQUENESS_THRESHOLD = 0.9  # Threshold for considering a column as potentially unique identifier
+LOW_CARDINALITY_THRESHOLD = 0.1  # Threshold for considering a column as low cardinality (categorical)
+
 
 # NOTE: For Ollama, use MODEL_NAME_MAPPING[model_name] to get the quantized equivalent.
 LLM_CONFIGS = DynamicLLMConfigs({
@@ -191,18 +191,3 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_unload": True
     }
 })
-
-
-# Default model to use if not specified in LLM_CONFIGS
-DEFAULT_LMSTUDIO_MODEL = os.environ.get(
-    "LMSTUDIO_DEFAULT_MODEL", "Mistral-7B-Instruct-v0.2-GGUF"
-)  # Default model for LM Studio
-
-# CSV Processing Settings
-MAX_SAMPLE_ROWS = 5  # Maximum number of rows to include in LLM prompts
-CSV_ENCODING = "utf-8"  # Default encoding for CSV files
-CSV_DELIMITER = ","  # Default delimiter for CSV files
-
-# Analysis Settings
-UNIQUENESS_THRESHOLD = 0.9  # Threshold for considering a column as potentially unique identifier
-LOW_CARDINALITY_THRESHOLD = 0.1  # Threshold for considering a column as low cardinality (categorical)
