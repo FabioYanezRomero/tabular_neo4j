@@ -30,19 +30,22 @@ except Exception as e:
     logger.warning(f"Failed to load .env file: {e}")
 
 
-
 # Import graph definitions from the graphs folder
 from Tabular_to_Neo4j.graphs.single_table_graph import create_single_table_graph
 
 # Remove local create_graph; use imported version from graphs folder
 
-def create_graph() -> 'StateGraph':
+def create_graph(pipeline: str = "single_table_graph") -> 'StateGraph':
     """
-    Wrapper for backward compatibility. Selects the appropriate workflow graph.
-    For now, always returns the single-table workflow graph.
+    Selects the appropriate workflow graph based on the pipeline argument.
     """
-    # In the future, add logic to select graph based on number of tables, etc.
-    return create_single_table_graph()
+    if pipeline == "single_table_graph":
+        from Tabular_to_Neo4j.graphs.single_table_graph import create_single_table_graph
+        return create_single_table_graph()
+    else:
+        logger.warning(f"Unknown pipeline '{pipeline}', defaulting to single_table_graph.")
+        from Tabular_to_Neo4j.graphs.single_table_graph import create_single_table_graph
+        return create_single_table_graph()
 
 
 def format_schema_output(schema: Dict[str, Any]) -> str:
@@ -136,6 +139,7 @@ def run_analysis(
     verbose: bool = False,
     save_node_outputs: bool = False,
     output_dir: str = "samples",
+    pipeline: str = "single_table_graph",
 ) -> Dict[str, Any]:
     """
     Run the CSV analysis and Neo4j schema inference.
@@ -199,7 +203,7 @@ def run_analysis(
 
     # Create the graph
     logger.debug("Creating state graph")
-    graph = create_graph()
+    graph = create_graph(pipeline)
 
     # Compile the graph
     logger.debug("Compiling state graph")
@@ -321,6 +325,7 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Run Tabular to Neo4j converter.")
     parser.add_argument("csv_file", help="Path to the CSV file to analyze")
+    parser.add_argument("--pipeline", default="single_table_graph", help="Pipeline/graph to use (default: single_table_graph)")
     parser.add_argument("--output", "-o", help="Path to save the results")
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Print verbose output"
@@ -347,6 +352,7 @@ def main():
             args.verbose,
             args.save_node_outputs,
             args.output_dir,
+            args.pipeline,
         )
         # After successful pipeline run, try to push Cypher queries to Neo4j
         from Tabular_to_Neo4j.utils.neo4j_loader import run_neo4j_loader
