@@ -3,11 +3,11 @@ Main script for the Tabular to Neo4j converter using LangGraph.
 """
 
 import argparse
-import json
 import os
 import time
-import logging
 from typing import Dict, Any
+from Tabular_to_Neo4j.app_state import GraphState
+from langgraph.graph import StateGraph
 from pathlib import Path
 from Tabular_to_Neo4j.utils.logging_config import get_logger, setup_logging
 import sys
@@ -30,7 +30,7 @@ except Exception as e:
     logger.warning(f"Failed to load .env file: {e}")
 
 
-from langchain_core.runnables import RunnableConfig
+
 # Import graph definitions from the graphs folder
 from Tabular_to_Neo4j.graphs.single_table_graph import create_single_table_graph
 
@@ -151,6 +151,22 @@ def run_analysis(
     # Import and reset the prompt sample directory to ensure all samples from this run
     # are stored in the same directory
     from Tabular_to_Neo4j.utils.prompt_utils import reset_prompt_sample_directory
+
+    # Log analysis start with file details
+    logger.info(f"Starting analysis of CSV file: {csv_file_path}")
+    if not os.path.exists(csv_file_path):
+        logger.error(f"CSV file not found: {csv_file_path}")
+        raise FileNotFoundError(f"CSV file not found: {csv_file_path}")
+
+    # Log file size and basic info
+    file_size = os.path.getsize(csv_file_path) / 1024  # KB
+    logger.info(f"File size: {file_size:.2f} KB")
+
+    # Initialize output saver if requested
+    if save_node_outputs:
+        logger.info(f"Initializing output saver with directory: {output_dir}")
+    
+    # Import output_saver
     from Tabular_to_Neo4j.utils.output_saver import initialize_output_saver, get_output_saver
 
     # Always initialize OutputSaver to guarantee a single timestamp per run
@@ -271,7 +287,7 @@ def run_analysis(
         # Save the final state as individual JSON files in state/<timestamp>/
         try:
             from Tabular_to_Neo4j.utils.state_saver import save_state_snapshot
-            from Tabular_to_Neo4j.utils.output_saver import get_output_saver
+
             output_saver = get_output_saver()
             base_dir = output_saver.base_dir if output_saver else "samples"
             timestamp = output_saver.timestamp if output_saver else None
