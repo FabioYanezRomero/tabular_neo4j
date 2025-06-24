@@ -31,61 +31,18 @@ except Exception as e:
 
 
 from langchain_core.runnables import RunnableConfig
-from langgraph.graph import StateGraph, END
+# Import graph definitions from the graphs folder
+from Tabular_to_Neo4j.graphs.single_table_graph import create_single_table_graph
 
-from Tabular_to_Neo4j.app_state import GraphState
+# Remove local create_graph; use imported version from graphs folder
 
-# Import input nodes
-from Tabular_to_Neo4j.pipeline_config import (
-    PIPELINE_NODES,
-    PIPELINE_EDGES,
-    ENTRY_POINT,
-)
-
-# Import output saver
-from Tabular_to_Neo4j.utils.output_saver import (
-    initialize_output_saver,
-    get_output_saver,
-)
-
-# Get a logger for this module
-logger = get_logger(__name__)
-
-
-def create_graph() -> StateGraph:
+def create_graph() -> 'StateGraph':
     """
-    Create the LangGraph for CSV analysis and Neo4j schema inference.
-
-    Returns:
-        StateGraph instance
+    Wrapper for backward compatibility. Selects the appropriate workflow graph.
+    For now, always returns the single-table workflow graph.
     """
-    # Create the graph with the GraphState type
-    graph = StateGraph(GraphState)
-
-    # Get the output saver
-    output_saver = get_output_saver()
-
-    # Determine node order based on configuration
-    node_order = {name: idx + 1 for idx, (name, _) in enumerate(PIPELINE_NODES)}
-
-    # Add nodes using the declarative configuration
-    for node_name, node_func in PIPELINE_NODES:
-        graph.add_node(
-            node_name,
-            wrap_node_with_output_saving(node_name, node_func, node_order[node_name]),
-        )
-
-    # Define edges using the declarative configuration
-    for edge in PIPELINE_EDGES:
-        if isinstance(edge, tuple):
-            graph.add_edge(edge[0], edge[1])
-        else:
-            graph.add_conditional_edges(edge["from"], edge["condition"], edge["edges"])
-
-    # Set the entry point
-    graph.set_entry_point(ENTRY_POINT)
-
-    return graph
+    # In the future, add logic to select graph based on number of tables, etc.
+    return create_single_table_graph()
 
 
 def format_schema_output(schema: Dict[str, Any]) -> str:

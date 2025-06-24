@@ -1,7 +1,9 @@
-"""Pipeline configuration for Tabular_to_Neo4j."""
-
+"""
+Graph definition for single-table workflows in Tabular_to_Neo4j.
+"""
+from langgraph.graph import StateGraph, END
+from Tabular_to_Neo4j.app_state import GraphState
 from langgraph.graph import END
-
 from Tabular_to_Neo4j.nodes.input import load_csv_node, detect_header_heuristic_node
 from Tabular_to_Neo4j.nodes.header_processing import (
     infer_header_llm_node,
@@ -19,8 +21,7 @@ from Tabular_to_Neo4j.nodes.entity_inference import (
 )
 from Tabular_to_Neo4j.nodes.db_schema import generate_cypher_templates_node
 
-# Ordered list of nodes in the pipeline. The position in this list defines
-# the order used for output file naming.
+# Ordered list of nodes in the pipeline. The position in this list defines the order used for output file naming.
 PIPELINE_NODES = [
     ("load_csv", load_csv_node),
     ("detect_header", detect_header_heuristic_node),
@@ -38,8 +39,7 @@ PIPELINE_NODES = [
 ]
 
 # Declarative edge definitions. A tuple represents a direct edge.
-# A dictionary with 'condition' defines conditional edges using a callable that
-# returns a key mapping to the next node.
+# A dictionary with 'condition' defines conditional edges using a callable that returns a key mapping to the next node.
 PIPELINE_EDGES = [
     ("load_csv", "detect_header"),
     {
@@ -70,3 +70,20 @@ PIPELINE_EDGES = [
 
 # Entry point of the graph (first node in PIPELINE_NODES)
 ENTRY_POINT = PIPELINE_NODES[0][0]
+
+from Tabular_to_Neo4j.utils.output_saver import initialize_output_saver, get_output_saver
+
+def create_single_table_graph() -> StateGraph:
+    """
+    Create the LangGraph for a single-table workflow.
+    Returns:
+        StateGraph instance
+    """
+    graph = StateGraph(GraphState)
+    for node_name, node_func in PIPELINE_NODES:
+        graph.add_node(node_name, node_func)
+    for edge in PIPELINE_EDGES:
+        graph.add_edge(**edge) if isinstance(edge, dict) else graph.add_edge(*edge)
+    graph.set_entry_point(ENTRY_POINT)
+    graph.set_finish_point(END)
+    return graph
