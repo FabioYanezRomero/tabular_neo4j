@@ -4,14 +4,14 @@
 set -e
 
 # Paths to sample data
-CSV_PATH="/app/Tabular_to_Neo4j/sample_data/csv/customers.csv"
+CSV_FOLDER="/app/Tabular_to_Neo4j/sample_data/csv"
 
 LOG_LEVEL="INFO"
 
 # Allow user to override CSV path or add --save-node-outputs
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    echo "Usage: ./scripts/run_example.sh [CSV_PATH] [PIPELINE] [--save-node-outputs] [--log-level LEVEL]"
-    echo "Default CSV_PATH: $CSV_PATH"
+    echo "Usage: ./scripts/run_example.sh [CSV_FOLDER] [PIPELINE] [--save-node-outputs] [--log-level LEVEL]"
+    echo "Default CSV_FOLDER: $CSV_FOLDER"
     echo "Default PIPELINE: single_table_graph"
     echo "  PIPELINE            Name of the graph/pipeline to use (e.g. single_table_graph)"
     echo "  --log-level LEVEL   Set Python logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default: INFO."
@@ -19,8 +19,15 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 if [ -n "$1" ] && [[ "$1" != --* ]]; then
-    CSV_PATH="$1"
+    CSV_FOLDER="$1"
     shift
+fi
+
+# Find the first CSV file in the folder
+CSV_PATH=$(find "$CSV_FOLDER" -maxdepth 1 -type f -name '*.csv' | head -n 1)
+if [ -z "$CSV_PATH" ]; then
+    echo "[ERROR] No CSV file found in folder: $CSV_FOLDER"
+    exit 1
 fi
 
 # Pipeline/graph selection
