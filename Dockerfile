@@ -22,7 +22,6 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy requirements and setup files
-COPY Tabular_to_Neo4j/requirements.txt .
 COPY setup.py .
 COPY setup_env.sh .
 

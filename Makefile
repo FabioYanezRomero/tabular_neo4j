@@ -62,6 +62,10 @@ restart: stop build run
 compose-build:
 	docker compose build
 
+# Compose without cache
+compose-build-no-cache:
+	docker compose build --no-cache
+
 # Start the container using docker-compose
 compose-up:
 	docker compose up -d
