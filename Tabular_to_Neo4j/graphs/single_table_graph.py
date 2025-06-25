@@ -11,7 +11,7 @@ from Tabular_to_Neo4j.nodes.header_processing import (
     translate_header_llm_node,
     apply_header_node,
 )
-from Tabular_to_Neo4j.nodes.analysis import perform_column_analytics_node
+from Tabular_to_Neo4j.nodes.intra-table-analysis.column_analytics import perform_column_analytics_node
 from Tabular_to_Neo4j.nodes.entity_inference import (
     classify_entities_properties_node,
     reconcile_entity_property_node,

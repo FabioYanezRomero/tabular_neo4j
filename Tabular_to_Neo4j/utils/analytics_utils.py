@@ -285,29 +285,104 @@ def analyze_value_distribution(column: pd.Series) -> Dict[str, Any]:
 
 def analyze_column(column: pd.Series) -> Dict[str, Any]:
     """
-    Perform comprehensive analysis on a column.
-    
+    Perform comprehensive analysis on a column, including DeepJoin/PLM-compatible contextualization statistics and adaptive sampling.
     Args:
         column: Pandas Series representing a column
-        
     Returns:
         Dictionary with analysis results
     """
-    # Basic analytics
     uniqueness = calculate_uniqueness_ratio(column)
     cardinality = calculate_cardinality(column)
     data_type = detect_data_type(column)
     missing_percentage = calculate_missing_percentage(column)
-    
-    # Advanced analytics
     value_lengths = calculate_value_length_stats(column)
     patterns = detect_patterns(column)
     distribution = analyze_value_distribution(column)
-    
-    # Sample values for reference
-    sample_values = column.dropna().sample(min(5, len(column.dropna()))).tolist() if len(column.dropna()) > 0 else []
-    
-    # Combine all analytics
+    total_count = len(column)
+    mode_series = column.mode(dropna=True)
+    mode_values = mode_series.tolist()[:5] if not mode_series.empty else []
+    min_value = max_value = avg_value = ''
+    quantiles = {}
+    sampled_values = []
+    contextual_description = ''
+    cardinality_type = 'low' if cardinality < 100 else ('medium' if cardinality < 10000 else 'high')
+
+    # Numerical columns
+    if data_type in ['integer', 'float']:
+        try:
+            min_value = float(column.min()) if not column.dropna().empty else ''
+            max_value = float(column.max()) if not column.dropna().empty else ''
+            avg_value = float(column.mean()) if not column.dropna().empty else ''
+            quantiles = column.quantile([0.25, 0.5, 0.75]).to_dict() if not column.dropna().empty else {}
+        except Exception:
+            min_value = max_value = avg_value = ''
+            quantiles = {}
+        # Distribution descriptor (skew, kurtosis, etc.)
+        desc = []
+        if not column.dropna().empty:
+            try:
+                skew = float(column.skew())
+                if skew > 1:
+                    desc.append('skewed right')
+                elif skew < -1:
+                    desc.append('skewed left')
+                else:
+                    desc.append('symmetric')
+            except Exception:
+                pass
+            try:
+                kurt = float(column.kurtosis())
+                if kurt > 3:
+                    desc.append('heavy tails')
+                elif kurt < 3:
+                    desc.append('light tails')
+            except Exception:
+                pass
+        contextual_description = ', '.join(desc)
+        if cardinality > 10000:
+            sampled_values = []  # No raw samples
+        else:
+            sampled_values = mode_values[:5] if cardinality < 100 else mode_values[:3]
+    # Temporal columns
+    elif data_type in ['date', 'datetime']:
+        try:
+            min_value = str(column.min()) if not column.dropna().empty else ''
+            max_value = str(column.max()) if not column.dropna().empty else ''
+            avg_value = ''
+        except Exception:
+            min_value = max_value = ''
+        contextual_description = f"start: {min_value}, end: {max_value}"
+        sampled_values = mode_values[:3]
+    # Categorical columns
+    elif data_type == 'categorical':
+        sampled_values = mode_values[:5] if cardinality < 100 else mode_values[:3]
+        contextual_description = f"{cardinality} unique"
+    # Text/multi-value columns
+    elif data_type == 'string':
+        if cardinality > 10000:
+            sampled_values = []
+            contextual_description = f"{cardinality} unique, text format"
+        elif cardinality > 1000:
+            sampled_values = mode_values[:3]
+            contextual_description = f"{cardinality} unique, text format"
+        else:
+            # Truncate to 512 tokens or 5 samples
+            samples = column.dropna().astype(str).unique().tolist()
+            sampled_values = samples[:5]
+            contextual_description = f"{cardinality} unique, sample values"
+    else:
+        sampled_values = mode_values[:3]
+        contextual_description = f"{cardinality} unique"
+
+    # Flag for low-cardinality numeric columns that are effectively categorical
+    # Use a percentage threshold for 'effectively categorical' numeric columns
+    is_effectively_categorical = False
+    EFFECTIVE_CATEGORICAL_PERCENT = 0.05  # 5% unique values or fewer is categorical
+    # Only check if total_count > 0 to avoid division by zero
+    if data_type in ['integer', 'float'] and total_count > 0:
+        if (cardinality / total_count) <= EFFECTIVE_CATEGORICAL_PERCENT:
+            is_effectively_categorical = True
+
     analysis = {
         'column_name': column.name,
         'uniqueness': uniqueness,
@@ -317,9 +392,19 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
         'value_lengths': value_lengths,
         'patterns': patterns,
         'distribution': distribution,
-        'sample_values': sample_values
+        'total_count': total_count,
+        'mode_values': mode_values,
+        'min_value': min_value,
+        'max_value': max_value,
+        'avg_value': avg_value,
+        'quantiles': quantiles,
+        'sampled_values': sampled_values,
+        'contextual_description': contextual_description,
+        'cardinality_type': cardinality_type,
+        'is_effectively_categorical': is_effectively_categorical,
     }
     return analysis
+
 
 def analyze_all_columns(df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
     """

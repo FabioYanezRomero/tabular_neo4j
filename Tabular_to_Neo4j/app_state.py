@@ -113,3 +113,20 @@ class GraphState(MutableMapping):
         # Deep copy _extra explicitly
         new_state._extra = copy.deepcopy(self._extra)
         return new_state
+
+
+class MultiTableGraphState(dict):
+    """
+    State container for multi-table workflows.
+    Each key is a table name, and the value is a GraphState for that table.
+    """
+    def __getitem__(self, key: str) -> GraphState:
+        return super().__getitem__(key)
+
+    def __setitem__(self, key: str, value: GraphState) -> None:
+        if not isinstance(value, GraphState):
+            raise ValueError(f"Value for key '{key}' must be a GraphState instance.")
+        super().__setitem__(key, value)
+
+    def get(self, key: str, default=None) -> GraphState:
+        return super().get(key, default)
