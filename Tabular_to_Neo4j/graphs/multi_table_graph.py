@@ -22,6 +22,7 @@ from Tabular_to_Neo4j.nodes.entity_inference import (
 )
 from Tabular_to_Neo4j.nodes.cross_table_analysis.columns_contextualization import columns_contextualization_node
 from Tabular_to_Neo4j.nodes.cross_table_analysis.semantic_embedding_node import semantic_embedding_node
+from Tabular_to_Neo4j.nodes.cross_table_analysis.llm_relation_node import llm_relation_node
 import os
 from typing import Dict, Any
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_path_for_csv
@@ -97,6 +98,7 @@ def create_multi_table_graph(table_folder: str) -> Dict[str, StateGraph]:
 CROSS_TABLE_NODES = [
     ("columns_contextualization", columns_contextualization_node),
     ("semantic_embedding", semantic_embedding_node),
+    ("llm_relation", llm_relation_node),
 ]
 
 def run_multi_table_pipeline(state: MultiTableGraphState, config: Dict[str, Any] = None) -> MultiTableGraphState:

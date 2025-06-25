@@ -27,7 +27,7 @@ def cosine_similarity(vec1, vec2):
 
 # Default model to use; can be made configurable
 DEFAULT_OLLAMA_MODEL = "nomic-embed-text"
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://host.docker.internal:11434")
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 
 
 def call_ollama_embed_api(text: str, model: str = DEFAULT_OLLAMA_MODEL, url: str = OLLAMA_URL) -> List[float]:
