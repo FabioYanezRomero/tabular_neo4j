@@ -49,12 +49,11 @@ done
 
 echo "[INFO] Running Tabular_to_Neo4j multi-table pipeline on all CSVs in $CSV_FOLDER using pipeline $table_pipeline ..."
 
-# Loop over all CSV files in the folder
-for csv_file in "$CSV_FOLDER"/*.csv; do
-    if [ ! -f "$csv_file" ]; then
-        echo "[WARNING] No CSV files found in $CSV_FOLDER."
-        continue
-    fi
-    echo "[INFO] Processing $csv_file ..."
-    python3 -m Tabular_to_Neo4j.main --csv "$csv_file" --pipeline "$table_pipeline" --log-level "$LOG_LEVEL" $EXTRA_ARGS
-done
+# Run the multi-table pipeline directly on the folder of CSVs using multi_table_graph.py
+if [ ! -d "$CSV_FOLDER" ]; then
+    echo "[ERROR] CSV folder $CSV_FOLDER does not exist."
+    exit 1
+fi
+
+# Run the multi-table pipeline
+python3 /app/Tabular_to_Neo4j/graphs/multi_table_graph.py --csv-folder "$CSV_FOLDER" --pipeline "$table_pipeline" --log-level "$LOG_LEVEL" $EXTRA_ARGS

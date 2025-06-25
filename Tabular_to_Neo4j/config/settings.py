@@ -9,7 +9,7 @@ load_dotenv(find_dotenv())
 
 
 # General LLM Configuration
-DEFAULT_LLM_PROVIDER = os.getenv("DEFAULT_LLM_PROVIDER", "lmstudio")  # [lm_studio, ollama]
+DEFAULT_LLM_PROVIDER = os.getenv("DEFAULT_LLM_PROVIDER", "ollama")  # [lm_studio, ollama]
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")  # Not used with LM Studio but kept for compatibility
 
 

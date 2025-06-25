@@ -24,7 +24,7 @@ from Tabular_to_Neo4j.nodes.cross_table_analysis.columns_contextualization impor
 from Tabular_to_Neo4j.nodes.cross_table_analysis.semantic_embedding_node import semantic_embedding_node
 from Tabular_to_Neo4j.nodes.cross_table_analysis.llm_relation_node import llm_relation_node
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_path_for_csv
 
 # Only up to infer_entity_relationships
@@ -73,25 +73,20 @@ ENTRY_POINT = PIPELINE_NODES[0][0]
 
 
 
-def create_multi_table_graph(table_folder: str) -> Dict[str, StateGraph]:
+def create_multi_table_graph() -> StateGraph:
     """
-    For each CSV file in the given folder, create a graph up to infer_entity_relationships node.
-    Returns a dict mapping table name to its StateGraph.
-    After all per-table graphs are run, cross-table nodes (such as columns_contextualization) should be run on the MultiTableGraphState.
+    Returns the pipeline structure (StateGraph) for a single table in the multi-table workflow.
+    This is analogous to create_single_table_graph, but for use in multi-table contexts.
+    The folder path and table enumeration are handled elsewhere (initialize_multi_table_state and pipeline runner).
     """
-    graphs = {}
-    for fname in os.listdir(table_folder):
-        if fname.lower().endswith('.csv'):
-            table_name = os.path.splitext(fname)[0]
-            graph = StateGraph(GraphState)
-            for node_name, node_func in PIPELINE_NODES:
-                graph.add_node(node_name, node_func)
-            for edge in PIPELINE_EDGES:
-                graph.add_edge(**edge) if isinstance(edge, dict) else graph.add_edge(*edge)
-            graph.set_entry_point(ENTRY_POINT)
-            graph.set_finish_point("infer_entity_relationships")
-            graphs[table_name] = graph
-    return graphs
+    graph = StateGraph(GraphState)
+    for node_name, node_func in PIPELINE_NODES:
+        graph.add_node(node_name, node_func)
+    for edge in PIPELINE_EDGES:
+        graph.add_edge(**edge) if isinstance(edge, dict) else graph.add_edge(*edge)
+    graph.set_entry_point(ENTRY_POINT)
+    graph.set_finish_point("infer_entity_relationships")
+    return graph
 
 
 # Cross-table nodes to be run after all per-table nodes have finished
@@ -101,18 +96,21 @@ CROSS_TABLE_NODES = [
     ("llm_relation", llm_relation_node),
 ]
 
-def run_multi_table_pipeline(state: MultiTableGraphState, config: Dict[str, Any] = None) -> MultiTableGraphState:
+def run_multi_table_pipeline(state: MultiTableGraphState, config: Optional[Dict[str, Any]] = None) -> MultiTableGraphState:
     """
     Runs the full multi-table pipeline:
-    1. For each table, runs all per-table nodes in sequence.
+    1. For each table, compiles and runs the StateGraph pipeline on its GraphState.
     2. After all tables are processed, runs all cross-table nodes.
     Returns the final MultiTableGraphState.
     """
-    # Per-table phase
+    # Per-table phase (use the StateGraph abstraction for each table)
+    graph_template = create_multi_table_graph()
     for table_name, table_state in state.items():
-        for node_name, node_func in PIPELINE_NODES:
-            table_state = node_func(table_state, config)
-            state[table_name] = table_state
+        # Compile a new graph for each table (if needed, or reuse the template if stateless)
+        compiled_graph = graph_template.compile()
+        # Run the compiled graph on the table's state
+        table_state = compiled_graph(table_state, config)
+        state[table_name] = table_state
     # Cross-table phase
     for node_name, node_func in CROSS_TABLE_NODES:
         state = node_func(state, config)

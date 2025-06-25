@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="Tabular_to_Neo4j",
     version="0.1.0",
-    packages=find_packages(),
+    packages=find_packages(include=["Tabular_to_Neo4j*"]),
     include_package_data=True,
     install_requires=[
         "pandas>=1.3.0",
@@ -16,6 +16,8 @@ setup(
         "python-dotenv>=0.19.0",
         "langdetect>=1.0.9",
         "chardet>=4.0.0",
+        "langchain_openai>=0.1.0",
+        "langchain_community>=0.1.0",
     ],
     extras_require={
         "dev": [

@@ -84,3 +84,31 @@ def create_single_table_graph() -> StateGraph:
     graph.set_entry_point(ENTRY_POINT)
     graph.set_finish_point(END)
     return graph
+
+
+def run_pipeline(graph, input_path):
+    import os
+    import time
+    from Tabular_to_Neo4j.app_state import GraphState
+    from Tabular_to_Neo4j.utils.logging_config import get_logger
+    logger = get_logger(__name__)
+    if not os.path.exists(input_path):
+        logger.error(f"Input path not found: {input_path}")
+        raise FileNotFoundError(f"Input path not found: {input_path}")
+    file_size = os.path.getsize(input_path) / 1024  # KB
+    logger.info(f"File size: {file_size:.2f} KB")
+    # Create and run the graph
+    logger.debug("Creating state graph")
+    app = graph.compile()
+    logger.debug("Initializing state")
+    initial_state = GraphState(csv_file_path=input_path, error_messages=[])
+    logger.info(f"Executing analysis pipeline")
+    start_time = time.time()
+    try:
+        final_state = app.invoke(initial_state)
+        execution_time = time.time() - start_time
+        logger.info(f"Analysis completed in {execution_time:.2f} seconds")
+    except Exception as e:
+        logger.error(f"Analysis failed: {str(e)}", exc_info=True)
+        raise
+    return final_state
