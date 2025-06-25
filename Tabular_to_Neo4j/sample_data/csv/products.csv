@@ -1,0 +1,10 @@
+product_id,product_name,category,price,currency
+P-001,Laptop,Electronics,1200.00,USD
+P-002,Smartphone,Electronics,400.00,USD
+P-003,Tablet,Electronics,350.50,USD
+P-004,Headphones,Accessories,120.25,USD
+P-005,Monitor,Electronics,200.30,USD
+P-006,Keyboard,Accessories,50.00,USD
+P-007,Mouse,Accessories,60.15,USD
+P-008,Webcam,Accessories,80.70,USD
+P-009,Printer,Electronics,420.85,USD

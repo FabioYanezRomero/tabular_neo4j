@@ -1,0 +1,35 @@
+{
+  "language": "english",
+  "date_created": "2025-01-16",
+  "version": "1.0",
+  "columns": {
+    "order_id": {
+      "description": "Unique order identifier",
+      "type": "integer"
+    },
+    "customer_email": {
+      "description": "Email address of the customer placing the order (foreign key to customers.email)",
+      "type": "string"
+    },
+    "order_date": {
+      "description": "Date when the order was placed",
+      "type": "date"
+    },
+    "product": {
+      "description": "Product name ordered",
+      "type": "string"
+    },
+    "quantity": {
+      "description": "Number of units ordered",
+      "type": "integer"
+    },
+    "unit_price": {
+      "description": "Price per unit of the product",
+      "type": "float"
+    },
+    "total_price": {
+      "description": "Total price for the order (quantity * unit_price)",
+      "type": "float"
+    }
+  }
+}

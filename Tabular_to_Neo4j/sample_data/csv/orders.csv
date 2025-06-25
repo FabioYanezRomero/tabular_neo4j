@@ -1,0 +1,11 @@
+order_id,customer_email,order_date,product,quantity,unit_price,total_price
+10001,john.smith@example.com,2023-05-15,Laptop,1,1200.00,1200.00
+10002,maria.g@example.com,2023-04-10,Smartphone,2,400.00,800.00
+10003,h.tanaka@example.jp,2023-06-01,Tablet,1,350.50,350.50
+10004,emma.w@example.co.uk,2023-03-28,Headphones,1,120.25,120.25
+10005,a.hassan@example.eg,2023-05-12,Monitor,2,200.30,400.60
+10006,sophie.d@example.fr,2023-06-10,Laptop,1,1560.90,1560.90
+10007,li.wei@example.cn,2023-05-25,Keyboard,3,50.00,150.00
+10008,carlos.r@example.mx,2023-04-30,Mouse,2,60.15,120.30
+10009,p.patel@example.in,2023-03-15,Webcam,1,80.70,80.70
+10010,anna.k@example.pl,2023-05-05,Printer,1,420.85,420.85

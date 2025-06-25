@@ -1,0 +1,27 @@
+{
+  "language": "english",
+  "date_created": "2025-01-16",
+  "version": "1.0",
+  "columns": {
+    "product_id": {
+      "description": "Unique product identifier",
+      "type": "string"
+    },
+    "product_name": {
+      "description": "Name of the product",
+      "type": "string"
+    },
+    "category": {
+      "description": "Category of the product (e.g., Electronics, Accessories)",
+      "type": "string"
+    },
+    "price": {
+      "description": "Unit price of the product",
+      "type": "float"
+    },
+    "currency": {
+      "description": "Currency for the price (e.g., USD)",
+      "type": "string"
+    }
+  }
+}

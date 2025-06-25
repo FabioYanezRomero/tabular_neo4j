@@ -2,10 +2,12 @@
 Node for generating semantic embeddings for columns using Ollama embedding models.
 This node should be run after columns_contextualization_node and stores embeddings per table/column.
 
-Recommended Ollama embedding models:
+Supported Ollama embedding models (selectable via config):
 - 'nomic-embed-text' (balanced, default)
-- 'mxbai-embed-large' (high accuracy)
-- 'all-minilm' (high speed, low resource)
+- 'mxbai-embed-large' (high accuracy, larger model)
+- 'all-minilm' (high speed, lower resource usage)
+
+Specify the embedding model in the config dictionary with the key 'embedding_model'.
 
 This node calls Ollama using the REST API via call_ollama_embed_api utility, which is compatible with containerized environments.
 """
