@@ -52,14 +52,17 @@ def run(
     
     validate_input_path(input_path, pipeline)
     logger.info(f"Starting analysis with pipeline: {pipeline}")
-    initialize_output_saver(output_dir)
-    output_saver = get_output_saver()
-    if output_saver:
-        logs_dir = os.path.join(output_saver.base_dir, output_saver.timestamp, "logs")
-        os.makedirs(logs_dir, exist_ok=True)
-        log_file_path = os.path.join(logs_dir, "pipeline.log")
-        set_log_file_path(log_file_path)
-    reset_prompt_sample_directory(base_dir=output_dir, timestamp=output_saver.timestamp if output_saver else None)
+    if save_node_outputs:
+        initialize_output_saver(output_dir)
+        output_saver = get_output_saver()
+        if output_saver:
+            logs_dir = os.path.join(output_saver.base_dir, output_saver.timestamp, "logs")
+            os.makedirs(logs_dir, exist_ok=True)
+            log_file_path = os.path.join(logs_dir, "pipeline.log")
+            set_log_file_path(log_file_path)
+        reset_prompt_sample_directory(base_dir=output_dir, timestamp=output_saver.timestamp if output_saver else None)
+    else:
+        output_saver = None
 
     # Abstract graph creation
     graph = create_graph(pipeline)
@@ -123,7 +126,7 @@ def main():
     Main entry point for the command-line interface.
     """
     parser = argparse.ArgumentParser(description="Run Tabular to Neo4j converter.")
-    parser.add_argument("input_path", help="Path to the CSV file (single-table) or directory of CSVs (multi-table)")
+    parser.add_argument("--input_path", help="Path to the CSV file (single-table) or directory of CSVs (multi-table)")
     parser.add_argument("--pipeline", default="single_table_graph", choices=["single_table_graph", "multi_table_graph"], help="Pipeline/graph to use: 'single_table_graph' (default) or 'multi_table_graph'")
     parser.add_argument("--output", "-o", help="Path to save the results (single-table: one file, multi-table: summary)")
     parser.add_argument(
@@ -141,8 +144,30 @@ def main():
         default="samples",
         help="Directory to save node outputs to (default: samples)",
     )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set the logging level (default: INFO)",
+    )
 
     args = parser.parse_args()
+
+    setup_logging(log_level=args.log_level)
+
+    # Get a logger for this module
+    logger = get_logger(__name__)
+
+    # Load environment variables from .env file if present
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+        logger.info("Loaded environment variables from .env file")
+    except ImportError:
+        logger.warning("python-dotenv not installed, skipping .env loading")
+    except Exception as e:
+        logger.warning(f"Failed to load .env file: {e}")
 
     try:
         run(

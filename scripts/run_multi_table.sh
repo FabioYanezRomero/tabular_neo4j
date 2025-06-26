@@ -55,5 +55,18 @@ if [ ! -d "$CSV_FOLDER" ]; then
     exit 1
 fi
 
-# Run the multi-table pipeline
-python3 /app/Tabular_to_Neo4j/graphs/multi_table_graph.py --csv-folder "$CSV_FOLDER" --pipeline "$table_pipeline" --log-level "$LOG_LEVEL" $EXTRA_ARGS
+# Detect the default LLM provider from settings.py
+LLM_PROVIDER=$(python -c "import sys; sys.path.insert(0, '/app'); from Tabular_to_Neo4j.config.settings import DEFAULT_LLM_PROVIDER; print(DEFAULT_LLM_PROVIDER)")
+
+if [ "$LLM_PROVIDER" = "ollama" ]; then
+    python3 -m Tabular_to_Neo4j.main --input_path "$CSV_FOLDER" --pipeline "$table_pipeline" --log-level "$LOG_LEVEL" $EXTRA_ARGS
+else
+    python3 -m Tabular_to_Neo4j.main --input_path "$CSV_FOLDER" --pipeline "$table_pipeline" --log-level "$LOG_LEVEL" $EXTRA_ARGS
+fi
+
+if [ $? -eq 0 ]; then
+    echo "[SUCCESS] Pipeline run complete. Check Neo4j or output directories for results."
+else
+    echo "[FAILURE] Pipeline run failed. See output above."
+    exit 2
+fi
