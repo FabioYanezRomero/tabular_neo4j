@@ -25,6 +25,7 @@ from Tabular_to_Neo4j.nodes.cross_table_analysis.semantic_embedding_node import 
 from Tabular_to_Neo4j.nodes.cross_table_analysis.llm_relation_node import llm_relation_node
 import os
 from typing import Dict, Any, Optional
+from Tabular_to_Neo4j.utils.output_saver import output_saver
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_path_for_csv
 
 # Only up to infer_entity_relationships
@@ -100,11 +101,13 @@ CROSS_TABLE_NODES = [
 ]
 
 def run_multi_table_pipeline(state: MultiTableGraphState, config: Optional[Dict[str, Any]] = None) -> MultiTableGraphState:
-    from Tabular_to_Neo4j.utils.output_saver import get_output_saver
     from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
     import logging
     logger = logging.getLogger(__name__)
-    output_saver = get_output_saver()
+
+    if not output_saver:
+        raise RuntimeError("OutputSaver is not initialized. All output saving must use the same timestamp for the run.")
+
     # Per-table phase (use the StateGraph abstraction for each table)
     graph_template = create_multi_table_graph()
     from Tabular_to_Neo4j.utils.state_saver import save_state_snapshot
@@ -140,7 +143,6 @@ def run_multi_table_pipeline(state: MultiTableGraphState, config: Optional[Dict[
                         base_dir=output_saver.base_dir,
                         timestamp=output_saver.timestamp,
                         table_name=table_name,
-                        subfolder="prompts"
                     )
                 except Exception as prompt_exc:
                     logger.debug(f"Prompt sample not saved for node '{node_name}': {prompt_exc}")
@@ -196,7 +198,6 @@ def run_multi_table_pipeline(state: MultiTableGraphState, config: Optional[Dict[
                 base_dir=output_saver.base_dir,
                 timestamp=output_saver.timestamp,
                 table_name="inter_table",
-                subfolder="prompts"
             )
         except Exception as prompt_exc:
             logger.debug(f"Prompt sample not saved for cross-table node '{node_name}': {prompt_exc}")

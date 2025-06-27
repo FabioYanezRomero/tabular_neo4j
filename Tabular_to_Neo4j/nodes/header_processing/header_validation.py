@@ -49,9 +49,6 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
         sample_rows = min(MAX_SAMPLE_ROWS, len(df))
         data_sample = df_to_json_sample(df, sample_rows)
 
-        # File name is no longer needed for the prompt as per requirements
-        # We'll keep the csv_file_path in the state for other nodes that might need it
-
         # Get metadata for the CSV file
         metadata = get_metadata_for_state(state)
         metadata_text = (
@@ -88,37 +85,30 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
         import json
 
         headers_json = json.dumps(current_header)
+        table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
 
-        # Extract table_name before formatting prompt
-        table_name = state.get("table_name")
-        if not table_name:
-            csv_path = state.get("csv_file_path")
-            if csv_path:
-                import os
-                table_name = os.path.splitext(os.path.basename(csv_path))[0]
-            else:
-                raise ValueError("table_name not found in state and csv_file_path unavailable")
         prompt = format_prompt(
             "validate_header.txt",
             table_name=table_name,
             data_sample=data_sample,
-            headers=headers_json,  # Pass headers instead of current_header
+            headers=headers_json,  
             column_count=len(df.columns),
             row_count=len(df),
             metadata_text=metadata_text,
         )
-        if prompt.strip():
-            from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
-            save_prompt_sample(
-                "validate_header.txt",
-                prompt,
-                {"state_name": "validate_header"},
-                table_name=table_name,
-            )
 
         # Call the LLM to validate headers
         logger.debug("Calling LLM for header validation")
-        response = call_llm_with_json_output(prompt, state_name="validate_header", config=config)
+        from Tabular_to_Neo4j.utils.llm_manager import get_node_order_for_state
+        node_order = get_node_order_for_state("validate_header")
+        response = call_llm_with_json_output(
+            prompt,
+            state_name="validate_header",
+            config=config,
+            node_order=node_order,
+            table_name=table_name,
+            template_name="validate_header.txt"
+        )
         # config['configurable']['llm_model'] can be set per node for Ollama
         # Extract the validation results (no is_correct field as per requirements)
         validated_header = response.get("validated_header", current_header)

@@ -61,32 +61,20 @@ def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> Grap
         )
 
         # Extract table_name before formatting prompt
-        table_name = state.get("table_name")
-        if not table_name:
-            csv_path = state.get("csv_file_path")
-            if csv_path:
-                import os
-                table_name = os.path.splitext(os.path.basename(csv_path))[0]
-            else:
-                raise ValueError("table_name not found in state and csv_file_path unavailable")
+        # Extract table_name from csv_file_path if possible
+        import os
+        table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
         # Format the prompt with the header, language information, and metadata
         prompt = format_prompt(
             "translate_header.txt",
             table_name=table_name,
+            subfolder="header_translation",
             file_name=file_name,
             headers=header,
             source_language=header_language,
             target_language=metadata_language,
             metadata_text=metadata_text,
         )
-        if prompt.strip():
-            from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
-            save_prompt_sample(
-                "translate_header.txt",
-                prompt,
-                {"state_name": "translate_header"},
-                table_name=table_name,
-            )
 
         # Call the LLM to translate headers
         logger.debug("Calling LLM for header translation")

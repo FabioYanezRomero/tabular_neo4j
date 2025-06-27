@@ -7,7 +7,7 @@ from typing import Dict, Any
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
-from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output
+from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output, get_node_order_for_state
 from Tabular_to_Neo4j.utils.metadata_utils import (
     get_metadata_for_state,
     format_metadata_for_prompt,
@@ -139,38 +139,21 @@ def classify_entities_properties_node(
                         "classification", None
                     )
 
-                    # If we have a rule-based classification with high confidence, use it directly
-                    if (
-                        rule_based_class
-                        and rule_based.get(column_name, {}).get("confidence", 0) > 0.8
-                    ):
-                        logger.info(
-                            f"Using rule-based classification for '{column_name}': {rule_based_class}"
-                        )
-                        llm_classification[column_name] = {
-                            "column_name": column_name,
-                            "classification": rule_based_class,
-                            "confidence": rule_based.get(column_name, {}).get(
-                                "confidence", 0.9
-                            ),
-                            "analytics": analytics,
-                            "source": "rule_based",
-                        }
-                        continue
-
-                    # Format the prompt with column information and metadata
+                    # Always format the prompt and call the LLM for every column
                     try:
-                        table_name = state.get("table_name")
+                        import os
+                        table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
                         prompt = format_prompt(
                             "classify_entities_properties_v3.txt",
                             table_name=table_name,
                             column_name=column_name,
-                            full_sample_data=full_sample_json,  # Include the full sample data
+                            sample_values=sample_values_json,
                             uniqueness_ratio=analytics.get("uniqueness", 0),
                             cardinality=analytics.get("cardinality", 0),
                             data_type=analytics.get("data_type", "unknown"),
                             missing_percentage=analytics.get("null_percentage", 0) * 100,
                             metadata_text=metadata_text,
+                            unique_suffix=column_name,
                         )
                     except Exception as e:
                         error_msg = f"Error formatting prompt for column '{column_name}': {str(e)}"
@@ -210,8 +193,16 @@ def classify_entities_properties_node(
                     try:
                         # Call the LLM for classification
                         llm_model = config['configurable'].get('llm_model', 'default')
+                        node_order = get_node_order_for_state("classify_entities_properties")
                         response = call_llm_with_json_output(
-                            prompt, state_name="classify_entities_properties", config=config, llm_model=llm_model
+                            prompt,
+                            state_name="classify_entities_properties",
+                            config=config,
+                            llm_model=llm_model,
+                            unique_suffix=column_name,
+                            table_name=table_name,
+                            template_name="classify_entities_properties_v3.txt",
+                            node_order=node_order
                         )
                         logger.debug(
                             f"Received LLM classification response for '{column_name}': {response}"

@@ -18,7 +18,6 @@ from Tabular_to_Neo4j.nodes.entity_inference import (
     map_properties_to_entities_node,
     infer_entity_relationships_node,
 )
-from Tabular_to_Neo4j.nodes.db_schema import generate_cypher_templates_node
 
 # Ordered list of nodes in the pipeline. The position in this list defines the order used for output file naming.
 PIPELINE_NODES = [
@@ -32,9 +31,8 @@ PIPELINE_NODES = [
     ("analyze_columns", perform_column_analytics_node),
     ("classify_entities_properties", classify_entities_properties_node),
     ("reconcile_entity_property", reconcile_entity_property_node),
-    ("map_properties_to_entities", map_properties_to_entities_node),
+    ("map_properties_to_entity", map_properties_to_entities_node),
     ("infer_entity_relationships", infer_entity_relationships_node),
-    ("generate_cypher_templates", generate_cypher_templates_node),
 ]
 
 # Declarative edge definitions. A tuple represents a direct edge.
@@ -61,10 +59,9 @@ PIPELINE_EDGES = [
     ("apply_header", "analyze_columns"),
     ("analyze_columns", "classify_entities_properties"),
     ("classify_entities_properties", "reconcile_entity_property"),
-    ("reconcile_entity_property", "map_properties_to_entities"),
-    ("map_properties_to_entities", "infer_entity_relationships"),
-    ("infer_entity_relationships", "generate_cypher_templates"),
-    ("generate_cypher_templates", END),
+    ("reconcile_entity_property", "map_properties_to_entity"),
+    ("map_properties_to_entity", "infer_entity_relationships"),
+    ("infer_entity_relationships", END),
 ]
 
 # Entry point of the graph (first node in PIPELINE_NODES)
@@ -76,17 +73,37 @@ def create_single_table_graph() -> StateGraph:
     Returns:
         StateGraph instance
     """
-    graph = StateGraph(GraphState)
-    for node_name, node_func in PIPELINE_NODES:
-        graph.add_node(node_name, node_func)
-    for edge in PIPELINE_EDGES:
-        if isinstance(edge, dict):
-            graph.add_conditional_edges(edge["source"], edge["condition"], edge["edges"])
-        else:
-            graph.add_edge(*edge)
-    graph.set_entry_point(ENTRY_POINT)
-    graph.set_finish_point(END)
-    return graph
+    import logging
+    import traceback
+    logger = logging.getLogger(__name__)
+    try:
+        logger.debug("[GRAPH] Creating StateGraph for single-table workflow")
+        graph = StateGraph(GraphState)
+        logger.debug(f"[GRAPH] Adding nodes: {[n for n, _ in PIPELINE_NODES]}")
+        for node_name, node_func in PIPELINE_NODES:
+            graph.add_node(node_name, node_func)
+            logger.debug(f"[GRAPH] Added node: {node_name}")
+        for edge in PIPELINE_EDGES:
+            if isinstance(edge, dict):
+                logger.debug(f"[GRAPH] Adding conditional edges from {edge['source']} with keys {list(edge['edges'].keys())}")
+                graph.add_conditional_edges(edge["source"], edge["condition"], edge["edges"])
+            else:
+                logger.debug(f"[GRAPH] Adding edge: {edge}")
+                graph.add_edge(*edge)
+        logger.debug(f"[GRAPH] Setting entry point: {ENTRY_POINT}")
+        graph.set_entry_point(ENTRY_POINT)
+        logger.debug(f"[GRAPH] Setting finish point: {END}")
+        graph.set_finish_point("infer_entity_relationships")
+
+        # Set node order mapping for output_saver
+        from Tabular_to_Neo4j.utils.output_saver import output_saver
+        output_saver.set_node_order_map(PIPELINE_NODES)
+
+        return graph
+    except Exception as e:
+        logger.error(f"Exception during graph construction: {e}")
+        logger.error(traceback.format_exc())
+        raise
 
 
 def run_pipeline(graph, input_path):
@@ -103,14 +120,18 @@ def run_pipeline(graph, input_path):
     # Create and run the graph
     logger.debug("Creating state graph")
     app = graph.compile()
+    logger.debug("State graph compiled")
     logger.debug("Initializing state")
     initial_state = GraphState(csv_file_path=input_path, error_messages=[])
+    logger.debug(f"Initial state: {initial_state}")
     logger.info(f"Executing analysis pipeline")
     start_time = time.time()
     try:
+        logger.debug("Invoking compiled graph with initial state")
         final_state = app.invoke(initial_state)
         execution_time = time.time() - start_time
         logger.info(f"Analysis completed in {execution_time:.2f} seconds")
+        logger.debug(f"Final state: {final_state}")
     except Exception as e:
         logger.error(f"Analysis failed: {str(e)}", exc_info=True)
         raise

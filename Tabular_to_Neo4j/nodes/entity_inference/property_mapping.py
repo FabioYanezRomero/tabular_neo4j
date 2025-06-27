@@ -17,6 +17,7 @@ from Tabular_to_Neo4j.utils.metadata_utils import (
 from Tabular_to_Neo4j.utils.csv_utils import get_sample_rows
 from Tabular_to_Neo4j.utils.analytics_utils import analyze_column
 from Tabular_to_Neo4j.config import MAX_SAMPLE_ROWS
+from Tabular_to_Neo4j.utils.llm_manager import get_node_order_for_state
 
 # Configure logging
 logger = get_logger(__name__)
@@ -134,25 +135,58 @@ def map_properties_to_entities_node(
             else "No metadata available."
         )
 
+        # Extract table_name from csv_file_path if possible
+        import os
+        table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
+
         # If you want to save prompts per property/entity (if there is a loop), do it here.
         for prop in properties:
+            # Prepare required fields for the prompt template
+            entities_str = ", ".join(entities)
+            sample_values = ""
+            analytics = ""
+            # Get sample values for the property
+            if state.get("processed_dataframe") is not None:
+                df = state["processed_dataframe"]
+                if prop in df.columns:
+                    sample_vals = df[prop].head(5).tolist()
+                    sample_values = ", ".join(map(str, sample_vals))
+                    # Get analytics for the property
+                    try:
+                        analytics_info = analyze_column(df[prop])
+                        import json as _json
+                        analytics = _json.dumps(analytics_info)
+                    except Exception as e:
+                        logger.warning(f"Error analyzing column '{prop}': {str(e)}")
+                        analytics = ""
             prompt = format_prompt(
-                "map_properties_to_entity.txt",
+                template_name="map_properties_to_entity.txt",
                 table_name=table_name,
                 entity_property_classification=str(classification),
                 entity=main_entity,
                 property=prop,
                 metadata_text=metadata_text,
                 sample_data=sample_data,
+                entities=entities_str,
+                sample_values=sample_values,
+                analytics=analytics,
+                state_name="map_properties_to_entity",
+                unique_suffix=prop,
             )
             # No need to call save_prompt_sample directly; handled by format_prompt
 
             # Call the LLM for property-entity mapping
             logger.info("Calling LLM to map properties to entities")
+            node_order = get_node_order_for_state("map_properties_to_entity")
             response = call_llm_with_json_output(
-                prompt, state_name="map_properties_to_entity", config=config
+                prompt,
+                state_name="map_properties_to_entity",
+                config=config,
+                unique_suffix=prop,
+                table_name=table_name,
+                template_name="map_properties_to_entity.txt",
+                node_order=node_order
             )
-            
 
         # Update the state with the final mapping
         state["property_entity_mapping"] = property_entity_mapping

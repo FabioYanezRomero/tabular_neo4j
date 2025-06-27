@@ -6,7 +6,7 @@ set -e
 # Paths to sample data
 CSV_FOLDER="/app/Tabular_to_Neo4j/sample_data/csv"
 
-LOG_LEVEL="INFO"
+LOG_LEVEL="DEBUG"
 
 # Allow user to override CSV path or add --save-node-outputs
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -66,9 +66,9 @@ echo "[INFO] Running Tabular_to_Neo4j pipeline on $CSV_PATH using pipeline $PIPE
 LLM_PROVIDER=$(python -c "import sys; sys.path.insert(0, '/app'); from Tabular_to_Neo4j.config.settings import DEFAULT_LLM_PROVIDER; print(DEFAULT_LLM_PROVIDER)")
 
 if [ "$LLM_PROVIDER" = "ollama" ]; then
-    python3 -m Tabular_to_Neo4j.main --csv "$CSV_PATH" --pipeline "$PIPELINE" --log-level "$LOG_LEVEL" $EXTRA_ARGS
+    python3 -m Tabular_to_Neo4j.main --input_path "$CSV_PATH" --pipeline "$PIPELINE" --log-level "$LOG_LEVEL" $EXTRA_ARGS
 else
-    python3 -m Tabular_to_Neo4j.main --csv "$CSV_PATH" --pipeline "$PIPELINE" --log-level "$LOG_LEVEL" $EXTRA_ARGS
+    python3 -m Tabular_to_Neo4j.main --input_path "$CSV_PATH" --pipeline "$PIPELINE" --log-level "$LOG_LEVEL" $EXTRA_ARGS
 fi
 
 if [ $? -eq 0 ]; then

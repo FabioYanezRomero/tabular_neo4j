@@ -146,7 +146,7 @@ def generate_cypher_templates_node(
                 )
 
             # Format the prompt with the template
-            table_name = state.get("table_name")
+            table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
             prompt = format_prompt(
                 template_name="generate_cypher_templates.txt",
                 table_name=table_name,

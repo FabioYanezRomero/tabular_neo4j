@@ -147,7 +147,7 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_load": True,
         "auto_unload": True
     },
-    "infer_entity_relationships": {
+    "infer_entity_relationship_pair": {
         "provider": DEFAULT_LLM_PROVIDER,
         "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
         "temperature": DEFAULT_TEMPERATURE,
@@ -161,20 +161,20 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_load": True,
         "auto_unload": True
     },
-    "generate_cypher_templates": {
-        "provider": DEFAULT_LLM_PROVIDER,
-        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
-        "temperature": DEFAULT_TEMPERATURE,
-        "seed": DEFAULT_SEED,
-        "description": "Model for generating Cypher query templates",
-        "output_format": {
-            "type": "json_object",
-            "description": "Object with Cypher templates",
-            "example": "{\"cypher_templates\": [{\"purpose\": \"Create Customer nodes\", \"query\": \"LOAD CSV WITH HEADERS FROM 'file:///data.csv' AS row MERGE (c:Customer {id: row.id}) SET c.name = row.name\", \"description\": \"Creates Customer nodes with their properties\"}], \"constraints_and_indexes\": [{\"type\": \"CONSTRAINT\", \"entity_type\": \"Customer\", \"property\": \"id\", \"query\": \"CREATE CONSTRAINT ON (c:Customer) ASSERT c.id IS UNIQUE\"}]}"
-        },
-        "auto_load": True,
-        "auto_unload": True
-    },
+    # "generate_cypher_templates": {
+    #     "provider": DEFAULT_LLM_PROVIDER,
+    #     "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
+    #     "temperature": DEFAULT_TEMPERATURE,
+    #     "seed": DEFAULT_SEED,
+    #     "description": "Model for generating Cypher query templates",
+    #     "output_format": {
+    #         "type": "json_object",
+    #         "description": "Object with Cypher templates",
+    #         "example": "{\"cypher_templates\": [{\"purpose\": \"Create Customer nodes\", \"query\": \"LOAD CSV WITH HEADERS FROM 'file:///data.csv' AS row MERGE (c:Customer {id: row.id}) SET c.name = row.name\", \"description\": \"Creates Customer nodes with their properties\"}], \"constraints_and_indexes\": [{\"type\": \"CONSTRAINT\", \"entity_type\": \"Customer\", \"property\": \"id\", \"query\": \"CREATE CONSTRAINT ON (c:Customer) ASSERT c.id IS UNIQUE\"}]}"
+    #     },
+    #     "auto_load": True,
+    #     "auto_unload": True
+    # },
     "synthesize_final_schema": {
         "provider": DEFAULT_LLM_PROVIDER,
         "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",

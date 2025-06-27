@@ -1,13 +1,15 @@
 import os
 import subprocess
-from Tabular_to_Neo4j.utils.output_saver import get_output_saver
+
 
 def run_neo4j_loader(cypher_json_filename=None):
     """
     Run the loader script to push Cypher queries to Neo4j.
     If no filename is provided, use the latest cypher output in the current run's sample directory.
     """
-    output_saver = get_output_saver()
+    from Tabular_to_Neo4j.utils.output_saver import output_saver
+    if not output_saver:
+        raise RuntimeError("OutputSaver is not initialized. All Neo4j loading must use the same timestamp for the run.")
     if output_saver is None:
         raise RuntimeError("OutputSaver not initialized. Cannot locate cypher output.")
 

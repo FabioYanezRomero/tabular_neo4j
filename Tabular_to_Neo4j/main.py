@@ -12,7 +12,7 @@ import sys
 
 from Tabular_to_Neo4j.utils.result_utils import save_results, display_results, validate_input_path, create_graph
 from Tabular_to_Neo4j.utils.prompt_utils import reset_prompt_sample_directory
-from Tabular_to_Neo4j.utils.output_saver import initialize_output_saver, get_output_saver
+from Tabular_to_Neo4j.utils.output_saver import initialize_output_saver, output_saver
 from Tabular_to_Neo4j.utils.logging_config import set_log_file_path
 
 # Initialize logging with default configuration
@@ -52,9 +52,12 @@ def run(
     
     validate_input_path(input_path, pipeline)
     logger.info(f"Starting analysis with pipeline: {pipeline}")
+    
     # Always initialize output_saver and propagate timestamp for prompt/LLM output saving
-    initialize_output_saver(output_dir)
-    output_saver = get_output_saver()
+    output_saver = initialize_output_saver(output_dir)
+    
+    if not output_saver:
+        raise RuntimeError("OutputSaver is not initialized. All output saving must use the same timestamp for the run.")
     if save_node_outputs:
         logs_dir = os.path.join(output_saver.base_dir, output_saver.timestamp, "logs")
         os.makedirs(logs_dir, exist_ok=True)
@@ -72,15 +75,16 @@ def run(
         final_state = run_pipeline(graph, csv_file_path)
         save_results(final_state, output_file)
         display_results(final_state, verbose)
-        try:
-            from Tabular_to_Neo4j.utils.state_saver import save_state_snapshot
-            output_saver = get_output_saver()
-            base_dir = output_saver.base_dir if output_saver else "samples"
-            timestamp = output_saver.timestamp if output_saver else None
-            save_state_snapshot(final_state, timestamp=timestamp, base_dir=base_dir)
-        except Exception as e:
-            logger.error(f"Failed to save state snapshot: {e}")
+        # Save the final state as metadata
+        import json
+        from pathlib import Path
+        meta_dir = Path(output_saver.base_dir) / output_saver.timestamp
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        with open(meta_dir / "final_state.json", "w", encoding="utf-8") as f:
+            json.dump(final_state, f, indent=2, default=str)
         return final_state
+    
+    
     elif pipeline == "multi_table_graph":
         from Tabular_to_Neo4j.graphs.multi_table_graph import (
             initialize_multi_table_state, run_multi_table_pipeline

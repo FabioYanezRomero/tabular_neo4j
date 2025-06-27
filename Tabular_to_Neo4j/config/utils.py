@@ -31,12 +31,12 @@ class DynamicLLMConfigs(dict):
         if key in super().keys():
             return super().__getitem__(key)
         if key.startswith('infer_relationship_'):
-            return super().__getitem__('infer_entity_relationships')
+            return super().__getitem__('infer_entity_relationship_pair')
         raise KeyError(key)
 
     def get(self, key, default=None):
         if key in super().keys():
             return super().get(key, default)
         if key.startswith('infer_relationship_'):
-            return super().get('infer_entity_relationships', default)
+            return super().get('infer_entity_relationship_pair', default)
         return default

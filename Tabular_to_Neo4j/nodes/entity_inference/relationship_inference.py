@@ -15,6 +15,7 @@ from Tabular_to_Neo4j.utils.metadata_utils import (
 )
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 from Tabular_to_Neo4j.config import MAX_SAMPLE_ROWS
+from Tabular_to_Neo4j.utils.llm_manager import get_node_order_for_state
 
 # Configure logging
 logger = get_logger(__name__)
@@ -125,160 +126,147 @@ def infer_entity_relationships_node(
 
         # Only format and save the prompt if there are at least 2 entity types
         if len(entity_types) > 1:
-            table_name = state.get("table_name")
-            prompt = format_prompt(
-                "infer_entity_relationships.txt",
-                table_name=table_name,
-                entity_property_consensus=str(state.get("entity_property_consensus", {})),
-                property_entity_mapping=str(mapping),
-                metadata_text=metadata_text,
-                sample_data=sample_data,
-            )
-            # Save the actual prompt sent to the LLM (single prompt for all relationships)
-            if prompt and prompt.strip():
-                from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
-                save_prompt_sample(
-                    "infer_entity_relationships.txt",
-                    prompt,
-                    {"state_name": "infer_entity_relationships"},
-                    table_name=table_name,
-                    subfolder="prompts",
-                )
-
-        # If you want to save prompts per entity-entity pair (if there is a loop), do it here.
-        # Example (pseudo-code):
-        # for entity1 in entity_types:
-        #     for entity2 in entity_types:
-        #         if entity1 != entity2:
-        #             pair_prompt = ... # build prompt for this pair
-        #             if pair_prompt.strip():
-        #                 save_prompt_sample(..., pair_prompt, ..., table_name=..., subfolder=..., ...)
-
-        # Call the LLM for relationship inference
-        logger.info("Calling LLM to infer relationships between entities")
-        response = call_llm_with_json_output(
-            prompt, state_name="infer_entity_relationships"
-        )
-
-
-        # Extract the inferred relationships
-        inferred_relationships = response.get("entity_relationships", [])
-
-        # Get the list of entity types from the mapping
-        entity_types = [
-            entity_type
-            for entity_type, data in mapping.items()
-            if data.get("type") == "entity"
-        ]
-        logger.info(f"Identified entity types: {entity_types}")
-
-        # Use a pairwise approach to infer relationships between each pair of entities
-        all_relationships = []
-        processed_pairs = set()  # Track which pairs we've already processed
-
-        # For each pair of entities, infer the relationship between them
-        for i, entity1 in enumerate(entity_types):
-            for j, entity2 in enumerate(entity_types):
-                # Skip self-relationships
-                if i == j:
-                    continue
-
-                # Create a pair identifier (sorted to ensure we don't process the same pair twice)
-                pair = tuple(sorted([entity1, entity2]))
-
-                # Skip if we've already processed this pair
-                if pair in processed_pairs:
-                    continue
-
-                processed_pairs.add(pair)
-                logger.info(
-                    f"Inferring relationship between entities: {pair[0]} and {pair[1]}"
-                )
-
-                # Format a focused prompt specifically for this entity pair
-                focused_prompt = format_prompt(
+            # Extract table_name from csv_file_path if possible
+            import os
+            table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
+            # Loop over all unique pairs of entity types
+            from itertools import combinations
+            prompts = []
+            for source_entity, target_entity in combinations(entity_types, 2):
+                prompt = format_prompt(
                     "infer_entity_relationship_pair.txt",
                     table_name=table_name,
-                    source_entity=pair[0],
-                    target_entity=pair[1],
-                    entity_property_consensus=str(
-                        state.get("entity_property_consensus", {})
-                    ),
+                    source_entity=source_entity,
+                    target_entity=target_entity,
+                    entity_property_consensus=str(state.get("entity_property_consensus", {})),
                     property_entity_mapping=str(mapping),
                     metadata_text=metadata_text,
                     sample_data=sample_data,
                 )
+                prompts.append({
+                    "source_entity": source_entity,
+                    "target_entity": target_entity,
+                    "prompt": prompt
+                })
+            # For now, just use the first prompt for the LLM call (update logic as needed)
+            if prompts:
+                prompt = prompts[0]["prompt"]
+            else:
+                prompt = ""
 
-                # Call the LLM for this specific entity pair
-                state_name = f"infer_relationship_{pair[0]}_{pair[1]}"
-                pair_response = call_llm_with_json_output(
-                    focused_prompt, state_name=state_name
-                )
-                # Save the resolved config for this dynamic state
-                try:
-                    from Tabular_to_Neo4j.utils.prompt_utils import _CURRENT_RUN_TIMESTAMP_DIR
-                except ImportError:
-                    _CURRENT_RUN_TIMESTAMP_DIR = None
-                timestamp = None
-                if _CURRENT_RUN_TIMESTAMP_DIR is not None:
-                    timestamp = os.path.basename(str(_CURRENT_RUN_TIMESTAMP_DIR))
-                else:
-                    import datetime
-                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                from Tabular_to_Neo4j.utils.state_saver import save_dynamic_config
-                from Tabular_to_Neo4j.config.settings import LLM_CONFIGS
-                config = LLM_CONFIGS[state_name]
-                save_dynamic_config(state_name, config, timestamp)
+            # Use a pairwise approach to infer relationships between each pair of entities
+            all_relationships = []
+            processed_pairs = set()  # Track which pairs we've already processed
 
-                # Extract the inferred relationship
-                pair_relationships = pair_response.get("entity_relationships", [])
+            # For each pair of entities, infer the relationship between them
+            for i, entity1 in enumerate(entity_types):
+                for j, entity2 in enumerate(entity_types):
+                    # Skip self-relationships
+                    if i == j:
+                        continue
 
-                # Add valid relationships to the overall list
-                for rel in pair_relationships:
-                    source = rel.get("source_entity", "")
-                    target = rel.get("target_entity", "")
-                    rel_type = rel.get("relationship_type", "")
-                    confidence = rel.get("confidence", 0.0)
-                    bidirectional = rel.get("bidirectional", False)
-                    reasoning = rel.get("reasoning", "")
+                    # Create a pair identifier (sorted to ensure we don't process the same pair twice)
+                    pair = tuple(sorted([entity1, entity2]))
 
-                    # Validate the relationship has required fields and sufficient confidence
-                    if source and target and rel_type and confidence > 0.5:
-                        # Add the primary relationship
-                        all_relationships.append(rel)
-                        logger.info(
-                            f"Valid relationship: ({source})-[{rel_type}]->({target}) with confidence {confidence}"
-                        )
-                        if reasoning:
-                            logger.info(f"Reasoning: {reasoning}")
+                    # Skip if we've already processed this pair
+                    if pair in processed_pairs:
+                        continue
 
-                        # If bidirectional, add the reverse relationship too
-                        if bidirectional:
-                            # Create a reverse relationship with the same type
-                            reverse_rel = {
-                                "source_entity": target,
-                                "target_entity": source,
-                                "relationship_type": rel_type,
-                                "confidence": confidence,
-                                "bidirectional": True,
-                                "reasoning": f"Reverse of bidirectional relationship: {reasoning}",
-                            }
-                            all_relationships.append(reverse_rel)
-                            logger.info(
-                                f"Added reverse relationship: ({target})-[{rel_type}]->({source}) (bidirectional)"
-                            )
+                    processed_pairs.add(pair)
+                    logger.info(
+                        f"Inferring relationship between entities: {pair[0]} and {pair[1]}"
+                    )
+
+                    # Format a focused prompt specifically for this entity pair
+                    prompt = format_prompt(
+                        "infer_entity_relationship_pair.txt",
+                        table_name=table_name,
+                        source_entity=pair[0],
+                        target_entity=pair[1],
+                        entity_property_consensus=str(
+                            state.get("entity_property_consensus", {})
+                        ),
+                        property_entity_mapping=str(mapping),
+                        metadata_text=metadata_text,
+                        sample_data=sample_data,
+                        unique_suffix=f"{pair[0]}_{pair[1]}",
+                    )
+                    # Call the LLM for this specific entity pair
+                    state_name = f"infer_relationship_{pair[0]}_{pair[1]}"
+                    node_order = get_node_order_for_state("infer_entity_relationships")
+                    response = call_llm_with_json_output(
+                        prompt,
+                        state_name=state_name,
+                        unique_suffix=f"{pair[0]}_{pair[1]}",
+                        table_name=table_name,
+                        template_name="infer_entity_relationship_pair.txt",
+                        node_order=node_order
+                    )
+                    # Save the resolved config for this dynamic state
+                    try:
+                        from Tabular_to_Neo4j.utils.prompt_utils import _CURRENT_RUN_TIMESTAMP_DIR
+                    except ImportError:
+                        _CURRENT_RUN_TIMESTAMP_DIR = None
+                    timestamp = None
+                    if _CURRENT_RUN_TIMESTAMP_DIR is not None:
+                        timestamp = os.path.basename(str(_CURRENT_RUN_TIMESTAMP_DIR))
                     else:
-                        logger.warning(
-                            f"Filtered out invalid relationship: {rel} - missing required fields or low confidence"
-                        )
+                        import datetime
+                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    from Tabular_to_Neo4j.utils.state_saver import save_dynamic_config
+                    from Tabular_to_Neo4j.config.settings import LLM_CONFIGS
+                    config = LLM_CONFIGS[state_name]
+                    save_dynamic_config(state_name, config, timestamp)
 
-        # Log the final relationships
-        logger.info(
-            f"Inferred {len(all_relationships)} valid relationships between entities"
-        )
+                    # Extract the inferred relationship
+                    response_relationships = response.get("entity_relationships", [])
+                    valid_relationships = []
+                    for rel in response_relationships:
+                        source = rel.get("source_entity", "")
+                        target = rel.get("target_entity", "")
+                        rel_type = rel.get("relationship_type", "")
+                        confidence = rel.get("confidence", 0.0)
+                        bidirectional = rel.get("bidirectional", False)
+                        reasoning = rel.get("reasoning", "")
 
-        # Update the state with all valid relationships
-        state["entity_relationships"] = all_relationships
+                        # Validate the relationship has required fields and sufficient confidence
+                        if source and target and rel_type and confidence > 0.5:
+                            valid_relationships.append(rel)
+                            logger.info(
+                                f"Valid relationship: ({source})-[{rel_type}]->({target}) with confidence {confidence}"
+                            )
+                            if reasoning:
+                                logger.info(f"Reasoning: {reasoning}")
+                            if bidirectional:
+                                reverse_rel = {
+                                    "source_entity": target,
+                                    "target_entity": source,
+                                    "relationship_type": rel_type,
+                                    "confidence": confidence,
+                                    "bidirectional": True,
+                                    "reasoning": f"Reverse of bidirectional relationship: {reasoning}",
+                                }
+                                valid_relationships.append(reverse_rel)
+                                logger.info(
+                                    f"Added reverse relationship: ({target})-[{rel_type}]->({source}) (bidirectional)"
+                                )
+                        else:
+                            logger.warning(
+                                f"Filtered out invalid relationship: {rel} - missing required fields or low confidence"
+                            )
+                    all_relationships.extend(valid_relationships)
+
+            # Update the state with all valid relationships
+            state["entity_relationships"] = all_relationships
+        else:
+            # Not enough entity types to call LLM; do not save prompt, just update state
+            logger.info(
+                f"Found {len(entity_types)} entity types, no relationships to infer"
+            )
+            state["entity_relationships"] = []
+            if not isinstance(state, GraphState):
+                state = GraphState.from_dict(dict(state))
+            return state
 
     except Exception as e:
         logger.error(f"Error inferring entity relationships: {str(e)}")

@@ -8,7 +8,7 @@ import pandas as pd
 import os
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
-from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
+from Tabular_to_Neo4j.utils.prompt_utils import format_prompt, save_prompt_sample
 from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output
 from Tabular_to_Neo4j.utils.csv_utils import df_to_json_sample
 from Tabular_to_Neo4j.utils.metadata_utils import (
@@ -49,7 +49,7 @@ def infer_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphSta
         data_sample = df_to_json_sample(df, sample_rows)
 
         # Get file name for the prompt
-        file_name = os.path.basename(state.get("csv_file_path", "unknown.csv"))
+        table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
 
         # Get metadata for the CSV file
         metadata = get_metadata_for_state(state)
@@ -58,30 +58,13 @@ def infer_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphSta
             if metadata
             else "No metadata available."
         )
-
-        # Extract table_name before formatting prompt
-        table_name = state.get("table_name")
-        if not table_name:
-            # Try to infer table_name from csv_file_path
-            csv_path = state.get("csv_file_path")
-            if csv_path:
-                import os
-                table_name = os.path.splitext(os.path.basename(csv_path))[0]
-            else:
-                raise ValueError("table_name not found in state and csv_file_path unavailable")
         # Format the prompt with the data sample and metadata
         prompt = format_prompt(
-            "infer_header.txt",
+            template_name="infer_header.txt",
             table_name=table_name,
             metadata_text=metadata_text,
             num_columns=len(df.columns),
             data_sample=data_sample,
-        )
-        save_prompt_sample(
-            "infer_header.txt",
-            prompt,
-            {"state_name": "infer_header"},
-            table_name=table_name,
         )
 
         # Call the LLM to infer headers

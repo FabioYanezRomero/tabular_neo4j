@@ -15,6 +15,72 @@ logger = get_logger(__name__)
 
 class OutputSaver:
     """
+    Class for saving node outputs to files in a structured, per-table (or inter_table) directory format.
+    Also stores the node order mapping for consistent file prefixing.
+    """
+    def __init__(self, base_dir: str = "samples"):
+        self.base_dir = base_dir
+        self.timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.output_dir = os.path.join(self.base_dir, self.timestamp)
+        self.previous_state = {}
+        self.node_order_map = {}  # node name -> index mapping for current pipeline
+        os.makedirs(self.output_dir, exist_ok=True)
+        logger.info(f"Created output directory: {self.output_dir}")
+
+    def set_node_order_map(self, node_list):
+        """Set the node order mapping for the current pipeline."""
+        self.node_order_map = {name: idx + 1 for idx, (name, _) in enumerate(node_list)}
+        logger.info(f"Node order mapping set: {self.node_order_map}")
+
+    def get_node_order(self, node_name):
+        """Get the node order index for a given node name."""
+        return self.node_order_map.get(node_name, 0)
+
+    """
+    Class for saving node outputs to files in a structured, per-table (or inter_table) directory format.
+    """
+    
+    # ...existing methods...
+
+    def save_llm_output_sample(
+        self,
+        *,
+        node_name: str,
+        output: dict,
+        node_order: int = 0,
+        table_name: str = None,
+        unique_suffix: str = "",
+        template_name: str = None,
+    ) -> None:
+        """
+        Save an LLM output sample for a specific call, using a unique suffix and template name.
+        The output will be saved in <base_dir>/<timestamp>/<table_name>/llm_outputs/<node_order>_<node_name>_<unique_suffix>.json
+        Args:
+            node_name: Name of the node/state (e.g., classify_entities_properties)
+            output: Output dict (e.g., response from LLM call)
+            node_order: Order of the node in the pipeline (for file naming)
+            table_name: Table name or "inter_table" for cross-table nodes
+            unique_suffix: Suffix for the output file (e.g., column/property/entity pair)
+            template_name: Name of the prompt template (optional, for traceability)
+        """
+        table_dir = self._get_table_dir(table_name or "default")
+        llm_outputs_dir = os.path.join(table_dir, "llm_outputs")
+        os.makedirs(llm_outputs_dir, exist_ok=True)
+        # Compose file name
+        suffix = f"_{unique_suffix}" if unique_suffix else ""
+        template_part = f"_{template_name}" if template_name else ""
+        file_name = f"{node_order:02d}_{node_name}{suffix}{template_part}.json"
+        # Clean up file name (remove spaces, problematic chars)
+        file_name = file_name.replace(" ", "_").replace("/", "-")
+        output_file = os.path.join(llm_outputs_dir, file_name)
+        try:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(self._make_serializable(output), f, indent=2)
+            logger.info(f"Saved LLM output for node '{node_name}' (order: {node_order}, suffix: '{unique_suffix}') to {output_file}")
+        except Exception as e:
+            logger.error(f"Failed to save LLM output for node '{node_name}': {str(e)}")
+
+    """
     Class for saving node outputs to files in a structured, per-table (or inter-table) directory format.
     """
     
@@ -146,6 +212,7 @@ class OutputSaver:
         Returns:
             JSON serializable object
         """
+        import numpy as np
         if isinstance(obj, dict):
             return {k: self._make_serializable(v) for k, v in obj.items()}
         elif isinstance(obj, list):
@@ -164,6 +231,8 @@ class OutputSaver:
                 "data": obj.tolist(),
                 "index": obj.index.tolist()
             }
+        elif isinstance(obj, (np.integer, np.floating)):
+            return obj.item()
         elif isinstance(obj, (int, float, str, bool, type(None))):
             return obj
         else:
@@ -190,11 +259,3 @@ def initialize_output_saver(base_dir: str = "samples") -> OutputSaver:
     output_saver = OutputSaver(base_dir)
     return output_saver
 
-def get_output_saver() -> Optional[OutputSaver]:
-    """
-    Get the global output saver instance.
-    
-    Returns:
-        OutputSaver instance or None if not initialized
-    """
-    return output_saver

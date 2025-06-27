@@ -6,8 +6,8 @@ def save_state_snapshot(graph_state, timestamp=None, base_dir=None):
     """
     Save each key of the final GraphState as a separate JSON file inside samples/<timestamp>/<table_name>/state/ for multi-table, or /inter_table/state/ for inter-table state.
     """
-    from Tabular_to_Neo4j.utils.output_saver import get_output_saver
-    output_saver = get_output_saver()
+    
+    from Tabular_to_Neo4j.utils.output_saver import output_saver
     if base_dir is None:
         base_dir = output_saver.base_dir if output_saver else "samples"
     if timestamp is None:
@@ -46,8 +46,10 @@ def save_dynamic_config(state_name, config, timestamp=None, base_dir=None):
     """
     Save the resolved LLM config for a dynamic state as a JSON file in samples/<timestamp>/state/
     """
-    from Tabular_to_Neo4j.utils.output_saver import get_output_saver
-    output_saver = get_output_saver()
+    
+    from Tabular_to_Neo4j.utils.output_saver import output_saver
+    if not output_saver:
+        raise RuntimeError("OutputSaver is not initialized. All state saving must use the same timestamp for the run.")
     if base_dir is None:
         base_dir = output_saver.base_dir if output_saver else "samples"
     if timestamp is None:

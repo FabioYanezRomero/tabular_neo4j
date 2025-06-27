@@ -4,7 +4,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
@@ -35,6 +35,7 @@ def load_prompt_template(template_name: str) -> str:
 
 
 def save_prompt_sample(
+    # TODO: When using multiple-table set table-name to "inter_table" whenever we finish with the individual tables
     template_name: str,
     formatted_prompt: str,
     kwargs: Dict,
@@ -42,27 +43,22 @@ def save_prompt_sample(
     is_template: bool = False,
     is_error: bool = False,
     base_dir: str = "samples",
-    timestamp: str = None,
-    subfolder: str = None,
-    table_name: str = None,
+    table_name: str,
+    unique_suffix: str = "",
 ) -> None:
     """Save a formatted prompt sample to the output folder, using the global output saver's timestamp."""
     global _CURRENT_RUN_TIMESTAMP_DIR
-    from Tabular_to_Neo4j.utils.output_saver import get_output_saver
-    output_saver = get_output_saver()
+    
+    from Tabular_to_Neo4j.utils.output_saver import output_saver
     if not output_saver:
         raise RuntimeError("OutputSaver is not initialized. All prompt saving must use the same timestamp for the run.")
-    if not timestamp:
-        timestamp = output_saver.timestamp
+    timestamp = output_saver.timestamp
     if not timestamp:
         raise RuntimeError("No timestamp available from OutputSaver for prompt saving.")
     # Always save inside <base_dir>/<timestamp>/<table_name>/prompts or <base_dir>/<timestamp>/inter_table/prompts
-    if not (table_name or (subfolder == "inter_table")):
-        raise ValueError("table_name or subfolder='inter_table' must be provided for prompt saving")
-    if table_name:
-        out_dir = Path(base_dir) / timestamp / table_name / "prompts"
-    else:
-        out_dir = Path(base_dir) / timestamp / "inter_table" / "prompts"
+    if not table_name:
+        raise ValueError("table_name must be provided for prompt saving")
+    out_dir = Path(base_dir) / timestamp / table_name / "prompts"
     os.makedirs(out_dir, exist_ok=True)
     timestamp_dir = out_dir
 
@@ -77,30 +73,28 @@ def save_prompt_sample(
         "analyze_columns": 8,
         "classify_entities_properties": 9,
         "reconcile_entity_property": 10,
-        "map_properties_to_entities": 11,
-        "infer_entity_relationships": 12,
-        ""
-    }
+        "map_properties_to_entity": 11,
+        "entity_relationship_pair": 12,
+}
 
     state_name = kwargs.get("state_name", "")
-    numeric_id = 0
     base_state_name = state_name
     if not base_state_name:
         for node_name in node_order.keys():
             if node_name in template_name:
                 base_state_name = node_name
                 break
-    if base_state_name in node_order:
-        numeric_id = node_order[base_state_name]
+    numeric_id = node_order.get(base_state_name, 0)
 
     file_prefix = "template" if is_template else "error" if is_error else "formatted"
     column_suffix = ""
     if "classify_entities_properties" in template_name and "column_name" in kwargs:
         column_suffix = f"_{kwargs['column_name']}"
 
+    suffix = f"_{unique_suffix}" if unique_suffix else ""
     prompt_file = (
         timestamp_dir
-        / f"{numeric_id:02d}_{template_name.replace('.txt', '')}{column_suffix}_{file_prefix}.txt"
+        / f"{numeric_id:02d}_{template_name.replace('.txt', '')}{column_suffix}{suffix}_{file_prefix}.txt"
     )
     with open(prompt_file, "w", encoding="utf-8") as f:
         f.write(formatted_prompt)
@@ -108,12 +102,12 @@ def save_prompt_sample(
     # Only the .txt file is created.
 
 
-def format_prompt(template_name: str, *, table_name: str = None, subfolder: str = None, **kwargs) -> str:
+def format_prompt(template_name: str, *, table_name: Optional[str] = None, unique_suffix: str = "", **kwargs) -> str:
     """
     Format a prompt template with the given arguments.
     Pass table_name or subfolder for correct prompt saving location.
     """
-    from Tabular_to_Neo4j.utils.output_saver import get_output_saver
+    
     template = load_prompt_template(template_name)
 
     formatted_kwargs: Dict[str, str] = {}
@@ -130,7 +124,9 @@ def format_prompt(template_name: str, *, table_name: str = None, subfolder: str 
     logger.debug(f"[format_prompt] Template loaded for '{template_name}': {template[:100]!r}")
     logger.debug(f"[format_prompt] Variables passed: {kwargs}")
 
-    output_saver = get_output_saver()
+    from Tabular_to_Neo4j.utils.output_saver import output_saver
+    if not output_saver:
+        raise RuntimeError("OutputSaver is not initialized. All prompt saving must use the same timestamp for the run.")
     if not output_saver:
         raise RuntimeError("OutputSaver is not initialized. All prompt formatting/saving must use the same timestamp for the run.")
     base_dir = output_saver.base_dir
@@ -156,9 +152,8 @@ def format_prompt(template_name: str, *, table_name: str = None, subfolder: str 
             formatted_prompt,
             formatted_kwargs,
             base_dir=base_dir,
-            timestamp=timestamp,
             table_name=table_name,
-            subfolder=subfolder
+            unique_suffix=unique_suffix,
         )
         return formatted_prompt
 

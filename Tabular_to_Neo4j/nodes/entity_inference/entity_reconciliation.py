@@ -6,15 +6,7 @@ This module handles reconciling different classification approaches.
 from typing import Dict, Any
 from Tabular_to_Neo4j.app_state import GraphState
 from langchain_core.runnables import RunnableConfig
-from Tabular_to_Neo4j.app_state import GraphState
-from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
-from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output
 from Tabular_to_Neo4j.config import UNIQUENESS_THRESHOLD
-from Tabular_to_Neo4j.nodes.entity_inference.utils import to_neo4j_property_name
-from Tabular_to_Neo4j.utils.metadata_utils import (
-    get_metadata_for_state,
-    format_metadata_for_prompt,
-)
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
 # Configure logging
@@ -156,37 +148,6 @@ def reconcile_entity_property_node(
             llm_info = llm_classification.get(column_name, {})
             rule_info = rule_based_classification.get(column_name, {})
 
-            # Skip if we don't have both classifications
-            if not llm_info and not rule_info:
-                logger.warning(
-                    f"Missing classification for column '{column_name}', using fallback classification"
-                )
-
-                # Use a fallback classification based on column name patterns
-                fallback_classification = (
-                    "entity"
-                    if "id" in column_name.lower() or "name" in column_name.lower()
-                    else "property"
-                )
-                consensus[column_name] = {
-                    "column_name": column_name,
-                    "classification": fallback_classification,
-                    "confidence": 0.5,
-                }
-                continue
-            elif not llm_info:
-                logger.warning(
-                    f"Missing LLM classification for column '{column_name}', using rule-based classification"
-                )
-                consensus[column_name] = rule_info
-                continue
-            elif not rule_info:
-                logger.warning(
-                    f"Missing rule-based classification for column '{column_name}', using LLM classification"
-                )
-                consensus[column_name] = llm_info
-                continue
-
             # Check if there's a discrepancy between the classifications
             llm_classification_result = llm_info.get("classification", "")
             rule_classification_result = rule_info.get("classification", "")
@@ -206,44 +167,56 @@ def reconcile_entity_property_node(
                 f"Classification discrepancy for '{column_name}': LLM={llm_classification_result}, Rule={rule_classification_result}"
             )
 
-            # Get confidence scores for both classifications
-            llm_confidence = llm_info.get("confidence", 0.5)
-            rule_confidence = rule_info.get("confidence", 0.5)
+            # --- PROMPT FORMATTING AND SAVING FOR RECONCILIATION ---
+            from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
+            from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output
+            from Tabular_to_Neo4j.utils.metadata_utils import format_metadata_for_prompt
 
-            # Special case: If rule-based classification has maximum confidence (1.0), it means
-            # we have a forced property classification based on data type or pattern detection
-            # (e.g., emails, dates, numeric values) - always use this classification
-            if rule_confidence == 1.0 and rule_classification_result == "property":
-                logger.info(
-                    f"Using rule-based classification for '{column_name}' due to forced property classification"
-                )
-                consensus[column_name] = rule_info
-                continue
+            # Gather metadata for prompt
+            analytics = state.get("column_analytics", {}).get(column_name, {})
+            metadata = analytics
+            metadata_text = format_metadata_for_prompt(metadata) if metadata else "No metadata available."
+            sample_values = ""
+            if state.get("processed_dataframe") is not None:
+                df = state["processed_dataframe"]
+                if column_name in df.columns:
+                    sample_vals = df[column_name].head(5).tolist()
+                    sample_values = ", ".join(map(str, sample_vals))
+            import os
+            table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
 
-            # Reconciliation strategy:
-            # 1. Compare confidence scores
-            # 2. If one is significantly higher, use that classification
-            # 3. Otherwise, prefer LLM classification as it's more contextual
+            # Format and save the prompt
+            prompt = format_prompt(
+                template_name="reconcile_entity_property.txt",
+                table_name=table_name,
+                column_name=column_name,
+                rule_based_classification=rule_classification_result,
+                llm_classification=llm_classification_result,
+                analytics=analytics,
+                metadata_text=metadata_text,
+                sample_values=sample_values,
+                unique_suffix=column_name,
+            )
+            logger.info(f"Formatted and saved reconciliation prompt for column '{column_name}' due to classification discrepancy.")
 
-            if (
-                llm_confidence >= rule_confidence + 0.2
-            ):  # LLM is significantly more confident
-                logger.info(
-                    f"Using LLM classification for '{column_name}' due to higher confidence: {llm_confidence} vs {rule_confidence}"
+            # Call the LLM with the prompt and update llm_info
+            try:
+                from Tabular_to_Neo4j.utils.llm_manager import get_node_order_for_state
+                node_order = get_node_order_for_state("reconcile_entity_property")
+                llm_result = call_llm_with_json_output(
+                    prompt,
+                    state_name="reconcile_entity_property",
+                    config=config,
+                    unique_suffix=column_name,
+                    table_name=table_name,
+                    template_name="reconcile_entity_property.txt",
+                    node_order=node_order
                 )
-                consensus[column_name] = llm_info
-            elif (
-                rule_confidence >= llm_confidence + 0.2
-            ):  # Rule-based is significantly more confident
-                logger.info(
-                    f"Using rule-based classification for '{column_name}' due to higher confidence: {rule_confidence} vs {llm_confidence}"
-                )
-                consensus[column_name] = rule_info
-            else:  # Similar confidence levels, prefer LLM
-                logger.info(
-                    f"Using LLM classification for '{column_name}' as default reconciliation strategy"
-                )
-                consensus[column_name] = llm_info
+                logger.info(f"LLM reconciliation result for '{column_name}': {llm_result}")
+                llm_info = llm_result if isinstance(llm_result, dict) else {"classification": str(llm_result)}
+            except Exception as llm_error:
+                logger.error(f"Error calling LLM for reconciliation on column '{column_name}': {str(llm_error)}")
+                # fallback: keep previous llm_info
 
         # Add uniqueness information for entities to help with later processing
         for column_name, info in consensus.items():
@@ -265,10 +238,6 @@ def reconcile_entity_property_node(
             "entity_property_classification", {}
         )
 
-    # Defensive: Always return a GraphState, never a dict
     if not isinstance(state, GraphState):
         state = GraphState(**dict(state))
-    # Ensure the returned state is always a GraphState instance
-    if not isinstance(state, GraphState):
-        state = GraphState.from_dict(dict(state))
     return state
