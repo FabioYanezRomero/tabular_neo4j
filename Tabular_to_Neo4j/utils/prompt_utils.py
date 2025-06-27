@@ -44,23 +44,25 @@ def save_prompt_sample(
     base_dir: str = "samples",
     timestamp: str = None,
     subfolder: str = None,
+    table_name: str = None,
 ) -> None:
-    """Save a formatted prompt sample to the output folder, optionally specifying base_dir and timestamp."""
+    """Save a formatted prompt sample to the output folder, using the global output saver's timestamp."""
     global _CURRENT_RUN_TIMESTAMP_DIR
-
-    # Use provided timestamp and base_dir if given, else fallback to current logic
-    if timestamp:
-        out_dir = Path(base_dir) / (timestamp if not subfolder else f"{timestamp}/{subfolder}")
+    from Tabular_to_Neo4j.utils.output_saver import get_output_saver
+    output_saver = get_output_saver()
+    if not output_saver:
+        raise RuntimeError("OutputSaver is not initialized. All prompt saving must use the same timestamp for the run.")
+    if not timestamp:
+        timestamp = output_saver.timestamp
+    if not timestamp:
+        raise RuntimeError("No timestamp available from OutputSaver for prompt saving.")
+    # Always save inside <base_dir>/<timestamp>/<table_name>/prompts or <base_dir>/<timestamp>/inter_table/prompts
+    if not (table_name or (subfolder == "inter_table")):
+        raise ValueError("table_name or subfolder='inter_table' must be provided for prompt saving")
+    if table_name:
+        out_dir = Path(base_dir) / timestamp / table_name / "prompts"
     else:
-        # If not provided, try to use global, else fallback to new timestamp
-        if _CURRENT_RUN_TIMESTAMP_DIR is None:
-            default_base = Path(base_dir)
-            ts = time.strftime("%Y%m%d_%H%M%S")
-            out_dir = default_base / (ts if not subfolder else f"{ts}/{subfolder}")
-            _CURRENT_RUN_TIMESTAMP_DIR = out_dir
-        else:
-            out_dir = _CURRENT_RUN_TIMESTAMP_DIR
-
+        out_dir = Path(base_dir) / timestamp / "inter_table" / "prompts"
     os.makedirs(out_dir, exist_ok=True)
     timestamp_dir = out_dir
 
@@ -102,67 +104,16 @@ def save_prompt_sample(
     )
     with open(prompt_file, "w", encoding="utf-8") as f:
         f.write(formatted_prompt)
-
-    kwargs_file = (
-        timestamp_dir
-        / f"{numeric_id:02d}_{template_name.replace('.txt', '')}{column_suffix}_{file_prefix}_kwargs.json"
-    )
-    with open(kwargs_file, "w", encoding="utf-8") as f:
-        serializable_kwargs = {}
-        for key, value in kwargs.items():
-            if isinstance(
-                value, (str, int, float, bool, list, dict)
-            ) and not isinstance(value, type):
-                serializable_kwargs[key] = value
-            else:
-                serializable_kwargs[key] = str(value)
-        json.dump(serializable_kwargs, f, indent=2)
-
-    metadata_file = timestamp_dir / "metadata.json"
-    if not metadata_file.exists():
-        metadata = {
-            "run_timestamp": timestamp,
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "templates": [],
-        }
-        with open(metadata_file, "w", encoding="utf-8") as f:
-            json.dump(metadata, f, indent=2)
-
-    try:
-        with open(metadata_file, "r", encoding="utf-8") as f:
-            metadata = json.load(f)
-        template_info = {
-            "template_name": template_name,
-            "is_template": is_template,
-            "is_error": is_error,
-            "file_prefix": file_prefix,
-            "node_type": template_name.replace(".txt", ""),
-        }
-        if "classify_entities_properties" in template_name and "column_name" in kwargs:
-            template_info["column_name"] = kwargs["column_name"]
-        template_exists = False
-        for existing in metadata.get("templates", []):
-            if (
-                existing.get("template_name") == template_name
-                and existing.get("is_template") == is_template
-                and existing.get("is_error") == is_error
-                and existing.get("column_name", None)
-                == template_info.get("column_name", None)
-            ):
-                template_exists = True
-                break
-        if not template_exists:
-            metadata.setdefault("templates", []).append(template_info)
-            with open(metadata_file, "w", encoding="utf-8") as f:
-                json.dump(metadata, f, indent=2)
-    except Exception as e:
-        logger.error("Error updating metadata: %s", e)
+    # Do NOT save any kwargs .json or metadata.json files in the prompts folder.
+    # Only the .txt file is created.
 
 
-def format_prompt(template_name: str, **kwargs) -> str:
-    """Format a prompt template with the given arguments."""
+def format_prompt(template_name: str, *, table_name: str = None, subfolder: str = None, **kwargs) -> str:
+    """
+    Format a prompt template with the given arguments.
+    Pass table_name or subfolder for correct prompt saving location.
+    """
     from Tabular_to_Neo4j.utils.output_saver import get_output_saver
-    import time
     template = load_prompt_template(template_name)
 
     formatted_kwargs: Dict[str, str] = {}
@@ -176,27 +127,49 @@ def format_prompt(template_name: str, **kwargs) -> str:
         else:
             formatted_kwargs[key] = str(value) if value is not None else ""
 
-    output_saver = get_output_saver()
-    base_dir = output_saver.base_dir if output_saver else "samples"
-    timestamp = output_saver.timestamp if output_saver else time.strftime("%Y%m%d_%H%M%S")
+    logger.debug(f"[format_prompt] Template loaded for '{template_name}': {template[:100]!r}")
+    logger.debug(f"[format_prompt] Variables passed: {kwargs}")
 
-    save_prompt_sample(template_name, template, formatted_kwargs, is_template=True, base_dir=base_dir, timestamp=timestamp, subfolder="prompts")
+    output_saver = get_output_saver()
+    if not output_saver:
+        raise RuntimeError("OutputSaver is not initialized. All prompt formatting/saving must use the same timestamp for the run.")
+    base_dir = output_saver.base_dir
+    timestamp = output_saver.timestamp
+    if not timestamp:
+        raise RuntimeError("No timestamp available from OutputSaver for prompt formatting/saving.")
 
     try:
         formatted_prompt = template
         for key, value in formatted_kwargs.items():
             placeholder = "{" + key + "}"
             formatted_prompt = formatted_prompt.replace(placeholder, value)
-        save_prompt_sample(template_name, formatted_prompt, formatted_kwargs, base_dir=base_dir, timestamp=timestamp, subfolder="prompts")
+        # Strict enforcement: check for unsubstituted placeholders
+        import re
+        unsubstituted = re.findall(r"{[\w_]+}", formatted_prompt)
+        if unsubstituted:
+            print(f"[DEBUG][format_prompt] Template: {template_name}\nVariables passed: {formatted_kwargs}\nUnsubstituted: {unsubstituted}\nResulting prompt (first 200 chars): {formatted_prompt[:200]!r}")
+            logger.warning(f"Unsubstituted placeholders in prompt template {template_name}: {unsubstituted}. Not saving prompt.")
+            return f"Error: unsubstituted placeholders in prompt: {unsubstituted}"
+        logger.debug(f"[format_prompt] Final formatted prompt (first 200 chars): {formatted_prompt[:200]!r}")
+        save_prompt_sample(
+            template_name,
+            formatted_prompt,
+            formatted_kwargs,
+            base_dir=base_dir,
+            timestamp=timestamp,
+            table_name=table_name,
+            subfolder=subfolder
+        )
         return formatted_prompt
+
     except KeyError as e:
         error_msg = f"Error formatting prompt: missing key {e}. Available keys: {list(formatted_kwargs.keys())}"
         logger.error(f"Missing key in prompt template {template_name}: {e}")
-        save_prompt_sample(template_name, error_msg, formatted_kwargs, is_error=True, base_dir=base_dir, timestamp=timestamp)
+        # Do not save error or template prompts in the prompts folder
         return error_msg
     except Exception as e:
         error_msg = f"Error formatting prompt: {str(e)}"
         logger.error(f"Error formatting prompt template {template_name}: {e}")
-        save_prompt_sample(template_name, error_msg, formatted_kwargs, is_error=True, base_dir=base_dir, timestamp=timestamp)
-
+        # Do not save error or template prompts in the prompts folder
         return error_msg
+

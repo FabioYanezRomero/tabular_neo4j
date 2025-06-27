@@ -146,8 +146,10 @@ def generate_cypher_templates_node(
                 )
 
             # Format the prompt with the template
+            table_name = state.get("table_name")
             prompt = format_prompt(
                 template_name="generate_cypher_templates.txt",
+                table_name=table_name,
                 entities=json.dumps(entities_for_prompt, indent=2),
                 relationships=json.dumps(relationships_for_prompt, indent=2),
                 metadata_text=metadata_text,

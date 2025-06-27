@@ -160,15 +160,16 @@ def classify_entities_properties_node(
 
                     # Format the prompt with column information and metadata
                     try:
+                        table_name = state.get("table_name")
                         prompt = format_prompt(
                             "classify_entities_properties_v3.txt",
+                            table_name=table_name,
                             column_name=column_name,
                             full_sample_data=full_sample_json,  # Include the full sample data
                             uniqueness_ratio=analytics.get("uniqueness", 0),
                             cardinality=analytics.get("cardinality", 0),
                             data_type=analytics.get("data_type", "unknown"),
-                            missing_percentage=analytics.get("null_percentage", 0)
-                            * 100,
+                            missing_percentage=analytics.get("null_percentage", 0) * 100,
                             metadata_text=metadata_text,
                         )
                     except Exception as e:

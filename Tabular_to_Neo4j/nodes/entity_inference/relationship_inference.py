@@ -95,51 +95,8 @@ def infer_entity_relationships_node(
                 f"Found {len(entity_types)} entity types, no relationships to infer"
             )
 
-            # Still format the prompt and save it as a sample, even though we won't call the LLM
-            # This ensures we have complete prompt samples for all steps
-            metadata = get_metadata_for_state(state)
-            metadata_text = (
-                format_metadata_for_prompt(metadata)
-                if metadata
-                else "No metadata available."
-            )
-
-            # Format the prompt with entity information and metadata
-            prompt = format_prompt(
-                "infer_entity_relationships.txt",
-                entity_property_consensus=str(
-                    state.get("entity_property_consensus", {})
-                ),
-                property_entity_mapping=str(mapping),
-                metadata_text=metadata_text,
-                sample_data=str(
-                    state.get("processed_dataframe", {})
-                    .head(5)
-                    .to_dict(orient="records")
-                    if state.get("processed_dataframe") is not None
-                    else {}
-                ),
-            )
-
-            # Save the prompt sample without actually calling the LLM
-            from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
-
-            save_prompt_sample(
-                "infer_entity_relationships.txt",
-                prompt,
-                {"state_name": "infer_entity_relationships"},
-            )
-
-            # Add a note in the prompt sample that this was skipped due to insufficient entity types
-            skipped_note = "\n\nNOTE: LLM call was skipped because there were insufficient entity types to infer relationships."
-            save_prompt_sample(
-                "infer_entity_relationships_skipped.txt",
-                skipped_note,
-                {"state_name": "infer_entity_relationships"},
-            )
-
+            # Not enough entity types to call LLM; do not save prompt, just update state
             state["entity_relationships"] = []
-            # Ensure the returned state is always a GraphState instance
             if not isinstance(state, GraphState):
                 state = GraphState.from_dict(dict(state))
             return state
@@ -166,20 +123,43 @@ def infer_entity_relationships_node(
                     # Fallback to string representation
                     sample_data = df.head(MAX_SAMPLE_ROWS).to_string(index=False)
 
-        # Format the prompt with entity information and metadata
-        prompt = format_prompt(
-            "infer_entity_relationships.txt",
-            entity_property_consensus=str(state.get("entity_property_consensus", {})),
-            property_entity_mapping=str(mapping),
-            metadata_text=metadata_text,
-            sample_data=sample_data,
-        )
+        # Only format and save the prompt if there are at least 2 entity types
+        if len(entity_types) > 1:
+            table_name = state.get("table_name")
+            prompt = format_prompt(
+                "infer_entity_relationships.txt",
+                table_name=table_name,
+                entity_property_consensus=str(state.get("entity_property_consensus", {})),
+                property_entity_mapping=str(mapping),
+                metadata_text=metadata_text,
+                sample_data=sample_data,
+            )
+            # Save the actual prompt sent to the LLM (single prompt for all relationships)
+            if prompt and prompt.strip():
+                from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
+                save_prompt_sample(
+                    "infer_entity_relationships.txt",
+                    prompt,
+                    {"state_name": "infer_entity_relationships"},
+                    table_name=table_name,
+                    subfolder="prompts",
+                )
+
+        # If you want to save prompts per entity-entity pair (if there is a loop), do it here.
+        # Example (pseudo-code):
+        # for entity1 in entity_types:
+        #     for entity2 in entity_types:
+        #         if entity1 != entity2:
+        #             pair_prompt = ... # build prompt for this pair
+        #             if pair_prompt.strip():
+        #                 save_prompt_sample(..., pair_prompt, ..., table_name=..., subfolder=..., ...)
 
         # Call the LLM for relationship inference
         logger.info("Calling LLM to infer relationships between entities")
         response = call_llm_with_json_output(
             prompt, state_name="infer_entity_relationships"
         )
+
 
         # Extract the inferred relationships
         inferred_relationships = response.get("entity_relationships", [])
@@ -218,6 +198,7 @@ def infer_entity_relationships_node(
                 # Format a focused prompt specifically for this entity pair
                 focused_prompt = format_prompt(
                     "infer_entity_relationship_pair.txt",
+                    table_name=table_name,
                     source_entity=pair[0],
                     target_entity=pair[1],
                     entity_property_consensus=str(

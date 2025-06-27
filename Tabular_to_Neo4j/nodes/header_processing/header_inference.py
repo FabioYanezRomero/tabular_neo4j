@@ -59,12 +59,29 @@ def infer_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphSta
             else "No metadata available."
         )
 
+        # Extract table_name before formatting prompt
+        table_name = state.get("table_name")
+        if not table_name:
+            # Try to infer table_name from csv_file_path
+            csv_path = state.get("csv_file_path")
+            if csv_path:
+                import os
+                table_name = os.path.splitext(os.path.basename(csv_path))[0]
+            else:
+                raise ValueError("table_name not found in state and csv_file_path unavailable")
         # Format the prompt with the data sample and metadata
         prompt = format_prompt(
             "infer_header.txt",
+            table_name=table_name,
             metadata_text=metadata_text,
             num_columns=len(df.columns),
             data_sample=data_sample,
+        )
+        save_prompt_sample(
+            "infer_header.txt",
+            prompt,
+            {"state_name": "infer_header"},
+            table_name=table_name,
         )
 
         # Call the LLM to infer headers

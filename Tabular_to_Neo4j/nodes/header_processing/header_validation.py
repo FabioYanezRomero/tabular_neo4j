@@ -89,14 +89,32 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
 
         headers_json = json.dumps(current_header)
 
+        # Extract table_name before formatting prompt
+        table_name = state.get("table_name")
+        if not table_name:
+            csv_path = state.get("csv_file_path")
+            if csv_path:
+                import os
+                table_name = os.path.splitext(os.path.basename(csv_path))[0]
+            else:
+                raise ValueError("table_name not found in state and csv_file_path unavailable")
         prompt = format_prompt(
             "validate_header.txt",
+            table_name=table_name,
             data_sample=data_sample,
             headers=headers_json,  # Pass headers instead of current_header
             column_count=len(df.columns),
             row_count=len(df),
             metadata_text=metadata_text,
         )
+        if prompt.strip():
+            from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
+            save_prompt_sample(
+                "validate_header.txt",
+                prompt,
+                {"state_name": "validate_header"},
+                table_name=table_name,
+            )
 
         # Call the LLM to validate headers
         logger.debug("Calling LLM for header validation")

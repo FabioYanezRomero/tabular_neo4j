@@ -116,63 +116,55 @@ def map_properties_to_entities_node(
             )
             logger.info(f"Mapped property '{prop}' to entity '{main_entity}'")
 
-        # Format a sample prompt for documentation purposes
-        # Get the processed dataframe for sample data if available
+        # Prepare prompt for LLM call
         sample_data = ""
         if state.get("processed_dataframe") is not None:
             df = state["processed_dataframe"]
             if not df.empty:
-                # Get a small sample of the data (first MAX_SAMPLE_ROWS rows)
                 try:
                     sample_data = df.head(MAX_SAMPLE_ROWS).to_dict(orient="records")
-                    sample_data = str(sample_data)  # Convert to string for the prompt
+                    sample_data = str(sample_data)
                 except Exception as e:
                     logger.warning(f"Error converting dataframe to dict: {str(e)}")
-                    # Fallback to string representation
                     sample_data = df.head(MAX_SAMPLE_ROWS).to_string(index=False)
 
-        # Get metadata text if available
         metadata_text = (
             format_metadata_for_prompt(metadata)
             if metadata
             else "No metadata available."
         )
 
-        # Format the prompt with entity and property information
-        prompt = format_prompt(
-            "map_properties_to_entities.txt",
-            entity_property_classification=str(classification),
-            entities=str(entities),
-            properties=str(properties),
-            metadata_text=metadata_text,
-            sample_data=sample_data,
-        )
+        # Only format and save the prompt if there is at least one entity and one property
+        if entities and properties:
+            table_name = state.get("table_name")
+            prompt = format_prompt(
+                "map_properties_to_entities.txt",
+                table_name=table_name,
+                entity_property_classification=str(classification),
+                entities=str(entities),
+                properties=str(properties),
+                metadata_text=metadata_text,
+                sample_data=sample_data,
+            )
+            # No need to call save_prompt_sample directly; handled by format_prompt
 
-        # Save the prompt sample without actually calling the LLM
-        from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
+        # If you want to save prompts per property/entity (if there is a loop), do it here.
+        for prop in properties:
+            prop_prompt = format_prompt(
+                "map_properties_to_entities.txt",
+                table_name=table_name,
+                entity_property_classification=str(classification),
+                entity=main_entity,
+                property=prop,
+                metadata_text=metadata_text,
+                sample_data=sample_data,
+            )
+            # No need to call save_prompt_sample directly; handled by format_prompt
 
-        from Tabular_to_Neo4j.utils.output_saver import get_output_saver
-        output_saver = get_output_saver()
-        base_dir = output_saver.base_dir if output_saver else "samples"
-        timestamp = output_saver.timestamp if output_saver else None
-        save_prompt_sample(
-            "map_properties_to_entities.txt",
-            prompt,
-            {"state_name": "map_properties_to_entities"},
-            base_dir=base_dir,
-            timestamp=timestamp,
-            subfolder="prompts",
-        )
-
-        # Save the result as if it was an LLM response
-        result_json = {"property_entity_mapping": property_entity_mapping}
-        save_prompt_sample(
-            "map_properties_to_entities_result.txt",
-            str(result_json),
-            {"state_name": "map_properties_to_entities"},
-            base_dir=base_dir,
-            timestamp=timestamp,
-            subfolder="prompts",
+        # Call the LLM for property-entity mapping
+        logger.info("Calling LLM to map properties to entities")
+        response = call_llm_with_json_output(
+            prompt, state_name="map_properties_to_entities", config=config
         )
 
         # Update the state with the final mapping

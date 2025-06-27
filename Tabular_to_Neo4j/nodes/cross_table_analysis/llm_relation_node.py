@@ -53,6 +53,16 @@ def llm_relation_node(state: MultiTableGraphState, config: Optional[Dict[str, An
                 context2=context2_map.get(col2, ""),
                 similarity=similarity,
             )
+            # Save the prompt for each pair if non-empty
+            if prompt.strip():
+                from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
+                pair_id = f"{table1}_{col1}__{table2}_{col2}"
+                save_prompt_sample(
+                    "infer_cross_table_column_relation.txt",
+                    prompt,
+                    {"state_name": "llm_relation", "pair_id": pair_id},
+                    subfolder="inter_table",
+                )
             # Call the LLM using the unified dispatcher
             relation = call_llm_api(prompt, llm_config)
             relations[pair_key] = {

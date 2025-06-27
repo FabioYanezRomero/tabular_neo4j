@@ -15,43 +15,45 @@ logger = get_logger(__name__)
 
 class OutputSaver:
     """
-    Class for saving node outputs to files in a structured directory format.
+    Class for saving node outputs to files in a structured, per-table (or inter-table) directory format.
     """
     
     def __init__(self, base_dir: str = "samples"):
         """
         Initialize the OutputSaver.
-        
         Args:
             base_dir: Base directory for saving outputs
         """
         self.base_dir = base_dir
         self.timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.output_dir = os.path.join(self.base_dir, self.timestamp)
-        self.previous_state = None
-        
-        # Create the output directory if it doesn't exist
+        # Track previous_state per table/inter_table
+        self.previous_state = {}
         os.makedirs(self.output_dir, exist_ok=True)
         logger.info(f"Created output directory: {self.output_dir}")
-    
-    def save_node_output(self, node_name: str, state: Dict[str, Any], node_order: int = 0) -> None:
+
+    def _get_table_dir(self, table_name: str = None):
+        """Return the directory for a given table or inter_table."""
+        if table_name is None:
+            return self.output_dir  # fallback for legacy/single-table
+        return os.path.join(self.output_dir, table_name)
+
+    def save_node_output(self, node_name: str, state: Dict[str, Any], node_order: int = 0, table_name: str = None) -> None:
         """
-        Save the output of a node to a file.
-        
+        Save the output of a node to a file, organized by table (or inter_table).
         Args:
             node_name: Name of the node
             state: Current state of the graph
             node_order: Order of the node in the pipeline (for file naming)
+            table_name: Table name or "inter_table" for cross-table nodes
         """
-        # Extract only the new or changed information from this node
-        new_info = self._extract_new_info(state)
-        
-        # Create a serializable copy of the new information
-        serializable_new_info = self._make_serializable(new_info)
-        
-        # Save the new information to a file with order prefix inside node_outputs/
-        node_outputs_dir = os.path.join(self.output_dir, "node_outputs")
+        table_dir = self._get_table_dir(table_name or "default")
+        node_outputs_dir = os.path.join(table_dir, "node_outputs")
         os.makedirs(node_outputs_dir, exist_ok=True)
+        # Track previous state per table/inter_table
+        prev_state = self.previous_state.get(table_name, None)
+        new_info = self._extract_new_info(state, prev_state)
+        serializable_new_info = self._make_serializable(new_info)
         output_file = os.path.join(node_outputs_dir, f"{node_order:02d}_{node_name}.json")
         try:
             with open(output_file, 'w') as f:
@@ -59,34 +61,36 @@ class OutputSaver:
             logger.debug(f"Saved new output from node '{node_name}' (order: {node_order}) to {output_file}")
         except Exception as e:
             logger.error(f"Failed to save output of node '{node_name}': {str(e)}")
-        
-        # Update the previous state for the next node
-        self.previous_state = state.copy()
-    
-    def _extract_new_info(self, current_state: Dict[str, Any]) -> Dict[str, Any]:
+        # Update previous state for this table/inter_table
+        self.previous_state[table_name] = state.copy()
+
+    def _extract_new_info(self, current_state: Dict[str, Any], prev_state: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Extract only the new or changed information from the current state.
-        
-        Args:
-            current_state: Current state of the graph
-            
-        Returns:
-            Dictionary containing only the new or changed information
+        Extract only the new or changed information from the current state, using table-specific previous state.
         """
         new_info = {}
-        
-        # If this is the first node, return the entire state
-        if self.previous_state is None:
+        if prev_state is None:
             return current_state
-        
-        # Compare each key in the current state with the previous state
         for key, value in current_state.items():
-            # Only call _is_different if key is present in previous_state
-            if key not in self.previous_state:
+            if key not in prev_state:
                 new_info[key] = value
-            elif self._is_different(value, self.previous_state[key]):
+            elif self._is_different(value, prev_state[key]):
                 new_info[key] = value
-        
+        return new_info
+
+    
+    def _extract_new_info(self, current_state: Dict[str, Any], prev_state: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Extract only the new or changed information from the current state, using table-specific previous state.
+        """
+        new_info = {}
+        if prev_state is None:
+            return current_state
+        for key, value in current_state.items():
+            if key not in prev_state:
+                new_info[key] = value
+            elif self._is_different(value, prev_state[key]):
+                new_info[key] = value
         return new_info
     
     def _is_different(self, value1: Any, value2: Any) -> bool:
