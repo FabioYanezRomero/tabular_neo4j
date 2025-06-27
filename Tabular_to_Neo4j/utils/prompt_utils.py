@@ -79,7 +79,7 @@ def save_prompt_sample(
         "reconcile_entity_property": 10,
         "map_properties_to_entities": 11,
         "infer_entity_relationships": 12,
-        "generate_cypher_templates": 13,
+        ""
     }
 
     state_name = kwargs.get("state_name", "")
@@ -147,10 +147,10 @@ def format_prompt(template_name: str, *, table_name: str = None, subfolder: str 
         import re
         unsubstituted = re.findall(r"{[\w_]+}", formatted_prompt)
         if unsubstituted:
-            print(f"[DEBUG][format_prompt] Template: {template_name}\nVariables passed: {formatted_kwargs}\nUnsubstituted: {unsubstituted}\nResulting prompt (first 200 chars): {formatted_prompt[:200]!r}")
+            logger.debug(f"[format_prompt] Template: {template_name}\nVariables passed: {formatted_kwargs}\nUnsubstituted: {unsubstituted}\nResulting prompt (first 200 chars): {formatted_prompt[:200]!r}")
             logger.warning(f"Unsubstituted placeholders in prompt template {template_name}: {unsubstituted}. Not saving prompt.")
             return f"Error: unsubstituted placeholders in prompt: {unsubstituted}"
-        logger.debug(f"[format_prompt] Final formatted prompt (first 200 chars): {formatted_prompt[:200]!r}")
+        logger.debug(f"[format_prompt] Final formatted prompt: {formatted_prompt}")
         save_prompt_sample(
             template_name,
             formatted_prompt,

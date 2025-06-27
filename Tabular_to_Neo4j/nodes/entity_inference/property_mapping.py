@@ -134,24 +134,10 @@ def map_properties_to_entities_node(
             else "No metadata available."
         )
 
-        # Only format and save the prompt if there is at least one entity and one property
-        if entities and properties:
-            table_name = state.get("table_name")
-            prompt = format_prompt(
-                "map_properties_to_entities.txt",
-                table_name=table_name,
-                entity_property_classification=str(classification),
-                entities=str(entities),
-                properties=str(properties),
-                metadata_text=metadata_text,
-                sample_data=sample_data,
-            )
-            # No need to call save_prompt_sample directly; handled by format_prompt
-
         # If you want to save prompts per property/entity (if there is a loop), do it here.
         for prop in properties:
-            prop_prompt = format_prompt(
-                "map_properties_to_entities.txt",
+            prompt = format_prompt(
+                "map_properties_to_entity.txt",
                 table_name=table_name,
                 entity_property_classification=str(classification),
                 entity=main_entity,
@@ -161,11 +147,12 @@ def map_properties_to_entities_node(
             )
             # No need to call save_prompt_sample directly; handled by format_prompt
 
-        # Call the LLM for property-entity mapping
-        logger.info("Calling LLM to map properties to entities")
-        response = call_llm_with_json_output(
-            prompt, state_name="map_properties_to_entities", config=config
-        )
+            # Call the LLM for property-entity mapping
+            logger.info("Calling LLM to map properties to entities")
+            response = call_llm_with_json_output(
+                prompt, state_name="map_properties_to_entity", config=config
+            )
+            
 
         # Update the state with the final mapping
         state["property_entity_mapping"] = property_entity_mapping
