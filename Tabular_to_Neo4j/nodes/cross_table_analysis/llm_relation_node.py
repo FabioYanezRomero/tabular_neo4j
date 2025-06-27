@@ -2,7 +2,7 @@
 Node for determining the semantic relation between similar columns across tables using an LLM (Ollama or LMStudio).
 """
 from typing import Dict, Any, Optional
-from Tabular_to_Neo4j.app_state import MultiTableGraphState
+from Tabular_to_Neo4j.app_state import MultiTableGraphState, GraphState
 from Tabular_to_Neo4j.utils.llm_api import call_llm_api
 import logging
 
@@ -63,9 +63,22 @@ def llm_relation_node(state: MultiTableGraphState, config: Optional[Dict[str, An
                 "table2": table2,
                 "col2": col2,
             }
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info('[llm_relation_node][BEFORE] Table states: ' + str({k: type(v).__name__ for k,v in state.items()}))
     # Store results in each table's GraphState
+
     for table_name, table_state in state.items():
+        if not isinstance(table_state, GraphState):
+            # Recover: wrap dict in GraphState
+            table_state = GraphState(**table_state)
+            state[table_name] = table_state
         table_state["cross_table_column_relations"] = {
             k: v for k, v in relations.items() if k.startswith(f"{table_name}.") or k.split(" <-> ")[1].startswith(f"{table_name}.")
         }
+    # Ensure every table state is a GraphState before returning
+    for table_name, table_state in state.items():
+        if not isinstance(table_state, GraphState):
+            state[table_name] = GraphState(**dict(table_state))
+    logger.info('[llm_relation_node][AFTER] Table states: ' + str({k: type(v).__name__ for k,v in state.items()}))
     return state

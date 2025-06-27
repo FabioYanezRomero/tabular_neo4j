@@ -42,7 +42,7 @@ PIPELINE_NODES = [
 PIPELINE_EDGES = [
     ("load_csv", "detect_header"),
     {
-        "from": "detect_header",
+        "source": "detect_header",
         "condition": lambda state: (
             "has_header" if state.get("has_header_heuristic", False) else "no_header"
         ),
@@ -51,7 +51,7 @@ PIPELINE_EDGES = [
     ("infer_header", "validate_header"),
     ("validate_header", "detect_header_language"),
     {
-        "from": "detect_header_language",
+        "source": "detect_header_language",
         "condition": lambda state: (
             "same_language" if state.get("is_header_in_target_language", False) else "different_language"
         ),
@@ -80,7 +80,10 @@ def create_single_table_graph() -> StateGraph:
     for node_name, node_func in PIPELINE_NODES:
         graph.add_node(node_name, node_func)
     for edge in PIPELINE_EDGES:
-        graph.add_edge(**edge) if isinstance(edge, dict) else graph.add_edge(*edge)
+        if isinstance(edge, dict):
+            graph.add_conditional_edges(edge["source"], edge["condition"], edge["edges"])
+        else:
+            graph.add_edge(*edge)
     graph.set_entry_point(ENTRY_POINT)
     graph.set_finish_point(END)
     return graph

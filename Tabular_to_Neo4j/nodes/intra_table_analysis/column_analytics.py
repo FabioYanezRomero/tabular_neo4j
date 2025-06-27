@@ -29,6 +29,9 @@ def perform_column_analytics_node(state: GraphState, config: RunnableConfig) -> 
         error_msg = "Cannot analyze columns: no processed dataframe available"
         logger.error(error_msg)
         state['error_messages'].append(error_msg)
+        # Ensure the returned state is always a GraphState instance
+        if not isinstance(state, GraphState):
+            state = GraphState.from_dict(dict(state))
         return state
     
     logger.info("Performing statistical and pattern analysis on columns")
@@ -125,4 +128,7 @@ def perform_column_analytics_node(state: GraphState, config: RunnableConfig) -> 
         logger.error(error_msg)
         state['error_messages'].append(error_msg)
     
+    # Ensure the returned state is always a GraphState instance
+    if not isinstance(state, GraphState):
+        state = GraphState.from_dict(dict(state))
     return state

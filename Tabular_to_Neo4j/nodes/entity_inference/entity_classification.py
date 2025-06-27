@@ -4,7 +4,6 @@ This module handles the first step in schema synthesis: classifying columns as e
 """
 
 from typing import Dict, Any
-import os
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
@@ -40,6 +39,12 @@ def classify_entities_properties_node(
         error_msg = "Cannot classify entities/properties: missing required data"
         logger.error(error_msg)
         state["error_messages"].append(error_msg)
+        # Defensive: Always return a GraphState, never a dict
+        if not isinstance(state, GraphState):
+            state = GraphState(**dict(state))
+        # Ensure the returned state is always a GraphState instance
+        if not isinstance(state, GraphState):
+            state = GraphState.from_dict(dict(state))
         return state
 
     try:
@@ -460,4 +465,7 @@ def classify_entities_properties_node(
                 f"Error using rule-based classification as fallback: {str(fallback_error)}"
             )
 
+    # Ensure the returned state is always a GraphState instance
+    if not isinstance(state, GraphState):
+        state = GraphState.from_dict(dict(state))
     return state

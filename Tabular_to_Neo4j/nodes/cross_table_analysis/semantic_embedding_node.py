@@ -15,6 +15,7 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, List, Optional
 from Tabular_to_Neo4j.app_state import MultiTableGraphState
+from Tabular_to_Neo4j.app_state import GraphState
 import os
 import requests
 
@@ -98,8 +99,19 @@ def semantic_embedding_node(state: MultiTableGraphState, config: Optional[Dict[s
                             similarity_matrix[pair_key] = similarity
         # Store similarity_matrix in a special table-level GraphState, or as an attribute on each table if appropriate
         # Here, we add it to each table's GraphState as a new key
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info('[semantic_embedding_node][BEFORE] Table states: ' + str({k: type(v).__name__ for k,v in state.items()}))
+
         for table_name, table_state in state.items():
+            if not isinstance(table_state, GraphState):
+                table_state = GraphState(**table_state)
+                state[table_name] = table_state
             table_state["cross_table_column_similarity"] = similarity_matrix
+        # Ensure every table state is a GraphState before returning
+        for table_name, table_state in state.items():
+            assert isinstance(table_state, GraphState), f"semantic_embedding_node: State for '{table_name}' is not a GraphState, got {type(table_state)}"
+        logger.info('[semantic_embedding_node][AFTER] Table states: ' + str({k: type(v).__name__ for k,v in state.items()}))
     finally:
         unload_model_from_ollama(model)
     return state

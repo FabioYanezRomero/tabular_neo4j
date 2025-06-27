@@ -4,6 +4,7 @@ This module handles reconciling different classification approaches.
 """
 
 from typing import Dict, Any
+from Tabular_to_Neo4j.app_state import GraphState
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
@@ -42,6 +43,12 @@ def reconcile_entity_property_node(
         error_msg = "Cannot reconcile entity/property classifications: missing entity_property_classification"
         logger.error(error_msg)
         state["error_messages"].append(error_msg)
+        # Defensive: Always return a GraphState, never a dict
+        if not isinstance(state, GraphState):
+            state = GraphState(**dict(state))
+        # Ensure the returned state is always a GraphState instance
+        if not isinstance(state, GraphState):
+            state = GraphState.from_dict(dict(state))
         return state
 
     # Debug: Log state keys to understand what's available
@@ -258,4 +265,10 @@ def reconcile_entity_property_node(
             "entity_property_classification", {}
         )
 
+    # Defensive: Always return a GraphState, never a dict
+    if not isinstance(state, GraphState):
+        state = GraphState(**dict(state))
+    # Ensure the returned state is always a GraphState instance
+    if not isinstance(state, GraphState):
+        state = GraphState.from_dict(dict(state))
     return state

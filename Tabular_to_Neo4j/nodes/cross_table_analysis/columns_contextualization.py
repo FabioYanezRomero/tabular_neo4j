@@ -4,7 +4,7 @@ This node generates contextualized text for each column across all tables for us
 """
 from typing import Dict, Any
 from Tabular_to_Neo4j.app_state import MultiTableGraphState
-
+from Tabular_to_Neo4j.app_state import GraphState
 def generate_text_sequence(column_meta: Dict[str, Any], table_title: str = "") -> str:
     """
     Generate contextualized text for a column using DeepJoin/PLM-compatible adaptive patterns.
@@ -77,7 +77,15 @@ def columns_contextualization_node(state: "MultiTableGraphState", config: Dict[s
     Expects state to be a MultiTableGraphState-like dict.
     Returns a new state with a 'columns_contextualization' key containing contextualized text for each column.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info('[columns_contextualization_node][BEFORE] Table states: ' + str({k: type(v).__name__ for k,v in state.items()}))
+
     for table_name, table_state in state.items():
+        if not isinstance(table_state, GraphState):
+            # Recover: wrap dict in GraphState
+            table_state = GraphState(**table_state)
+            state[table_name] = table_state
         table_title = table_state.get('table_context', table_name)
         analytics = table_state.get('column_analytics', {})
         contextualized = []
@@ -102,4 +110,8 @@ def columns_contextualization_node(state: "MultiTableGraphState", config: Dict[s
                 "contextualization": generate_text_sequence(column_metadata, table_title)
             })
         table_state['columns_contextualization'] = contextualized
+    # Ensure every table state is a GraphState before returning
+    for table_name, table_state in state.items():
+        assert isinstance(table_state, GraphState), f"columns_contextualization_node: State for '{table_name}' is not a GraphState, got {type(table_state)}"
+    logger.info('[columns_contextualization_node][AFTER] Table states: ' + str({k: type(v).__name__ for k,v in state.items()}))
     return state

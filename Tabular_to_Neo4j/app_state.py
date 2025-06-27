@@ -123,9 +123,17 @@ class MultiTableGraphState(dict):
     def __getitem__(self, key: str) -> GraphState:
         return super().__getitem__(key)
 
-    def __setitem__(self, key: str, value: GraphState) -> None:
-        if not isinstance(value, GraphState):
-            raise ValueError(f"Value for key '{key}' must be a GraphState instance.")
+    def __setitem__(self, key: str, value) -> None:
+        from collections.abc import MutableMapping
+        try:
+            from langchain_core.utils import AddableValuesDict
+        except ImportError:
+            AddableValuesDict = None
+        if not (
+            isinstance(value, (GraphState, MutableMapping)) or
+            (AddableValuesDict and isinstance(value, AddableValuesDict))
+        ):
+            raise ValueError(f"Value for key '{key}' must be a GraphState, AddableValuesDict, or MutableMapping instance. Got {type(value)}")
         super().__setitem__(key, value)
 
     def get(self, key: str, default=None) -> GraphState:

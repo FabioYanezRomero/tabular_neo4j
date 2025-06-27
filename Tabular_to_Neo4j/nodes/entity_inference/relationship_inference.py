@@ -4,9 +4,9 @@ This module handles inferring relationships between entity types.
 """
 
 from typing import Dict, Any, List
+from Tabular_to_Neo4j.app_state import GraphState
 import os
 from langchain_core.runnables import RunnableConfig
-from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
 from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output
 from Tabular_to_Neo4j.utils.metadata_utils import (
@@ -41,6 +41,9 @@ def infer_entity_relationships_node(
         error_msg = "Cannot infer entity relationships: missing property-entity mapping"
         logger.error(error_msg)
         state["error_messages"].append(error_msg)
+        # Ensure the returned state is always a GraphState instance
+        if not isinstance(state, GraphState):
+            state = GraphState.from_dict(dict(state))
         return state
 
     try:
@@ -136,6 +139,9 @@ def infer_entity_relationships_node(
             )
 
             state["entity_relationships"] = []
+            # Ensure the returned state is always a GraphState instance
+            if not isinstance(state, GraphState):
+                state = GraphState.from_dict(dict(state))
             return state
 
         # Get metadata for the CSV file
@@ -300,4 +306,7 @@ def infer_entity_relationships_node(
         )
         state["entity_relationships"] = []
 
+    # Ensure the returned state is always a GraphState instance
+    if not isinstance(state, GraphState):
+        state = GraphState.from_dict(dict(state))
     return state

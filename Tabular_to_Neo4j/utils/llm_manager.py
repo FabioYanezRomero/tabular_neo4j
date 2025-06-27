@@ -74,8 +74,8 @@ def call_llm_with_state(state_name: str, prompt: str, config: dict = None) -> st
     try:
         # Unified call via llm_api dispatcher
         response_text = call_llm_api(prompt, state_config)
-        logger.info(f"[LLM][{state_name}] Prompt: {prompt}")
-        logger.info(f"[LLM][{state_name}] Response: {response_text}")
+        # logger.info(f"[LLM][{state_name}] Prompt: {prompt}")  # Removed to avoid printing prompt
+        # logger.info(f"[LLM][{state_name}] Response: {response_text}")
         try:
             save_prompt_sample(
                 f"{state_name}_response.txt",
@@ -134,8 +134,13 @@ def call_llm_with_json_output(
         template_name = f"{state_name}_original_prompt.txt"
         from Tabular_to_Neo4j.utils.output_saver import get_output_saver
         output_saver = get_output_saver()
-        base_dir = output_saver.base_dir
-        timestamp = output_saver.timestamp
+        if output_saver is not None:
+            base_dir = output_saver.base_dir
+            timestamp = output_saver.timestamp
+        else:
+            logger.warning("output_saver is None; using default base_dir 'samples' and timestamp 'unknown'.")
+            base_dir = "samples"
+            timestamp = "unknown"
         save_prompt_sample(template_name, prompt, {"state_name": state_name}, base_dir=base_dir, timestamp=timestamp, subfolder="prompts")
     except Exception as exc:
         logger.warning("Failed to save original prompt sample for state '%s': %s", state_name, exc)
@@ -148,8 +153,8 @@ def call_llm_with_json_output(
 
     try:
         response_text = call_llm_api(json_prompt, state_config)
-        logger.info(f"[LLM][{state_name}] Prompt: {json_prompt}")
-        logger.info(f"[LLM][{state_name}] Response: {response_text}")
+        # logger.info(f"[LLM][{state_name}] Prompt: {json_prompt}")  # Removed to avoid printing prompt
+        # logger.info(f"[LLM][{state_name}] Response: {response_text}")
         try:
             template_name = f"{state_name}_json_response.txt"
             save_prompt_sample(

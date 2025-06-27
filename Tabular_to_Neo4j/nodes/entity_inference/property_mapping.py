@@ -4,8 +4,8 @@ This module handles mapping properties to their respective entities.
 """
 
 from typing import Dict, Any, List
-from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
+from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
 from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output
 from Tabular_to_Neo4j.nodes.entity_inference.utils import to_neo4j_property_name
@@ -50,6 +50,12 @@ def map_properties_to_entities_node(
             )
             logger.error(error_msg)
             state["error_messages"].append(error_msg)
+            # Defensive: Always return a GraphState, never a dict
+            if not isinstance(state, GraphState):
+                state = GraphState(**dict(state))
+            # Ensure the returned state is always a GraphState instance
+            if not isinstance(state, GraphState):
+                state = GraphState.from_dict(dict(state))
             return state
 
         # Get the metadata if available
@@ -57,9 +63,6 @@ def map_properties_to_entities_node(
         if "csv_file_path" in state:
             csv_file_path = state["csv_file_path"]
             metadata = load_metadata_for_csv(csv_file_path)
-
-        # Get the column analytics
-        column_analytics = state.get("column_analytics", {})
 
         # Separate entities and properties
         entities = []
@@ -81,6 +84,12 @@ def map_properties_to_entities_node(
         # If no entities or properties, return the state unchanged
         if not entities:
             logger.warning("No entities found, skipping property mapping")
+            # Defensive: Always return a GraphState, never a dict
+            if not isinstance(state, GraphState):
+                state = GraphState(**dict(state))
+            # Ensure the returned state is always a GraphState instance
+            if not isinstance(state, GraphState):
+                state = GraphState.from_dict(dict(state))
             return state
 
         # Use the first entity as our main entity for properties
@@ -174,4 +183,7 @@ def map_properties_to_entities_node(
         state["error_messages"].append(f"Error in property mapping: {str(e)}")
         state["property_entity_mapping"] = {}
 
+    # Ensure the returned state is always a GraphState instance
+    if not isinstance(state, GraphState):
+        state = GraphState.from_dict(dict(state))
     return state

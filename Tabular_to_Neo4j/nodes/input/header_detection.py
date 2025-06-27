@@ -28,7 +28,8 @@ def detect_header_heuristic_node(state: GraphState, config: RunnableConfig) -> G
         error_msg = "Cannot detect header: no raw dataframe available"
         logger.error(error_msg)
         state['error_messages'].append(error_msg)
-        return state
+        # Continue to end for unified return
+
     
     logger.info("Applying heuristics to detect if the first row is a header")
     
@@ -119,4 +120,6 @@ def detect_header_heuristic_node(state: GraphState, config: RunnableConfig) -> G
         state['error_messages'].append(error_msg)
         state['has_header_heuristic'] = False
     
+    if not isinstance(state, GraphState):
+        state = GraphState.from_dict(dict(state))
     return state

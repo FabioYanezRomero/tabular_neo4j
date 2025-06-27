@@ -52,17 +52,16 @@ def run(
     
     validate_input_path(input_path, pipeline)
     logger.info(f"Starting analysis with pipeline: {pipeline}")
+    # Always initialize output_saver and propagate timestamp for prompt/LLM output saving
+    initialize_output_saver(output_dir)
+    output_saver = get_output_saver()
     if save_node_outputs:
-        initialize_output_saver(output_dir)
-        output_saver = get_output_saver()
-        if output_saver:
-            logs_dir = os.path.join(output_saver.base_dir, output_saver.timestamp, "logs")
-            os.makedirs(logs_dir, exist_ok=True)
-            log_file_path = os.path.join(logs_dir, "pipeline.log")
-            set_log_file_path(log_file_path)
-        reset_prompt_sample_directory(base_dir=output_dir, timestamp=output_saver.timestamp if output_saver else None)
-    else:
-        output_saver = None
+        logs_dir = os.path.join(output_saver.base_dir, output_saver.timestamp, "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        log_file_path = os.path.join(logs_dir, "pipeline.log")
+        set_log_file_path(log_file_path)
+    # Always set/reset prompt sample directory with the correct timestamp
+    reset_prompt_sample_directory(base_dir=output_dir, timestamp=output_saver.timestamp)
 
     # Abstract graph creation
     graph = create_graph(pipeline)

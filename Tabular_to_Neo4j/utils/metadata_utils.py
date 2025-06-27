@@ -6,6 +6,7 @@ These utilities help load and format metadata for use in LLM prompts.
 import os
 import json
 from typing import Dict, Any, Optional, List
+from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
 # Configure logging
@@ -79,7 +80,7 @@ def format_metadata_for_prompt(metadata: Dict[str, Any]) -> str:
     # Return just the JSON string without any prefix
     return metadata_str
 
-def get_metadata_for_state(state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def get_metadata_for_state(state: GraphState) -> Optional[Dict[str, Any]]:
     """
     Helper function to get metadata from a state dictionary.
     
