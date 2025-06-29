@@ -173,8 +173,6 @@ def map_properties_to_entities_node(
                 state_name="map_properties_to_entity",
                 unique_suffix=prop,
             )
-            # No need to call save_prompt_sample directly; handled by format_prompt
-
             # Call the LLM for property-entity mapping
             logger.info("Calling LLM to map properties to entities")
             node_order = get_node_order_for_state("map_properties_to_entity")

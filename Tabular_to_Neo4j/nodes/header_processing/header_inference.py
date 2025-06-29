@@ -8,7 +8,7 @@ import pandas as pd
 import os
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
-from Tabular_to_Neo4j.utils.prompt_utils import format_prompt, save_prompt_sample
+from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
 from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output
 from Tabular_to_Neo4j.utils.csv_utils import df_to_json_sample
 from Tabular_to_Neo4j.utils.metadata_utils import (

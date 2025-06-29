@@ -11,8 +11,7 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger, setup_logging
 import sys
 
 from Tabular_to_Neo4j.utils.result_utils import save_results, display_results, validate_input_path, create_graph
-from Tabular_to_Neo4j.utils.prompt_utils import reset_prompt_sample_directory
-from Tabular_to_Neo4j.utils.output_saver import initialize_output_saver, output_saver
+from Tabular_to_Neo4j.utils.output_saver import initialize_output_saver
 from Tabular_to_Neo4j.utils.logging_config import set_log_file_path
 
 # Initialize logging with default configuration
@@ -63,9 +62,7 @@ def run(
         os.makedirs(logs_dir, exist_ok=True)
         log_file_path = os.path.join(logs_dir, "pipeline.log")
         set_log_file_path(log_file_path)
-    # Always set/reset prompt sample directory with the correct timestamp
-    reset_prompt_sample_directory(base_dir=output_dir, timestamp=output_saver.timestamp)
-
+    
     # Abstract graph creation
     graph = create_graph(pipeline)
     start_time = time.time()
@@ -83,7 +80,6 @@ def run(
         with open(meta_dir / "final_state.json", "w", encoding="utf-8") as f:
             json.dump(final_state, f, indent=2, default=str)
         return final_state
-    
     
     elif pipeline == "multi_table_graph":
         from Tabular_to_Neo4j.graphs.multi_table_graph import (
@@ -181,14 +177,6 @@ def main():
             args.output_dir,
             args.pipeline,
         )
-        # After successful pipeline run, try to push Cypher queries to Neo4j
-        from Tabular_to_Neo4j.utils.neo4j_loader import run_neo4j_loader
-        try:
-            print("\n[Neo4j Integration] Attempting to load generated Cypher queries into Neo4j...")
-            loader_out = run_neo4j_loader()
-            print(loader_out)
-        except Exception as loader_exc:
-            print(f"[Neo4j Integration] Loader error: {loader_exc}")
     except Exception as e:
         logger.error("Error: %s", e)
         sys.exit(1)

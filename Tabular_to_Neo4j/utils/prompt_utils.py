@@ -10,18 +10,6 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-_CURRENT_RUN_TIMESTAMP_DIR = None
-
-
-def reset_prompt_sample_directory(base_dir: str = "samples", timestamp: str = None) -> None:
-    """Reset the prompt sample directory for a new pipeline run, optionally with a base_dir and timestamp."""
-    global _CURRENT_RUN_TIMESTAMP_DIR
-    if timestamp:
-        _CURRENT_RUN_TIMESTAMP_DIR = Path(base_dir) / timestamp
-    else:
-        _CURRENT_RUN_TIMESTAMP_DIR = None
-
-
 def load_prompt_template(template_name: str) -> str:
     """Load a prompt template from the prompts directory."""
     base_dir = Path(__file__).parent.parent

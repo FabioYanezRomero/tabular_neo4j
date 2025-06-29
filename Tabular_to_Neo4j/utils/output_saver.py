@@ -129,21 +129,6 @@ class OutputSaver:
             logger.error(f"Failed to save output of node '{node_name}': {str(e)}")
         # Update previous state for this table/inter_table
         self.previous_state[table_name] = state.copy()
-
-    def _extract_new_info(self, current_state: Dict[str, Any], prev_state: Dict[str, Any] = None) -> Dict[str, Any]:
-        """
-        Extract only the new or changed information from the current state, using table-specific previous state.
-        """
-        new_info = {}
-        if prev_state is None:
-            return current_state
-        for key, value in current_state.items():
-            if key not in prev_state:
-                new_info[key] = value
-            elif self._is_different(value, prev_state[key]):
-                new_info[key] = value
-        return new_info
-
     
     def _extract_new_info(self, current_state: Dict[str, Any], prev_state: Dict[str, Any] = None) -> Dict[str, Any]:
         """

@@ -38,7 +38,7 @@ if [ -n "$1" ] && [[ "$1" != --* ]]; then
 fi
 
 if [ ! -f "$CSV_PATH" ]; then
-    echo "[ERROR] CSV file not found: $CSV_PATH"
+    echo "[ERROR] No CSV file found in provided path"
     exit 1
 fi
 

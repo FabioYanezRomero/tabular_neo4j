@@ -1,4 +1,4 @@
-from Tabular_to_Neo4j.utils.prompt_utils import format_prompt, save_prompt_sample
+from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
 from Tabular_to_Neo4j.utils.output_saver import initialize_output_saver
 
 def dummy_llm_node():
@@ -20,7 +20,6 @@ def dummy_llm_node():
     print("--- Loaded and Formatted Prompt ---")
     print(prompt)
     print("--- END ---")
-    # No need to call save_prompt_sample here; format_prompt already saves it
 
 if __name__ == "__main__":
     dummy_llm_node()

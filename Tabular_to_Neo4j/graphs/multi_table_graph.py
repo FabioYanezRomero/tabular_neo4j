@@ -40,7 +40,7 @@ PIPELINE_NODES = [
     ("analyze_columns", perform_column_analytics_node),
     ("classify_entities_properties", classify_entities_properties_node),
     ("reconcile_entity_property", reconcile_entity_property_node),
-    ("map_properties_to_entities", map_properties_to_entities_node),
+    ("map_properties_to_entity", map_properties_to_entities_node),
     ("infer_entity_relationships", infer_entity_relationships_node),
 ]
 
@@ -66,8 +66,8 @@ PIPELINE_EDGES = [
     ("apply_header", "analyze_columns"),
     ("analyze_columns", "classify_entities_properties"),
     ("classify_entities_properties", "reconcile_entity_property"),
-    ("reconcile_entity_property", "map_properties_to_entities"),
-    ("map_properties_to_entities", "infer_entity_relationships"),
+    ("reconcile_entity_property", "map_properties_to_entity"),
+    ("map_properties_to_entity", "infer_entity_relationships"),
 ]
 
 ENTRY_POINT = PIPELINE_NODES[0][0]
@@ -101,7 +101,6 @@ CROSS_TABLE_NODES = [
 ]
 
 def run_multi_table_pipeline(state: MultiTableGraphState, config: Optional[Dict[str, Any]] = None) -> MultiTableGraphState:
-    from Tabular_to_Neo4j.utils.prompt_utils import save_prompt_sample
     import logging
     logger = logging.getLogger(__name__)
 
@@ -110,7 +109,6 @@ def run_multi_table_pipeline(state: MultiTableGraphState, config: Optional[Dict[
 
     # Per-table phase (use the StateGraph abstraction for each table)
     graph_template = create_multi_table_graph()
-    from Tabular_to_Neo4j.utils.state_saver import save_state_snapshot
     # For each table, run the compiled graph node-by-node, saving state and prompts after each node
     for table_name, table_state in state.items():
         logger.info(f'[PER_TABLE][{table_name}][BEFORE_PIPELINE] Initial state type: {type(table_state).__name__}')
@@ -132,21 +130,6 @@ def run_multi_table_pipeline(state: MultiTableGraphState, config: Optional[Dict[
                 # Save node output
                 if output_saver:
                     output_saver.save_node_output(node_name, current_state, node_order=node_idx, table_name=table_name)
-                # Save state snapshot
-                save_state_snapshot({table_name: current_state}, timestamp=output_saver.timestamp, base_dir=output_saver.base_dir)
-                # Save prompt (if applicable)
-                try:
-                    save_prompt_sample(
-                        template_name=f"{node_name}.txt",
-                        formatted_prompt="",  # If you have the prompt, pass it here
-                        kwargs={"state_name": node_name, "table_name": table_name},
-                        base_dir=output_saver.base_dir,
-                        timestamp=output_saver.timestamp,
-                        table_name=table_name,
-                    )
-                except Exception as prompt_exc:
-                    logger.debug(f"Prompt sample not saved for node '{node_name}': {prompt_exc}")
-                # Log type and truncated value after node execution
                 short_val = str(current_state)
                 if len(short_val) > 300:
                     short_val = short_val[:300] + '...'
@@ -175,7 +158,6 @@ def run_multi_table_pipeline(state: MultiTableGraphState, config: Optional[Dict[
             logger.error(f"[PER_TABLE][{table_name}] Invalid state type after pipeline: {type(table_state).__name__}")
             raise TypeError(f"Table state for '{table_name}' must be a GraphState, AddableValuesDict, or MutableMapping, got {type(table_state)}")
     # Cross-table phase
-    from Tabular_to_Neo4j.utils.state_saver import save_state_snapshot
     import inspect
     for node_idx, (node_name, node_func) in enumerate(CROSS_TABLE_NODES, 1):
         logger.info(f'[CROSS_TABLE][{node_name}][BEFORE] Table states: ' + str({k: type(v).__name__ for k, v in state.items()}))
@@ -187,20 +169,6 @@ def run_multi_table_pipeline(state: MultiTableGraphState, config: Optional[Dict[
         # Save cross-table node output
         if output_saver:
             output_saver.save_node_output(node_name, state, node_order=node_idx, table_name="inter_table")
-        # Save state snapshot after each cross-table node
-        save_state_snapshot({"inter_table": state}, timestamp=output_saver.timestamp, base_dir=output_saver.base_dir)
-        # Save prompt (if applicable)
-        try:
-            save_prompt_sample(
-                template_name=f"{node_name}.txt",
-                formatted_prompt="",  # If you have the prompt, pass it here
-                kwargs={"state_name": node_name, "table_name": "inter_table"},
-                base_dir=output_saver.base_dir,
-                timestamp=output_saver.timestamp,
-                table_name="inter_table",
-            )
-        except Exception as prompt_exc:
-            logger.debug(f"Prompt sample not saved for cross-table node '{node_name}': {prompt_exc}")
         # Log type and truncated value for each table after cross-table node
         for k, v in state.items():
             short_val = str(v)
