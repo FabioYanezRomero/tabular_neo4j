@@ -70,9 +70,14 @@ PIPELINE_EDGES = [
     ("map_properties_to_entity", "infer_entity_relationships"),
 ]
 
+# Cross-table nodes to be run after all per-table nodes have finished
+CROSS_TABLE_NODES = [
+    ("columns_contextualization", columns_contextualization_node),
+    ("semantic_embedding", semantic_embedding_node),
+    ("llm_relation", llm_relation_node),
+]
+
 ENTRY_POINT = PIPELINE_NODES[0][0]
-
-
 
 def create_multi_table_graph() -> StateGraph:
     """
@@ -91,24 +96,38 @@ def create_multi_table_graph() -> StateGraph:
     graph.set_entry_point(ENTRY_POINT)
     graph.set_finish_point("infer_entity_relationships")
     return graph
+        
 
-
-# Cross-table nodes to be run after all per-table nodes have finished
-CROSS_TABLE_NODES = [
-    ("columns_contextualization", columns_contextualization_node),
-    ("semantic_embedding", semantic_embedding_node),
-    ("llm_relation", llm_relation_node),
-]
-
-def run_multi_table_pipeline(state: MultiTableGraphState, config: Optional[Dict[str, Any]] = None) -> MultiTableGraphState:
+def run_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]] = None) -> MultiTableGraphState:
     import logging
     logger = logging.getLogger(__name__)
 
+
+
+    def initialize_multi_table_state(table_folder: str) -> MultiTableGraphState:
+        """
+        Initializes a MultiTableGraphState for all tables in the folder.
+        For each CSV, also attempts to find and store the corresponding metadata file path (as in the one-table case).
+        Each key is a table name, and the value is a full GraphState instance.
+        """
+        state = MultiTableGraphState()
+        for fname in os.listdir(table_folder):
+            if fname.lower().endswith('.csv'):
+                table_name = os.path.splitext(fname)[0]
+                csv_path = os.path.join(table_folder, fname)
+                metadata_path = get_metadata_path_for_csv(csv_path)
+                state[table_name] = GraphState(csv_file_path=csv_path, metadata_file_path=metadata_path)
+        return state
+        
+    
+    
     if not output_saver:
         raise RuntimeError("OutputSaver is not initialized. All output saving must use the same timestamp for the run.")
 
     # Per-table phase (use the StateGraph abstraction for each table)
     graph_template = create_multi_table_graph()
+    state = initialize_multi_table_state(table_folder)
+
     # For each table, run the compiled graph node-by-node, saving state and prompts after each node
     for table_name, table_state in state.items():
         logger.info(f'[PER_TABLE][{table_name}][BEFORE_PIPELINE] Initial state type: {type(table_state).__name__}')
@@ -189,19 +208,4 @@ def run_multi_table_pipeline(state: MultiTableGraphState, config: Optional[Dict[
         ):
             logger.error(f"[FINAL][{table_name}] Invalid state type after cross-table nodes: {type(table_state).__name__}")
             raise TypeError(f"Table state for '{table_name}' must be a GraphState, AddableValuesDict, or MutableMapping after cross-table nodes, got {type(table_state)}")
-    return state
-    
-def initialize_multi_table_state(table_folder: str) -> MultiTableGraphState:
-    """
-    Initializes a MultiTableGraphState for all tables in the folder.
-    For each CSV, also attempts to find and store the corresponding metadata file path (as in the one-table case).
-    Each key is a table name, and the value is a full GraphState instance.
-    """
-    state = MultiTableGraphState()
-    for fname in os.listdir(table_folder):
-        if fname.lower().endswith('.csv'):
-            table_name = os.path.splitext(fname)[0]
-            csv_path = os.path.join(table_folder, fname)
-            metadata_path = get_metadata_path_for_csv(csv_path)
-            state[table_name] = GraphState(csv_file_path=csv_path, metadata_file_path=metadata_path)
     return state

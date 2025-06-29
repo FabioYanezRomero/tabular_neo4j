@@ -4,7 +4,7 @@
 set -e
 
 # Paths to sample data (folder containing multiple CSVs)
-CSV_FOLDER="/app/Tabular_to_Neo4j/sample_data/csv"
+CSV_FOLDER="/app/Tabular_to_Neo4j/sample_data/"
 
 LOG_LEVEL="INFO"
 

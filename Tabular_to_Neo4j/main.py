@@ -68,19 +68,15 @@ def run(
         return final_state
     
     elif pipeline == "multi_table_graph":
-        from Tabular_to_Neo4j.graphs.multi_table_graph import (
-            initialize_multi_table_state, run_multi_table_pipeline
-        )
+        from Tabular_to_Neo4j.graphs.multi_table_graph import run_multi_table_pipeline
         table_folder = input_path
-        state = initialize_multi_table_state(table_folder)
         try:
-            final_state = run_multi_table_pipeline(state)
+            final_state = run_multi_table_pipeline(table_folder)
         except Exception as e:
             raise e
         return final_state
     else:
         raise ValueError(f"Unknown pipeline: {pipeline}")
-
 
 def main():
     """
