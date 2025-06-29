@@ -33,7 +33,6 @@ except Exception as e:
 
 def run(
     input_path: str,
-    output_file: str = None,
     save_node_outputs: bool = False,
     output_dir: str = "samples",
     pipeline: str = "single_table_graph",
@@ -42,7 +41,6 @@ def run(
     Run the CSV analysis and Neo4j schema inference for single-table or multi-table pipelines.
     Args:
         input_path: Path to the CSV file (single-table) or directory of CSVs (multi-table)
-        output_file: Optional path to save the results (single-table: one file, multi-table: summary)
         save_node_outputs: Whether to save the output of each node to files
         output_dir: Directory to save node outputs to (default: samples)
         pipeline: Pipeline to use: 'single_table_graph' (default) or 'multi_table_graph'
@@ -171,7 +169,6 @@ def main():
     try:
         run(
             args.input_path,
-            args.output,
             args.save_node_outputs,
             args.output_dir,
             args.pipeline,
