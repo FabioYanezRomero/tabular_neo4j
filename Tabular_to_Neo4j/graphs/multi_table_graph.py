@@ -118,8 +118,6 @@ def run_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]]
                 metadata_path = get_metadata_path_for_csv(csv_path)
                 state[table_name] = GraphState(csv_file_path=csv_path, metadata_file_path=metadata_path)
         return state
-        
-    
     
     if not output_saver:
         raise RuntimeError("OutputSaver is not initialized. All output saving must use the same timestamp for the run.")
@@ -136,19 +134,9 @@ def run_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]]
         node_order_map = {name: idx+1 for idx, (name, _) in enumerate(PIPELINE_NODES)}
         # Manually step through nodes
         current_state = table_state
-        import inspect
         for node_idx, (node_name, node_func) in enumerate(PIPELINE_NODES, 1):
             try:
-                prev_state = current_state.copy() if hasattr(current_state, 'copy') else dict(current_state)
-                # Inspect function signature to determine if 'config' should be passed
-                sig = inspect.signature(node_func)
-                if 'config' in sig.parameters:
-                    current_state = node_func(current_state, config)
-                else:
-                    current_state = node_func(current_state)
-                # Save node output
-                if output_saver:
-                    output_saver.save_node_output(node_name, current_state, node_order=node_idx, table_name=table_name)
+                current_state = node_func(current_state)
                 short_val = str(current_state)
                 if len(short_val) > 300:
                     short_val = short_val[:300] + '...'
@@ -176,6 +164,7 @@ def run_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]]
         ):
             logger.error(f"[PER_TABLE][{table_name}] Invalid state type after pipeline: {type(table_state).__name__}")
             raise TypeError(f"Table state for '{table_name}' must be a GraphState, AddableValuesDict, or MutableMapping, got {type(table_state)}")
+    
     # Cross-table phase
     import inspect
     for node_idx, (node_name, node_func) in enumerate(CROSS_TABLE_NODES, 1):
