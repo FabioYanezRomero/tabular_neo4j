@@ -36,12 +36,6 @@ class OutputSaver:
         """Get the node order index for a given node name."""
         return self.node_order_map.get(node_name, 0)
 
-    """
-    Class for saving node outputs to files in a structured, per-table (or inter_table) directory format.
-    """
-    
-    # ...existing methods...
-
     def save_llm_output_sample(
         self,
         *,
@@ -80,24 +74,6 @@ class OutputSaver:
         except Exception as e:
             logger.error(f"Failed to save LLM output for node '{node_name}': {str(e)}")
 
-    """
-    Class for saving node outputs to files in a structured, per-table (or inter-table) directory format.
-    """
-    
-    def __init__(self, base_dir: str = "samples"):
-        """
-        Initialize the OutputSaver.
-        Args:
-            base_dir: Base directory for saving outputs
-        """
-        self.base_dir = base_dir
-        self.timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.output_dir = os.path.join(self.base_dir, self.timestamp)
-        # Track previous_state per table/inter_table
-        self.previous_state = {}
-        os.makedirs(self.output_dir, exist_ok=True)
-        logger.info(f"Created output directory: {self.output_dir}")
-
     def _get_table_dir(self, table_name: str = None):
         """Return the directory for a given table or inter_table."""
         if table_name is None:
@@ -106,7 +82,7 @@ class OutputSaver:
 
     def save_node_output(self, node_name: str, state: Dict[str, Any], node_order: int = 0, table_name: str = None) -> None:
         """
-        Save the output of a node to a file, organized by table (or inter_table).
+            Save the output of a node to a file, organized by table (or inter_table).
         Args:
             node_name: Name of the node
             state: Current state of the graph
@@ -129,7 +105,7 @@ class OutputSaver:
             logger.error(f"Failed to save output of node '{node_name}': {str(e)}")
         # Update previous state for this table/inter_table
         self.previous_state[table_name] = state.copy()
-    
+
     def _extract_new_info(self, current_state: Dict[str, Any], prev_state: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Extract only the new or changed information from the current state, using table-specific previous state.

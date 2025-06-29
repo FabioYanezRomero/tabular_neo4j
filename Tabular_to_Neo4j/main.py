@@ -10,7 +10,7 @@ from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.logging_config import get_logger, setup_logging
 import sys
 
-from Tabular_to_Neo4j.utils.result_utils import save_results, display_results, validate_input_path, create_graph
+from Tabular_to_Neo4j.utils.result_utils import validate_input_path, create_graph
 from Tabular_to_Neo4j.utils.output_saver import initialize_output_saver
 from Tabular_to_Neo4j.utils.logging_config import set_log_file_path
 
@@ -34,7 +34,6 @@ except Exception as e:
 def run(
     input_path: str,
     output_file: str = None,
-    verbose: bool = False,
     save_node_outputs: bool = False,
     output_dir: str = "samples",
     pipeline: str = "single_table_graph",
@@ -44,7 +43,9 @@ def run(
     Args:
         input_path: Path to the CSV file (single-table) or directory of CSVs (multi-table)
         output_file: Optional path to save the results (single-table: one file, multi-table: summary)
-        verbose: Whether to print verbose output
+        save_node_outputs: Whether to save the output of each node to files
+        output_dir: Directory to save node outputs to (default: samples)
+        pipeline: Pipeline to use: 'single_table_graph' (default) or 'multi_table_graph'
     Returns:
         The final graph state (single-table) or MultiTableGraphState (multi-table)
     """
@@ -70,8 +71,7 @@ def run(
         from Tabular_to_Neo4j.graphs.single_table_graph import run_pipeline
         csv_file_path = input_path
         final_state = run_pipeline(graph, csv_file_path)
-        save_results(final_state, output_file)
-        display_results(final_state, verbose)
+        
         # Save the final state as metadata
         import json
         from pathlib import Path
@@ -172,7 +172,6 @@ def main():
         run(
             args.input_path,
             args.output,
-            args.verbose,
             args.save_node_outputs,
             args.output_dir,
             args.pipeline,
