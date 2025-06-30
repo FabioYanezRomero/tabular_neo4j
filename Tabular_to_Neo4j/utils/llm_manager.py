@@ -1,6 +1,6 @@
 """High-level helpers for invoking language models."""
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import os
 
 from Tabular_to_Neo4j.config.llm_providers import models
@@ -30,17 +30,11 @@ logger = get_logger(__name__)
 # Utility to get node order for consistent file prefixing, avoiding circular import
 _node_order_map_cache = None
 
-def get_node_order_for_state(state_name: str) -> int:
-    from Tabular_to_Neo4j.utils.output_saver import output_saver
-    if not output_saver:
-        raise RuntimeError("OutputSaver must be initialized before node order lookup.")
-    return output_saver.get_node_order(state_name)
-
 
 def call_llm_with_json_output(
     prompt: str,
     state_name: str = None,
-    config: dict = None,
+    config: Optional[Dict[str, Any]] = None,
     unique_suffix: str = "",
     node_order: int = 0,
     table_name: str = None,
@@ -79,7 +73,6 @@ def call_llm_with_json_output(
         # --- Save raw LLM output for traceability ---
         
         import os, json
-        from Tabular_to_Neo4j.utils.llm_manager import get_node_order_for_state
         # Save LLM output using OutputSaver's new method
         try:
             if output_saver:

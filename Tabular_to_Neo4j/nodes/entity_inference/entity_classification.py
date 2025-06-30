@@ -5,6 +5,7 @@ This module handles the first step in schema synthesis: classifying columns as e
 
 from typing import Dict, Any
 from langchain_core.runnables import RunnableConfig
+from pydantic import config
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
 from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output, get_node_order_for_state
@@ -21,13 +22,13 @@ logger = get_logger(__name__)
 
 
 def classify_entities_properties_node(
-    state: GraphState, config: RunnableConfig
+    state: GraphState, node_order: int
 ) -> GraphState:
     """First step in schema synthesis: Classify columns as entities or properties using both LLM and rule-based approaches.
 
     Args:
         state: The current graph state
-        config: LangGraph runnable configuration
+        node_order: The order of the node in the pipeline
 
     Returns:
         Updated graph state with entity_property_classification and rule_based_classification
@@ -143,8 +144,9 @@ def classify_entities_properties_node(
                     try:
                         import os
                         table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
+                        template_name = "classify_entities_properties_v3.txt"
                         prompt = format_prompt(
-                            "classify_entities_properties_v3.txt",
+                            template_name=template_name,
                             table_name=table_name,
                             column_name=column_name,
                             sample_values=sample_values_json,
@@ -192,16 +194,13 @@ def classify_entities_properties_node(
                     )
                     try:
                         # Call the LLM for classification
-                        llm_model = config['configurable'].get('llm_model', 'default')
                         node_order = get_node_order_for_state("classify_entities_properties")
                         response = call_llm_with_json_output(
-                            prompt,
+                            prompt=prompt,
                             state_name="classify_entities_properties",
-                            config=config,
-                            llm_model=llm_model,
                             unique_suffix=column_name,
                             table_name=table_name,
-                            template_name="classify_entities_properties_v3.txt",
+                            template_name=template_name,
                             node_order=node_order
                         )
                         logger.debug(

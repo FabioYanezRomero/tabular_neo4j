@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 def infer_entity_relationships_node(
-    state: GraphState, config: RunnableConfig
+    state: GraphState, node_order: int
 ) -> GraphState:
     """
     Infer relationships between entities based on property mapping and entity types.
@@ -30,7 +30,7 @@ def infer_entity_relationships_node(
 
     Args:
         state: The current graph state
-        config: LangGraph runnable configuration
+        node_order: The order of the node in the pipeline
 
     Returns:
         Updated graph state with entity_relationships
@@ -126,33 +126,9 @@ def infer_entity_relationships_node(
 
         # Only format and save the prompt if there are at least 2 entity types
         if len(entity_types) > 1:
+            
             # Extract table_name from csv_file_path if possible
-            import os
             table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
-            # Loop over all unique pairs of entity types
-            from itertools import combinations
-            prompts = []
-            for source_entity, target_entity in combinations(entity_types, 2):
-                prompt = format_prompt(
-                    "infer_entity_relationship_pair.txt",
-                    table_name=table_name,
-                    source_entity=source_entity,
-                    target_entity=target_entity,
-                    entity_property_consensus=str(state.get("entity_property_consensus", {})),
-                    property_entity_mapping=str(mapping),
-                    metadata_text=metadata_text,
-                    sample_data=sample_data,
-                )
-                prompts.append({
-                    "source_entity": source_entity,
-                    "target_entity": target_entity,
-                    "prompt": prompt
-                })
-            # For now, just use the first prompt for the LLM call (update logic as needed)
-            if prompts:
-                prompt = prompts[0]["prompt"]
-            else:
-                prompt = ""
 
             # Use a pairwise approach to infer relationships between each pair of entities
             all_relationships = []
@@ -191,11 +167,11 @@ def infer_entity_relationships_node(
                         sample_data=sample_data,
                         unique_suffix=f"{pair[0]}_{pair[1]}",
                     )
+                    
                     # Call the LLM for this specific entity pair
                     state_name = f"infer_relationship_{pair[0]}_{pair[1]}"
-                    node_order = get_node_order_for_state("infer_entity_relationships")
                     response = call_llm_with_json_output(
-                        prompt,
+                        prompt=prompt,
                         state_name=state_name,
                         unique_suffix=f"{pair[0]}_{pair[1]}",
                         table_name=table_name,

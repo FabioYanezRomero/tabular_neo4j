@@ -13,14 +13,13 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 # Configure logging
 logger = get_logger(__name__)
 
-def detect_header_heuristic_node(state: GraphState, config: RunnableConfig) -> GraphState:
+def detect_header_heuristic_node(state: GraphState, node_order: int) -> GraphState:
     """
     Apply heuristics to determine if the first row is likely a header.
     
     Args:
-        state: The current graph state
-        config: LangGraph runnable configuration
-        
+        state: The current graph state    
+        node_order: The order of the node in the pipeline
     Returns:
         Updated graph state with has_header_heuristic and potentially final_header
     """

@@ -14,13 +14,13 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 # Configure logging
 logger = get_logger(__name__)
 
-def perform_column_analytics_node(state: GraphState, config: RunnableConfig) -> GraphState:
+def perform_column_analytics_node(state: GraphState, node_order: int) -> GraphState:
     """
     Perform statistical and pattern analysis on each column.
     
     Args:
         state: The current graph state
-        config: LangGraph runnable configuration
+        node_order: The order of the node in the pipeline
         
     Returns:
         Updated graph state with column_analytics

@@ -22,13 +22,13 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphState:
+def validate_header_llm_node(state: GraphState, node_order: int) -> GraphState:
     """
     Use LLM to validate and potentially improve headers.
 
     Args:
         state: The current graph state
-        config: LangGraph runnable configuration
+        node_order: The order of the node in the pipeline
 
     Returns:
         Updated graph state with validated_header and potentially updated final_header
@@ -99,17 +99,13 @@ def validate_header_llm_node(state: GraphState, config: RunnableConfig) -> Graph
 
         # Call the LLM to validate headers
         logger.debug("Calling LLM for header validation")
-        from Tabular_to_Neo4j.utils.llm_manager import get_node_order_for_state
-        node_order = get_node_order_for_state("validate_header")
         response = call_llm_with_json_output(
             prompt,
             state_name="validate_header",
-            config=config,
             node_order=node_order,
             table_name=table_name,
             template_name="validate_header.txt"
         )
-        # config['configurable']['llm_model'] can be set per node for Ollama
         # Extract the validation results (no is_correct field as per requirements)
         validated_header = response.get("validated_header", current_header)
         suggestions = response.get("suggestions", "")

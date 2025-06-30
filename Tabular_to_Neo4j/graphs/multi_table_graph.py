@@ -129,18 +129,11 @@ def run_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]]
     # For each table, run the compiled graph node-by-node, saving state and prompts after each node
     for table_name, table_state in state.items():
         logger.info(f'[PER_TABLE][{table_name}][BEFORE_PIPELINE] Initial state type: {type(table_state).__name__}')
-        compiled_graph = graph_template.compile()
-        # Get the pipeline node order
-        node_order_map = {name: idx+1 for idx, (name, _) in enumerate(PIPELINE_NODES)}
         # Manually step through nodes
         current_state = table_state
         for node_idx, (node_name, node_func) in enumerate(PIPELINE_NODES, 1):
             try:
-                current_state = node_func(current_state)
-                short_val = str(current_state)
-                if len(short_val) > 300:
-                    short_val = short_val[:300] + '...'
-                logger.info(f'[PER_TABLE][{table_name}][NODE_EXEC][AFTER][{node_name}] Type: {type(current_state).__name__}, Value: {short_val}')
+                current_state = node_func(current_state, node_order=node_idx)
             except Exception as e:
                 logger.error(f'[PER_TABLE][{table_name}][NODE_EXEC][{node_name}] Exception: {e}, State type: {type(current_state).__name__}, State value: {current_state}')
                 raise

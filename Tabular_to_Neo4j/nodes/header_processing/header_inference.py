@@ -22,14 +22,13 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def infer_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphState:
+def infer_header_llm_node(state: GraphState, node_order: int) -> GraphState:
     """
     Use LLM to infer appropriate headers when no header is detected.
 
     Args:
         state: The current graph state
-        config: LangGraph runnable configuration
-
+        node_order: The order of the node in the pipeline
     Returns:
         Updated graph state with inferred_header and final_header
     """
@@ -69,8 +68,8 @@ def infer_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphSta
 
         # Call the LLM to infer headers
         logger.debug("Calling LLM for header inference")
-        response = call_llm_with_json_output(prompt, state_name="infer_header", config=config)
-        # config['configurable']['llm_model'] can be set per node for Ollama
+        response = call_llm_with_json_output(prompt, state_name="infer_header", table_name=table_name, template_name="infer_header.txt", node_order=node_order)
+        
         # Extract the inferred headers
         inferred_header = response
 

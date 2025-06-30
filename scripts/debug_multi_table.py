@@ -4,14 +4,26 @@ import sys
 # Adjust import paths for scripts/ directory context
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+print("PYTHONPATH:", os.environ.get("PYTHONPATH"))
+print("sys.path:", sys.path)
+
+
 from Tabular_to_Neo4j.utils.result_utils import validate_input_path
 from Tabular_to_Neo4j.utils.output_saver import initialize_output_saver
 from Tabular_to_Neo4j.graphs.multi_table_graph import run_multi_table_pipeline
 
+
+
 def debug_run_multi_table(
-    input_path: str = "../Tabular_to_Neo4j/sample_data/",  # Relative to scripts/
-    output_dir: str = "../samples"
+    input_path: str = "/app/Tabular_to_Neo4j/sample_data/csv",  # Relative to scripts/
+    output_dir: str = "/app/samples"
 ):
+
+    abs_input_path = os.path.abspath(input_path)
+    print("Absolute input_path:", abs_input_path)
+    print("Exists:", os.path.exists(abs_input_path))
+    print("Is dir:", os.path.isdir(abs_input_path))
+
     # Validate input path
     validate_input_path(input_path, pipeline="multi_table_graph")
     print(f"[DEBUG] Starting multi-table pipeline on: {input_path}")

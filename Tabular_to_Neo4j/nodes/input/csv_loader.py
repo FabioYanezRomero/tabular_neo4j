@@ -3,7 +3,7 @@ CSV loader module for the Tabular to Neo4j converter.
 This module handles loading CSV files into pandas DataFrames.
 """
 
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 import pandas as pd
 from langchain_core.runnables import RunnableConfig
 from Tabular_to_Neo4j.app_state import GraphState
@@ -13,14 +13,13 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 # Configure logging
 logger = get_logger(__name__)
 
-def load_csv_node(state: GraphState, config: RunnableConfig) -> GraphState:
+def load_csv_node(state: GraphState, node_order: int) -> GraphState:
     """
     Load a CSV file into a pandas DataFrame without assuming headers.
     
     Args:
         state: The current graph state
-        config: LangGraph runnable configuration
-        
+        node_order: The order of the node in the pipeline
     Returns:
         Updated graph state with raw_dataframe and potential header
     """

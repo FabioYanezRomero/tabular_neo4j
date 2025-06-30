@@ -17,21 +17,20 @@ from Tabular_to_Neo4j.utils.metadata_utils import (
 from Tabular_to_Neo4j.utils.csv_utils import get_sample_rows
 from Tabular_to_Neo4j.utils.analytics_utils import analyze_column
 from Tabular_to_Neo4j.config import MAX_SAMPLE_ROWS
-from Tabular_to_Neo4j.utils.llm_manager import get_node_order_for_state
 
 # Configure logging
 logger = get_logger(__name__)
 
 
 def map_properties_to_entities_node(
-    state: GraphState, config: RunnableConfig
+    state: GraphState, node_order: int
 ) -> GraphState:
     """
     Map properties to their respective entities and create a clear property-entity mapping.
 
     Args:
         state: The current graph state
-        config: LangGraph runnable configuration
+        node_order: The order of the node in the pipeline
 
     Returns:
         Updated graph state with property_entity_mapping
@@ -105,17 +104,8 @@ def map_properties_to_entities_node(
             property_entity_mapping[entity] = {
                 "type": "entity",
                 "properties": [],
-                "is_primary": entity == main_entity,  # Mark the first entity as primary
             }
             logger.info(f"Added entity '{entity}' to mapping")
-
-        # Add all properties to the main entity
-        for prop in properties:
-            property_key = to_neo4j_property_name(prop)
-            property_entity_mapping[main_entity]["properties"].append(
-                {"column_name": prop, "property_key": property_key}
-            )
-            logger.info(f"Mapped property '{prop}' to entity '{main_entity}'")
 
         # Prepare prompt for LLM call
         sample_data = ""
@@ -159,6 +149,7 @@ def map_properties_to_entities_node(
                     except Exception as e:
                         logger.warning(f"Error analyzing column '{prop}': {str(e)}")
                         analytics = ""
+            
             prompt = format_prompt(
                 template_name="map_properties_to_entity.txt",
                 table_name=table_name,
@@ -170,21 +161,21 @@ def map_properties_to_entities_node(
                 entities=entities_str,
                 sample_values=sample_values,
                 analytics=analytics,
-                state_name="map_properties_to_entity",
                 unique_suffix=prop,
             )
             # Call the LLM for property-entity mapping
             logger.info("Calling LLM to map properties to entities")
-            node_order = get_node_order_for_state("map_properties_to_entity")
             response = call_llm_with_json_output(
-                prompt,
+                prompt=prompt,
                 state_name="map_properties_to_entity",
-                config=config,
                 unique_suffix=prop,
                 table_name=table_name,
                 template_name="map_properties_to_entity.txt",
                 node_order=node_order
             )
+            
+            if response:
+                property_entity_mapping[entity]["properties"].append(response)
 
         # Update the state with the final mapping
         state["property_entity_mapping"] = property_entity_mapping

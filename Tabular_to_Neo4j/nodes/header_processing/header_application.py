@@ -12,13 +12,13 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 # Configure logging
 logger = get_logger(__name__)
 
-def apply_header_node(state: GraphState, config: RunnableConfig) -> GraphState:
+def apply_header_node(state: GraphState, node_order: int) -> GraphState:
     """
     Apply the final headers to the DataFrame.
     
     Args:
         state: The current graph state
-        config: LangGraph runnable configuration
+        node_order: The order of the node in the pipeline
         
     Returns:
         Updated graph state with processed_dataframe

@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 def reconcile_entity_property_node(
-    state: GraphState, config: RunnableConfig
+    state: GraphState, node_order: int
 ) -> GraphState:
     """
     Reconcile analytics-based and LLM-based classifications
@@ -23,7 +23,7 @@ def reconcile_entity_property_node(
 
     Args:
         state: The current graph state
-        config: LangGraph runnable configuration
+        node_order: The order of the node in the pipeline
 
     Returns:
         Updated graph state with entity_property_consensus
@@ -87,11 +87,9 @@ def reconcile_entity_property_node(
                     # Force classification as property for specific data types
                     if data_type in ["date", "datetime", "float", "integer"]:
                         classification = "property"
-                        confidence = 1.0
                     # Check for email pattern
                     elif "email" in patterns and patterns["email"] > 0.5:
                         classification = "property"
-                        confidence = 1.0
                     # Check for numeric patterns
                     elif (
                         any(
@@ -112,25 +110,20 @@ def reconcile_entity_property_node(
                         > 0.5
                     ):
                         classification = "property"
-                        confidence = 1.0
                     # Apply standard rules
                     elif uniqueness > UNIQUENESS_THRESHOLD:
                         classification = "entity"
-                        confidence = 0.8
                     elif (
                         cardinality < len(state.get("processed_dataframe", [])) * 0.1
                         and cardinality > 1
                     ):
                         classification = "entity"
-                        confidence = 0.7
                     else:
                         classification = "property"
-                        confidence = 0.6
 
                     rule_based_classification[column_name] = {
                         "column_name": column_name,
                         "classification": classification,
-                        "confidence": confidence,
                         "analytics": analytics_data,
                         "source": "rule_based",
                     }
@@ -201,12 +194,9 @@ def reconcile_entity_property_node(
 
             # Call the LLM with the prompt and update llm_info
             try:
-                from Tabular_to_Neo4j.utils.llm_manager import get_node_order_for_state
-                node_order = get_node_order_for_state("reconcile_entity_property")
                 llm_result = call_llm_with_json_output(
-                    prompt,
+                    prompt=prompt,
                     state_name="reconcile_entity_property",
-                    config=config,
                     unique_suffix=column_name,
                     table_name=table_name,
                     template_name="reconcile_entity_property.txt",

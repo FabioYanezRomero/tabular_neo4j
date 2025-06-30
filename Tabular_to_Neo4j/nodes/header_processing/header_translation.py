@@ -20,14 +20,14 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> GraphState:
+def translate_header_llm_node(state: GraphState, node_order: int) -> GraphState:
     """
     Use LLM to translate headers to match the metadata language.
     This node is only called if the detect_header_language_node determined translation is needed.
 
     Args:
         state: The current graph state
-        config: LangGraph runnable configuration
+        node_order: The order of the node in the pipeline
 
     Returns:
         Updated graph state with translated_header and potentially updated final_header
@@ -64,9 +64,10 @@ def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> Grap
         # Extract table_name from csv_file_path if possible
         import os
         table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
+        template_name = "translate_header.txt"
         # Format the prompt with the header, language information, and metadata
         prompt = format_prompt(
-            "translate_header.txt",
+            template_name=template_name,
             table_name=table_name,
             subfolder="header_translation",
             file_name=file_name,
@@ -80,8 +81,10 @@ def translate_header_llm_node(state: GraphState, config: RunnableConfig) -> Grap
         logger.debug("Calling LLM for header translation")
         response = call_llm_with_json_output(
             prompt,
+            table_name=table_name,
+            template_name=template_name,
             state_name="translate_header",
-            config=config,
+            node_order=node_order,
             is_translation=True,
         )
 

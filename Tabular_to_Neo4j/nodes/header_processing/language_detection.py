@@ -4,11 +4,9 @@ This module handles detecting the language of headers and metadata.
 """
 
 import os
-from typing import Dict, Any, List, Tuple
-import pandas as pd
-from langchain_core.runnables import RunnableConfig
+from typing import Tuple
 from Tabular_to_Neo4j.app_state import GraphState
-from Tabular_to_Neo4j.utils.language_utils import verify_header_language, detect_language, normalize_language_name, are_languages_matching
+from Tabular_to_Neo4j.utils.language_utils import detect_language, normalize_language_name, are_languages_matching
 from Tabular_to_Neo4j.utils.metadata_utils import load_metadata_for_csv
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
@@ -55,14 +53,14 @@ def get_metadata_language(state: GraphState) -> Tuple[str, float]:
         # Default to English if detection fails
         return "en", 0.5
 
-def detect_header_language_node(state: GraphState, config: RunnableConfig) -> GraphState:
+def detect_header_language_node(state: GraphState, node_order: int) -> GraphState:
     """
     Detect the language of headers and determine if translation is needed.
     This node checks if the header language matches the metadata language from the metadata file.
     
     Args:
         state: The current graph state
-        config: LangGraph runnable configuration
+        node_order: The order of the node in the pipeline
         
     Returns:
         Updated graph state with language detection results
