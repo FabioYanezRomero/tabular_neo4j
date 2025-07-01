@@ -78,6 +78,8 @@ def semantic_embedding_node(state: MultiTableGraphState, node_order: int) -> Mul
         model_name = node_config.get("model_name")  # fallback, could add LMStudio logic here
     load_model_in_ollama(model_name)
     all_columns_embeddings = {}
+    import logging
+    logger = logging.getLogger(__name__)
     try:
         for table_name, table_state in state.items():
             contextualizations = table_state.get("columns_contextualization", [])
@@ -111,9 +113,10 @@ def semantic_embedding_node(state: MultiTableGraphState, node_order: int) -> Mul
                             similarity_matrix[pair_key] = similarity
         # Store similarity_matrix in a special table-level GraphState, or as an attribute on each table if appropriate
         # Here, we add it to each table's GraphState as a new key
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info('[semantic_embedding_node][BEFORE] Table states: ' + str({k: type(v).__name__ for k,v in state.items()}))
+    except Exception as e:
+        logger.warning(f"semantic_embedding_node encountered an error in embedding or similarity computation: {e}")
+
+    logger.info('[semantic_embedding_node][BEFORE] Table states: ' + str({k: type(v).__name__ for k,v in state.items()}))
     try:
         for table_name, table_state in state.items():
             if not isinstance(table_state, GraphState):
