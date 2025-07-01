@@ -29,52 +29,53 @@ def generate_text_sequence(column_meta: Dict[str, Any]) -> str:
         if cardinality_type == 'low':
             values = ', '.join(str(v) for v in sampled_values)
             ratio_str = f" ({uniqueness_ratio:.1%} unique)" if uniqueness_ratio is not None else ""
-            return f"{column_name} ({unique_count} uniques{ratio_str}): {values}"
+            return f"{column_name} ({unique_count} uniques{ratio_str}, type: {data_type}): {values}"
         else:
             modes = ', '.join(str(m) for m in mode_values)
             ratio_str = f" ({uniqueness_ratio:.1%} unique)" if uniqueness_ratio is not None else ""
-            return f"{column_name} ({unique_count} uniques{ratio_str}): {modes}"
+            return f"{column_name} ({unique_count} uniques{ratio_str}, type: {data_type}): {modes}"
 
     # Numerical columns
     if data_type in ['integer', 'float']:
         quant_str = f", Q1: {quantiles.get(0.25, '')}, Median: {quantiles.get(0.5, '')}, Q3: {quantiles.get(0.75, '')}" if quantiles else ''
         ratio_str = f" ({uniqueness_ratio:.1%} unique)" if uniqueness_ratio is not None else ""
+        modes = ', '.join(str(m) for m in mode_values)
         if cardinality_type == 'high':
-            return f"{column_name} ({unique_count} uniques{ratio_str}, min: {min_v}, max: {max_v}, μ: {avg}{quant_str}, {desc})"
+            return f"{column_name} ({unique_count} uniques{ratio_str}, type: {data_type}, min: {min_v}, max: {max_v}, μ: {avg}{quant_str}, samples: [{modes}])"
         else:
-            modes = ', '.join(str(m) for m in mode_values)
-            return f"{column_name} ({unique_count} uniques{ratio_str}, min: {min_v}, max: {max_v}, μ: {avg}{quant_str}): {modes}"
+            return f"{column_name} ({unique_count} uniques{ratio_str}, type: {data_type}, min: {min_v}, max: {max_v}, μ: {avg}{quant_str}, samples: [{modes}])"
     # Temporal columns
     if data_type in ['date', 'datetime']:
         ratio_str = f" ({uniqueness_ratio:.1%} unique)" if uniqueness_ratio is not None else ""
-        return f"{column_name} ({unique_count} uniques{ratio_str}, start: {min_v}, end: {max_v})"
+        return f"{column_name} ({unique_count} uniques{ratio_str}, type: {data_type}, start: {min_v}, end: {max_v}), samples: {mode_values}"
     
     # Categorical columns
     if data_type == 'categorical':
         ratio_str = f" ({uniqueness_ratio:.1%} unique)" if uniqueness_ratio is not None else ""
         if cardinality_type == 'low':
             values = ', '.join(str(v) for v in sampled_values)
-            return f"{column_name} ({unique_count} uniques{ratio_str}): {values}"
+            return f"{column_name} ({unique_count} uniques{ratio_str}, type: {data_type}): {values}"
         else:
             modes = ', '.join(str(m) for m in mode_values)
-            return f"{column_name} ({unique_count} unique{ratio_str}): {modes}"
+            return f"{column_name} ({unique_count} unique{ratio_str}, type: {data_type}): {modes}"
     
     # Text/multi-value columns
     if data_type == 'string':
         ratio_str = f" ({uniqueness_ratio:.1%} unique)" if uniqueness_ratio is not None else ""
         if cardinality_type == 'high':
-            return f"{column_name} ({unique_count} unique{ratio_str} text format, samples: {mode_values})"
+            return f"{column_name} ({unique_count} unique{ratio_str}, type: {data_type}, samples: {mode_values})"
         elif cardinality_type == 'medium':
             modes = ', '.join(str(m) for m in mode_values)
-            return f"{column_name} ({unique_count} unique{ratio_str} text format, samples: {mode_values})"
+            return f"{column_name} ({unique_count} unique{ratio_str}, type: {data_type}, samples: {mode_values})"
         else:
             # If sampled_values is empty, use mode_values instead
             values = ', '.join(str(v) for v in (sampled_values if sampled_values else mode_values))
-            return f"{column_name}{ratio_str}: {values}"
+            return f"{column_name} ({unique_count} unique{ratio_str}, type: {data_type}): {values}"
     # Fallback: use sampled values if available
     if sampled_values:
+        ratio_str = f" ({uniqueness_ratio:.1%} unique)" if uniqueness_ratio is not None else ""
         values = ', '.join(str(v) for v in sampled_values)
-        return f"{column_name}: {values}"
+        return f"{column_name} ({unique_count} unique{ratio_str}, type: {data_type}): {values}"
     # As last resort, just column name
     return column_name
 
@@ -120,9 +121,11 @@ def columns_contextualization_node(state: "MultiTableGraphState", node_order: in
                 "sample_values": analytics_meta.get("sample_values"),
                 "min_value": analytics_meta.get("min_value"),
                 "max_value": analytics_meta.get("max_value"),
+                "avg_value": analytics_meta.get("avg_value"),
                 "null_percentage": analytics_meta.get("missing_percentage"),
                 "cardinality_type": analytics_meta.get("cardinality_type"),
                 "uniqueness_ratio": analytics_meta.get("uniqueness_ratio", 0.0),
+                "quantiles": analytics_meta.get("quantiles", {}),
             }
             contextualized.append({
                 "table": table_name,
@@ -130,6 +133,18 @@ def columns_contextualization_node(state: "MultiTableGraphState", node_order: in
                 "contextualization": generate_text_sequence(column_metadata)
             })
         table_state['columns_contextualization'] = contextualized
+        # Save contextualization output for this table
+        try:
+            from Tabular_to_Neo4j.utils.output_saver import output_saver
+            if output_saver:
+                output_saver.save_node_output(
+                    node_name="columns_contextualization_node",
+                    state={"columns_contextualization": contextualized},
+                    node_order=node_order,
+                    table_name=table_name
+                )
+        except Exception as e:
+            logger.warning(f"Could not save columns_contextualization for table '{table_name}': {e}")
     # Ensure every table state is a GraphState before returning
     for table_name, table_state in state.items():
         assert isinstance(table_state, GraphState), f"columns_contextualization_node: State for '{table_name}' is not a GraphState, got {type(table_state)}"

@@ -222,11 +222,13 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
 
     # Numerical columns
     if data_type in ['integer', 'float']:
+        # Coerce to numeric in case column contains integer-like strings
+        numeric_col = pd.to_numeric(column, errors='coerce')
         try:
-            min_value = float(column.min()) if not column.dropna().empty else ''
-            max_value = float(column.max()) if not column.dropna().empty else ''
-            avg_value = float(column.mean()) if not column.dropna().empty else ''
-            quantiles = column.quantile([0.25, 0.5, 0.75]).to_dict() if not column.dropna().empty else {}
+            min_value = float(numeric_col.min()) if not numeric_col.dropna().empty else ''
+            max_value = float(numeric_col.max()) if not numeric_col.dropna().empty else ''
+            avg_value = float(numeric_col.mean()) if not numeric_col.dropna().empty else ''
+            quantiles = numeric_col.quantile([0.25, 0.5, 0.75]).to_dict() if not numeric_col.dropna().empty else {}
         except Exception:
             min_value = max_value = avg_value = ''
             quantiles = {}
