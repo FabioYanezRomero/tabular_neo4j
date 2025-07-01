@@ -68,6 +68,8 @@ class OutputSaver:
         file_name = file_name.replace(" ", "_").replace("/", "-")
         output_file = os.path.join(llm_outputs_dir, file_name)
         try:
+            # Attempt to repair embedded JSON if needed
+            output = self.clean_embedded_json(output, ["response", "raw_response"])
             with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(self._make_serializable(output), f, indent=2)
             logger.info(f"Saved LLM output for node '{node_name}' (order: {node_order}, suffix: '{unique_suffix}') to {output_file}")
@@ -194,6 +196,8 @@ class OutputSaver:
             }
         elif isinstance(obj, (np.integer, np.floating)):
             return obj.item()
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
         elif isinstance(obj, (int, float, str, bool, type(None))):
             return obj
         else:
@@ -202,6 +206,51 @@ class OutputSaver:
                 return str(obj)
             except:
                 return f"<Unserializable object of type {type(obj).__name__}>"
+
+    @staticmethod
+    def clean_embedded_json(json_obj, key_path):
+        """
+        Cleans and parses an embedded JSON string at the specified key path.
+        If the value at the path is a string containing malformed JSON (e.g., missing closing brackets),
+        attempts to repair and parse it, replacing the value with the parsed object if successful.
+        """
+        import json
+        import logging
+        # Traverse to the target field
+        target = json_obj
+        for key in key_path[:-1]:
+            target = target.get(key, {})
+        last_key = key_path[-1]
+
+        raw_json_str = target.get(last_key)
+        if not isinstance(raw_json_str, str):
+            return json_obj  # Nothing to do
+
+        # Try to parse as is
+        try:
+            parsed = json.loads(raw_json_str)
+            target[last_key] = parsed
+            return json_obj
+        except json.JSONDecodeError:
+            # Try to fix common issues (e.g., missing closing brackets)
+            fixed_str = raw_json_str
+            # Count brackets to guess what's missing
+            open_curly = fixed_str.count('{')
+            close_curly = fixed_str.count('}')
+            open_square = fixed_str.count('[')
+            close_square = fixed_str.count(']')
+            # Add missing closing brackets if needed
+            if open_square > close_square:
+                fixed_str += ']' * (open_square - close_square)
+            if open_curly > close_curly:
+                fixed_str += '}' * (open_curly - close_curly)
+            try:
+                parsed = json.loads(fixed_str)
+                target[last_key] = parsed
+            except json.JSONDecodeError as e:
+                logging.warning(f"Could not fix embedded JSON: {e}")
+                # If still fails, leave as is or handle as needed
+            return json_obj
 
 # Global instance for use across the application
 output_saver = None

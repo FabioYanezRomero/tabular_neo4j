@@ -161,97 +161,6 @@ def calculate_value_length_stats(column: pd.Series) -> Dict[str, float]:
         # Return default values if calculation fails
         return {'min': 0, 'max': 0, 'mean': 0, 'median': 0, 'std': 0}
 
-def detect_patterns(column: pd.Series) -> Dict[str, float]:
-    """
-    Detect common patterns in the column values that might indicate specific property types.
-    
-    Args:
-        column: Pandas Series representing a column
-        
-    Returns:
-        Dictionary with pattern match ratios
-    """
-    clean_column = column.dropna().astype(str)
-    if len(clean_column) == 0:
-        return {}
-    
-    # Sample values to avoid processing too many rows
-    sample_size = min(1000, len(clean_column))
-    sample = clean_column.sample(sample_size) if len(clean_column) > sample_size else clean_column
-    
-    # Define patterns with more comprehensive regex for better matching
-    patterns = {
-        # Email patterns - more flexible to catch various formats
-        'email': r'(?i)[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}',
-        
-        # Phone number patterns - international and domestic formats
-        'phone': r'(?:\+\d{1,3}[\s-]?)?(?:\(\d{1,4}\)[\s-]?)?\d{1,4}[\s-]?\d{1,4}[\s-]?\d{1,9}',
-        
-        # URL patterns
-        'url': r'(?i)(?:https?:\/\/)?(?:www\.)?[\w\.-]+\.[a-z]{2,}(?:\/[\w\.-]*)*\/?',
-        
-        # IP address patterns
-        'ip_address': r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}',
-        
-        # Postal/ZIP code patterns for various countries
-        'postal_code': r'(?:\d{5}(?:-\d{4})?)|(?:[A-Z]\d[A-Z]\s?\d[A-Z]\d)|(?:[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})',
-        
-        # Credit card patterns
-        'credit_card': r'(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})',
-        
-        # ID patterns
-        'alphanumeric_id': r'^[A-Za-z0-9][A-Za-z0-9_-]{2,}$',
-        'numeric_id': r'^\d+$',
-        
-        # Currency patterns
-        'currency': r'(?:^\$|€|£|¥)\s?[\d,.]+|[\d,.]+\s?(?:\$|€|£|¥)$',
-        
-        # Percentage patterns
-        'percentage': r'\d+(?:\.\d+)?\s?%',
-        
-        # Social security number (US)
-        'ssn': r'\d{3}[-\s]?\d{2}[-\s]?\d{4}',
-        
-        # Date-like patterns (not caught by data type detection)
-        'date_like': r'\d{1,4}[-\/]\d{1,2}[-\/]\d{1,4}'
-    }
-    
-    # Check column name for hints about its content
-    column_name = str(column.name).lower() if column.name else ''
-    name_hints = {
-        'email': ['email', 'e-mail', 'mail'],
-        'phone': ['phone', 'tel', 'telephone', 'mobile', 'cell'],
-        'url': ['url', 'website', 'web', 'site', 'link'],
-        'postal_code': ['zip', 'postal', 'post code', 'postcode'],
-        'credit_card': ['card', 'credit', 'cc', 'creditcard'],
-        'currency': ['price', 'cost', 'amount', 'payment', 'salary', 'income', 'expense'],
-        'percentage': ['percent', 'rate', 'ratio', '%'],
-        'ssn': ['ssn', 'social security', 'social']
-    }
-    
-    results = {}
-    
-    # First check for patterns in the data
-    for pattern_name, regex in patterns.items():
-        # Use partial match for more flexible pattern detection
-        match_count = sum(1 for val in sample if re.search(regex, val))
-        match_ratio = match_count / len(sample)
-        
-        # Lower threshold for pattern detection
-        if match_ratio > 0.3:  # Include patterns with at least 30% match
-            results[pattern_name] = match_ratio
-    
-    # Then boost confidence based on column name hints
-    for hint_type, hint_words in name_hints.items():
-        if any(hint in column_name for hint in hint_words):
-            if hint_type in results:
-                # Boost existing pattern match
-                results[hint_type] = min(1.0, results[hint_type] + 0.3)
-            else:
-                # Add pattern based on column name with medium confidence
-                results[hint_type] = 0.5
-    
-    return results
 
 def analyze_value_distribution(column: pd.Series) -> Dict[str, Any]:
     """
@@ -291,12 +200,11 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
     Returns:
         Dictionary with analysis results
     """
-    uniqueness = calculate_uniqueness_ratio(column)
+    uniqueness_ratio = calculate_uniqueness_ratio(column)
     cardinality = calculate_cardinality(column)
     data_type = detect_data_type(column)
     missing_percentage = calculate_missing_percentage(column)
     value_lengths = calculate_value_length_stats(column)
-    patterns = detect_patterns(column)
     distribution = analyze_value_distribution(column)
     total_count = len(column)
     mode_series = column.mode(dropna=True)
@@ -305,7 +213,12 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
     quantiles = {}
     sampled_values = []
     contextual_description = ''
-    cardinality_type = 'low' if cardinality < 100 else ('medium' if cardinality < 10000 else 'high')
+    if uniqueness_ratio < 0.05:
+        cardinality_type = 'low'
+    elif uniqueness_ratio < 0.5:
+        cardinality_type = 'medium'
+    else:
+        cardinality_type = 'high'
 
     # Numerical columns
     if data_type in ['integer', 'float']:
@@ -353,10 +266,12 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
             min_value = max_value = ''
         contextual_description = f"start: {min_value}, end: {max_value}"
         sampled_values = mode_values[:3]
+    
     # Categorical columns
     elif data_type == 'categorical':
         sampled_values = mode_values[:5] if cardinality < 100 else mode_values[:3]
         contextual_description = f"{cardinality} unique"
+    
     # Text/multi-value columns
     elif data_type == 'string':
         if cardinality > 10000:
@@ -385,12 +300,12 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
 
     analysis = {
         'column_name': column.name,
-        'uniqueness': uniqueness,
+        'original_column_name': column.name,
+        'uniqueness_ratio': uniqueness_ratio,
         'cardinality': cardinality,
         'data_type': data_type,
         'missing_percentage': missing_percentage,
         'value_lengths': value_lengths,
-        'patterns': patterns,
         'distribution': distribution,
         'total_count': total_count,
         'mode_values': mode_values,
@@ -406,19 +321,25 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
     return analysis
 
 
-def analyze_all_columns(df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
+def analyze_all_columns(df: pd.DataFrame, llm_to_original: dict = None) -> Dict[str, Dict[str, Any]]:
     """
-    Analyze all columns in a DataFrame.
-    
+    Analyze all columns in a DataFrame, optionally referencing original column names.
     Args:
         df: Pandas DataFrame
-        
+        llm_to_original: Optional dict mapping LLM-inferred column names to original names
     Returns:
-        Dictionary mapping column names to their analysis results
+        Dictionary mapping LLM-inferred column names to their analysis results (with both names)
     """
     results = {}
-    
     for column_name in df.columns:
-        results[column_name] = analyze_column(df[column_name])
-    
+        original_name = llm_to_original[column_name] if llm_to_original and column_name in llm_to_original else column_name
+        # Run analytics on the original column if available, else fallback
+        if original_name in df.columns:
+            col_series = df[original_name]
+        else:
+            col_series = df[column_name]
+        analysis = analyze_column(col_series)
+        analysis['column_name'] = column_name
+        analysis['original_column_name'] = original_name
+        results[column_name] = analysis
     return results

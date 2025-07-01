@@ -86,6 +86,11 @@ def infer_header_llm_node(state: GraphState, node_order: int) -> GraphState:
             state["error_messages"].append(error_msg)
             return state
 
+        # Save mapping from LLM-inferred headers to original headers
+        original_header = list(df.columns)
+        llm_to_original = {llm: orig for llm, orig in zip(inferred_header, original_header)}
+        state["llm_to_original"] = llm_to_original
+
         # Update the state with the inferred headers
         logger.info(f"Successfully inferred headers: {inferred_header}")
         state["inferred_header"] = inferred_header

@@ -28,10 +28,10 @@ You are an expert in semantic relationship analysis for tabular data. Your task 
 
 ### Output Format
 ```json
-{
+{{
     "has_relationship": true/false,
     "relationship_type": "foreign_key",
     "direction_cardinality": "column1_to_column2 (1:N)",
     "reasoning": "Context1 shows PK with 100% uniqueness; Context2 has 75% duplicates matching Context1 values. High similarity (0.89) confirms semantic alignment."
-}
+}}
 ```

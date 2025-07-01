@@ -123,7 +123,6 @@ def run_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]]
         raise RuntimeError("OutputSaver is not initialized. All output saving must use the same timestamp for the run.")
 
     # Per-table phase (use the StateGraph abstraction for each table)
-    graph_template = create_multi_table_graph()
     state = initialize_multi_table_state(table_folder)
 
     # For each table, run the compiled graph node-by-node, saving state and prompts after each node
@@ -159,14 +158,10 @@ def run_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]]
             raise TypeError(f"Table state for '{table_name}' must be a GraphState, AddableValuesDict, or MutableMapping, got {type(table_state)}")
     
     # Cross-table phase
-    import inspect
     for node_idx, (node_name, node_func) in enumerate(CROSS_TABLE_NODES, 1):
         logger.info(f'[CROSS_TABLE][{node_name}][BEFORE] Table states: ' + str({k: type(v).__name__ for k, v in state.items()}))
-        sig = inspect.signature(node_func)
-        if 'config' in sig.parameters:
-            state = node_func(state, config)
-        else:
-            state = node_func(state)
+        real_idx = node_idx + len(PIPELINE_NODES)
+        state = node_func(state, node_order=real_idx)
         # Save cross-table node output
         if output_saver:
             output_saver.save_node_output(node_name, state, node_order=node_idx, table_name="inter_table")

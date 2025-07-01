@@ -1,5 +1,6 @@
 import sys
 import os
+import logging
 
 # Ensure only /app (project root) is in sys.path for package imports
 project_root = os.path.abspath(os.path.dirname(__file__))
@@ -25,7 +26,12 @@ from Tabular_to_Neo4j.graphs.multi_table_graph import run_multi_table_pipeline
 # Now run your pipeline
 def debug_run_multi_table(
     input_path: str = "/app/Tabular_to_Neo4j/sample_data/csv",  # Now relative to /app
+    debug: bool = False,
 ):
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
     validate_input_path(input_path, pipeline="multi_table_graph")
     print(f"[DEBUG] Starting multi-table pipeline on: {input_path}")
 

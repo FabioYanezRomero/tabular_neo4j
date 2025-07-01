@@ -62,7 +62,7 @@ def translate_header_llm_node(state: GraphState, node_order: int) -> GraphState:
 
         # Extract table_name before formatting prompt
         # Extract table_name from csv_file_path if possible
-        import os
+
         table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "")))[0]
         template_name = "translate_header.txt"
         # Format the prompt with the header, language information, and metadata

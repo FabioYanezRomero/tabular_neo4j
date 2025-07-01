@@ -41,6 +41,12 @@ def map_properties_to_entities_node(
     if "error_messages" not in state:
         state["error_messages"] = []
 
+    # Log DataFrame columns, final header, and consensus keys for debugging
+    if state.get("processed_dataframe") is not None:
+        print("[DEBUG] map_properties_to_entities_node: DataFrame columns:", state["processed_dataframe"].columns.tolist())
+    print("[DEBUG] map_properties_to_entities_node: final_header:", state.get("final_header"))
+    print("[DEBUG] map_properties_to_entities_node: entity_property_consensus keys:", list(state.get("entity_property_consensus", {}).keys()))
+
     try:
         # Get the reconciled entity-property classification
         classification = state.get("entity_property_consensus", {})
@@ -83,6 +89,7 @@ def map_properties_to_entities_node(
 
         # If no entities or properties, return the state unchanged
         if not entities:
+            print("")
             logger.warning("No entities found, skipping property mapping")
             # Defensive: Always return a GraphState, never a dict
             if not isinstance(state, GraphState):

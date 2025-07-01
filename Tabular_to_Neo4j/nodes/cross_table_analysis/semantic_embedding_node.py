@@ -18,6 +18,8 @@ from Tabular_to_Neo4j.app_state import MultiTableGraphState
 from Tabular_to_Neo4j.app_state import GraphState
 import os
 import requests
+from Tabular_to_Neo4j.config.settings import LLM_CONFIGS, DEFAULT_LLM_PROVIDER
+
 
 def cosine_similarity(vec1, vec2):
     vec1 = np.array(vec1)
@@ -48,13 +50,13 @@ def call_ollama_embed_api(text: str, model: str = DEFAULT_OLLAMA_MODEL, url: str
         raise RuntimeError(f"Ollama embedding API call failed: {e}")
 
 
-def embed_text(text: str, model: str = DEFAULT_OLLAMA_MODEL) -> List[float]:
+def embed_text(text: str, model: str) -> List[float]:
     return call_ollama_embed_api(text, model)
 
 
 from Tabular_to_Neo4j.utils.ollama_api import load_model_in_ollama, unload_model_from_ollama
 
-def semantic_embedding_node(state: MultiTableGraphState, config: Optional[Dict[str, Any]] = None) -> MultiTableGraphState:
+def semantic_embedding_node(state: MultiTableGraphState, node_order: int) -> MultiTableGraphState:
     """
     For each table and column, generate semantic embeddings for contextualized column descriptions.
     Stores results as a matrix per table: state[table]["column_embeddings"] = {
@@ -62,10 +64,20 @@ def semantic_embedding_node(state: MultiTableGraphState, config: Optional[Dict[s
         "embeddings": np.ndarray (shape: n_columns x embedding_dim)
     }
     Loads and unloads the Ollama model before and after embedding to manage GPU memory.
+
+    Args:
+        state: The current graph state
+        node_order: The order of the node in the pipeline
     """
-    model = (config or {}).__getitem__("embedding_model") if (config and "embedding_model" in config) else DEFAULT_OLLAMA_MODEL
+    node_config = LLM_CONFIGS.get("semantic_embedding_node", {}).copy()
+    provider = node_config.get("provider", DEFAULT_LLM_PROVIDER)
+    # Pick model_name for the right provider (Ollama vs LMStudio)
+    if provider == "ollama":
+        model_name = node_config.get("model_name")
+    else:
+        model_name = node_config.get("model_name")  # fallback, could add LMStudio logic here
+    load_model_in_ollama(model_name)
     all_columns_embeddings = {}
-    load_model_in_ollama(model)
     try:
         for table_name, table_state in state.items():
             contextualizations = table_state.get("columns_contextualization", [])
@@ -73,7 +85,7 @@ def semantic_embedding_node(state: MultiTableGraphState, config: Optional[Dict[s
             texts = [c["contextualization"] for c in contextualizations]
             if not columns:
                 continue
-            embeddings = [embed_text(text, model) for text in texts]
+            embeddings = [embed_text(text, model_name) for text in texts]
             all_columns_embeddings[table_name] = {
                 "columns": columns,
                 "embeddings": embeddings,
@@ -112,6 +124,8 @@ def semantic_embedding_node(state: MultiTableGraphState, config: Optional[Dict[s
         for table_name, table_state in state.items():
             assert isinstance(table_state, GraphState), f"semantic_embedding_node: State for '{table_name}' is not a GraphState, got {type(table_state)}"
         logger.info('[semantic_embedding_node][AFTER] Table states: ' + str({k: type(v).__name__ for k,v in state.items()}))
-    finally:
-        unload_model_from_ollama(model)
+        
+    except:
+        pass
+
     return state

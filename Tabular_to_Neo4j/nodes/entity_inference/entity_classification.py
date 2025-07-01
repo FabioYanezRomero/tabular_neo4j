@@ -5,10 +5,11 @@ This module handles the first step in schema synthesis: classifying columns as e
 
 from typing import Dict, Any
 from langchain_core.runnables import RunnableConfig
+from langgraph.graph import state
 from pydantic import config
 from Tabular_to_Neo4j.app_state import GraphState
 from Tabular_to_Neo4j.utils.prompt_utils import format_prompt
-from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output, get_node_order_for_state
+from Tabular_to_Neo4j.utils.llm_manager import call_llm_with_json_output
 from Tabular_to_Neo4j.utils.metadata_utils import (
     get_metadata_for_state,
     format_metadata_for_prompt,
@@ -46,6 +47,7 @@ def classify_entities_properties_node(
         # Ensure the returned state is always a GraphState instance
         if not isinstance(state, GraphState):
             state = GraphState.from_dict(dict(state))
+        print("[DEBUG] classify_entities_properties_node: entity_property_classification keys:", list(state.get("entity_property_classification", {}).keys()))
         return state
 
     try:
@@ -81,7 +83,7 @@ def classify_entities_properties_node(
                         continue
 
                     # Log key analytics for debugging
-                    uniqueness = analytics.get("uniqueness", 0)
+                    uniqueness = analytics.get("uniqueness_ratio", 0)
                     null_percentage = analytics.get("null_percentage", 0)
                     logger.debug(
                         f"Column '{column_name}' analytics: uniqueness={uniqueness:.2f}, null_percentage={null_percentage:.2f}"
@@ -150,7 +152,7 @@ def classify_entities_properties_node(
                             table_name=table_name,
                             column_name=column_name,
                             sample_values=sample_values_json,
-                            uniqueness_ratio=analytics.get("uniqueness", 0),
+                            uniqueness_ratio=analytics.get("uniqueness_ratio", 0),
                             cardinality=analytics.get("cardinality", 0),
                             data_type=analytics.get("data_type", "unknown"),
                             missing_percentage=analytics.get("null_percentage", 0) * 100,
@@ -194,7 +196,6 @@ def classify_entities_properties_node(
                     )
                     try:
                         # Call the LLM for classification
-                        node_order = get_node_order_for_state("classify_entities_properties")
                         response = call_llm_with_json_output(
                             prompt=prompt,
                             state_name="classify_entities_properties",
@@ -459,4 +460,5 @@ def classify_entities_properties_node(
     # Ensure the returned state is always a GraphState instance
     if not isinstance(state, GraphState):
         state = GraphState.from_dict(dict(state))
+    print("[DEBUG] classify_entities_properties_node: entity_property_classification keys:", list(state.get("entity_property_classification", {}).keys()))
     return state

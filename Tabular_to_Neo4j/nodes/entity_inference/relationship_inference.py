@@ -15,7 +15,6 @@ from Tabular_to_Neo4j.utils.metadata_utils import (
 )
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 from Tabular_to_Neo4j.config import MAX_SAMPLE_ROWS
-from Tabular_to_Neo4j.utils.llm_manager import get_node_order_for_state
 
 # Configure logging
 logger = get_logger(__name__)

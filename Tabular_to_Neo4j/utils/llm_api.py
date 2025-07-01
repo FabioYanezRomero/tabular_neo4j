@@ -215,6 +215,7 @@ def call_ollama_api(
         ],
         "temperature": temperature,
         "stream": False,
+        "num_predict": 2048,
     }
     headers = {"Content-Type": "application/json"}
     for attempt in range(max_retries):

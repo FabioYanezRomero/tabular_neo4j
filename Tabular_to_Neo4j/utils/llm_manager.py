@@ -34,7 +34,6 @@ _node_order_map_cache = None
 def call_llm_with_json_output(
     prompt: str,
     state_name: str = None,
-    config: Optional[Dict[str, Any]] = None,
     unique_suffix: str = "",
     node_order: int = 0,
     table_name: str = None,
@@ -62,41 +61,43 @@ def call_llm_with_json_output(
     # Augment prompt to ask for JSON output
     json_prompt = f"{prompt}\n\nPlease provide your response in valid JSON format."
     state_config = LLM_CONFIGS.get(state_name, {})
-    if config:
-        state_config.update(config)
 
     try:
         response_text = call_llm_api(json_prompt, state_config)
-        # logger.info(f"[LLM][{state_name}] Prompt: {json_prompt}")  # Removed to avoid printing prompt
-        # logger.info(f"[LLM][{state_name}] Response: {response_text}")
-
-        # --- Save raw LLM output for traceability ---
         
         import os, json
-        # Save LLM output using OutputSaver's new method
         try:
-            if output_saver:
-                output_saver.save_llm_output_sample(
-                    node_name=state_name,
-                    output={
-                        "prompt": json_prompt,
-                        "response": response_text
-                    },
-                    node_order=node_order,
-                    table_name=table_name,
-                    unique_suffix=unique_suffix,
-                    template_name=template_name,
-                )
-            else:
-                logger.warning("OutputSaver is not initialized. Skipping LLM output saving.")
+            def _clean_llm_output(text):
+                import re
+                if not isinstance(text, str):
+                    return text
+                text = re.sub(r"^```(?:json)?\\s*", "", text.strip())
+                text = re.sub(r"```$", "", text.strip())
+                text = text.encode('utf-8').decode('unicode_escape')
+                text = re.sub(r'\n+', '\n', text)
+                text = text.strip('\n')
+                return text
+
+            cleaned_response = _clean_llm_output(response_text)
+            parsed_response = extract_json_from_llm_response(cleaned_response)
+            output_dict = {
+                "response": parsed_response if parsed_response else cleaned_response
+            }
+            output_saver.save_llm_output_sample(
+                node_name=state_name,
+                output=output_dict,
+                node_order=node_order,
+                table_name=table_name,
+                unique_suffix=unique_suffix,
+                template_name=template_name,
+            )
         except Exception as exc:
             logger.warning("Failed to save LLM output sample for state '%s': %s", state_name, exc)
-
-        json_data = extract_json_from_llm_response(response_text)
-        if json_data:
-            return json_data
+        
+        if parsed_response:
+            return parsed_response
+        
         logger.warning(f"Failed to parse JSON response for state '%s'. Response: %s", state_name, response_text)
-        # Retry with stricter prompt
         retry_prompt = f"{prompt}\n\nYou MUST respond with ONLY valid JSON. No other text. No markdown formatting."
         retry_response_text = call_llm_api(retry_prompt, state_config)
 

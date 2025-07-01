@@ -4,6 +4,9 @@ Add or adjust mappings as new quantized models become available.
 """
 
 MODEL_NAME_MAPPING = {
+    "text-embedding-nomic-embed-text-v1.5": "nomic-embed-text",    # Balanced, default
+    "bge-base-en-v1.5": "mxbai-embed-large",                       # High accuracy, larger model
+    "all-MiniLM-L6-v2": "all-minilm", 
     # LMStudio model : Ollama QAT model (string)
     "gemma-3-1b-it": "gemma3:1b-it-qat",
     "gemma-3-4b-it": "gemma3:4b-it-qat",

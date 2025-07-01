@@ -188,5 +188,33 @@ LLM_CONFIGS = DynamicLLMConfigs({
         },
         "auto_load": True,
         "auto_unload": True
-    }
+    },
+    "semantic_embedding_node": {
+    "provider": DEFAULT_LLM_PROVIDER,
+    "model_name": MODEL_NAME_MAPPING["bge-base-en-v1.5"] if DEFAULT_LLM_PROVIDER == "ollama" else "bge-base-en-v1.5",
+    "temperature": DEFAULT_TEMPERATURE,
+    "seed": DEFAULT_SEED,
+    "description": "Model for inferring cross-table column relations",
+    "output_format": {
+        "type": "json_object",
+        "description": "Object with cross-table column relationship inference",
+        "example": "{\"has_relationship\": true, \"relationship_type\": \"foreign_key\", ...}"
+    },
+    "auto_load": True,
+    "auto_unload": True
+},
+    "llm_relation_node": {
+    "provider": DEFAULT_LLM_PROVIDER,
+    "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
+    "temperature": DEFAULT_TEMPERATURE,
+    "seed": DEFAULT_SEED,
+    "description": "Model for inferring cross-table column relations",
+    "output_format": {
+        "type": "json_object",
+        "description": "Object with cross-table column relationship inference",
+        "example": "{\"has_relationship\": true, \"relationship_type\": \"foreign_key\", ...}"
+    },
+    "auto_load": True,
+    "auto_unload": True
+},
 })

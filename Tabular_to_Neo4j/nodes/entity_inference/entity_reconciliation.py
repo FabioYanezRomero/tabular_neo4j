@@ -41,6 +41,9 @@ def reconcile_entity_property_node(
         # Ensure the returned state is always a GraphState instance
         if not isinstance(state, GraphState):
             state = GraphState.from_dict(dict(state))
+        print("[DEBUG] reconcile_entity_property_node: llm_classification keys:", list(locals().get('llm_classification', {}).keys()) if 'llm_classification' in locals() else 'N/A')
+        print("[DEBUG] reconcile_entity_property_node: rule_based_classification keys:", list(locals().get('rule_based_classification', {}).keys()) if 'rule_based_classification' in locals() else 'N/A')
+        print("[DEBUG] reconcile_entity_property_node: consensus keys:", list(state.get("entity_property_consensus", {}).keys()))
         return state
 
     # Debug: Log state keys to understand what's available
@@ -185,7 +188,7 @@ def reconcile_entity_property_node(
                 column_name=column_name,
                 rule_based_classification=rule_classification_result,
                 llm_classification=llm_classification_result,
-                analytics=analytics,
+                analytics_classification=analytics,
                 metadata_text=metadata_text,
                 sample_values=sample_values,
                 unique_suffix=column_name,
@@ -230,4 +233,7 @@ def reconcile_entity_property_node(
 
     if not isinstance(state, GraphState):
         state = GraphState(**dict(state))
+    print("[DEBUG] reconcile_entity_property_node: llm_classification keys:", list(locals().get('llm_classification', {}).keys()) if 'llm_classification' in locals() else 'N/A')
+    print("[DEBUG] reconcile_entity_property_node: rule_based_classification keys:", list(locals().get('rule_based_classification', {}).keys()) if 'rule_based_classification' in locals() else 'N/A')
+    print("[DEBUG] reconcile_entity_property_node: consensus keys:", list(state.get("entity_property_consensus", {}).keys()))
     return state

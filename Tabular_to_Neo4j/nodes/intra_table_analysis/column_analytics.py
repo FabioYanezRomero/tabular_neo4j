@@ -37,8 +37,9 @@ def perform_column_analytics_node(state: GraphState, node_order: int) -> GraphSt
     logger.info("Performing statistical and pattern analysis on columns")
     
     try:
-        # Analyze all columns in the processed dataframe
-        analytics_results = analyze_all_columns(state['processed_dataframe'])
+        # Use llm_to_original mapping if present to analyze original columns
+        llm_to_original = state.get('llm_to_original', {})
+        analytics_results = analyze_all_columns(state['processed_dataframe'], llm_to_original=llm_to_original)
         
         # Log the results
         logger.info(f"Successfully analyzed {len(analytics_results)} columns")
