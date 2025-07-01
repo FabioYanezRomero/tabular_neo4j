@@ -143,8 +143,22 @@ def columns_contextualization_node(state: "MultiTableGraphState", node_order: in
                     node_order=node_order,
                     table_name=table_name
                 )
+                # Save cross_table_column_similarity for this table if present
+                if 'cross_table_column_similarity' in table_state:
+                    import os, json
+                    node_name = "columns_contextualization_node"
+                    table_dir = output_saver._get_table_dir(table_name)
+                    node_outputs_dir = os.path.join(table_dir, "node_outputs")
+                    os.makedirs(node_outputs_dir, exist_ok=True)
+                    output_file = os.path.join(
+                        node_outputs_dir,
+                        f"{node_order:02d}_{node_name}_cross_table_similarity_{table_name}.json"
+                    )
+                    with open(output_file, 'w', encoding='utf-8') as f:
+                        json.dump(output_saver._make_serializable(table_state['cross_table_column_similarity']), f, indent=2)
+                    logger.info(f"Saved cross-table similarity matrix for table {table_name} to {output_file}")
         except Exception as e:
-            logger.warning(f"Could not save columns_contextualization for table '{table_name}': {e}")
+            logger.warning(f"Could not save columns_contextualization or cross_table_column_similarity for table '{table_name}': {e}")
     # Ensure every table state is a GraphState before returning
     for table_name, table_state in state.items():
         assert isinstance(table_state, GraphState), f"columns_contextualization_node: State for '{table_name}' is not a GraphState, got {type(table_state)}"

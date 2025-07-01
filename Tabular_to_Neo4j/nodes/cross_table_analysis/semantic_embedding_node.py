@@ -114,18 +114,39 @@ def semantic_embedding_node(state: MultiTableGraphState, node_order: int) -> Mul
         import logging
         logger = logging.getLogger(__name__)
         logger.info('[semantic_embedding_node][BEFORE] Table states: ' + str({k: type(v).__name__ for k,v in state.items()}))
-
+    try:
         for table_name, table_state in state.items():
             if not isinstance(table_state, GraphState):
                 table_state = GraphState(**table_state)
                 state[table_name] = table_state
             table_state["cross_table_column_similarity"] = similarity_matrix
+        # Save the cross-table similarity matrix as a separate JSON file for each table
+        try:
+            from Tabular_to_Neo4j.utils.output_saver import output_saver
+            if output_saver:
+                node_name = "semantic_embedding_node"
+                import json
+                for table_name in state.keys():
+                    # Filter similarity_matrix for pairs involving this table
+                    relevant_pairs = {k: v for k, v in similarity_matrix.items() if k.startswith(f"{table_name}.") or f" <-> {table_name}." in k}
+                    table_dir = output_saver._get_table_dir(table_name)
+                    node_outputs_dir = os.path.join(table_dir, "node_outputs")
+                    os.makedirs(node_outputs_dir, exist_ok=True)
+                    output_file = os.path.join(
+                        node_outputs_dir,
+                        f"{node_order:02d}_{node_name}_cross_table_similarity_{table_name}.json"
+                    )
+                    with open(output_file, 'w', encoding='utf-8') as f:
+                        json.dump(output_saver._make_serializable(relevant_pairs), f, indent=2)
+                    logger.info(f"Saved cross-table similarity matrix for table {table_name} to {output_file}")
+        except Exception as e:
+            logger.warning(f"Could not save cross_table_column_similarity per table: {e}")
         # Ensure every table state is a GraphState before returning
         for table_name, table_state in state.items():
             assert isinstance(table_state, GraphState), f"semantic_embedding_node: State for '{table_name}' is not a GraphState, got {type(table_state)}"
         logger.info('[semantic_embedding_node][AFTER] Table states: ' + str({k: type(v).__name__ for k,v in state.items()}))
         
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f"semantic_embedding_node encountered an error: {e}")
 
     return state
