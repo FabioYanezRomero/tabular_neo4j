@@ -206,10 +206,12 @@ def reconcile_entity_property_node(
                     node_order=node_order
                 )
                 logger.info(f"LLM reconciliation result for '{column_name}': {llm_result}")
+                llm_result["analytics"] = analytics
                 llm_info = llm_result if isinstance(llm_result, dict) else {"classification": str(llm_result)}
+                consensus[column_name] = llm_info
             except Exception as llm_error:
                 logger.error(f"Error calling LLM for reconciliation on column '{column_name}': {str(llm_error)}")
-                # fallback: keep previous llm_info
+               
 
         # Add uniqueness information for entities to help with later processing
         for column_name, info in consensus.items():

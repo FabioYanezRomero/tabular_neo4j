@@ -22,7 +22,7 @@ def llm_relation_node(state: MultiTableGraphState, node_order: int) -> MultiTabl
     Stores results in each table's GraphState under 'cross_table_column_relations'.
     """
 
-    threshold = 0.7
+    threshold = 0.85
 
     # Gather all pairs from the similarity matrix (should be present in each table's GraphState)
     relations = {}

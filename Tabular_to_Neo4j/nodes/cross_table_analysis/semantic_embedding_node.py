@@ -108,7 +108,7 @@ def semantic_embedding_node(state: MultiTableGraphState, node_order: int) -> Mul
                         emb1 = embs1[idx1]
                         emb2 = embs2[idx2]
                         similarity = cosine_similarity(emb1, emb2)
-                        if similarity > 0.7:
+                        if similarity > 0.85:
                             pair_key = f"{table1}.{col1_name} <-> {table2}.{col2_name}"
                             similarity_matrix[pair_key] = similarity
         # Store similarity_matrix in a special table-level GraphState, or as an attribute on each table if appropriate
