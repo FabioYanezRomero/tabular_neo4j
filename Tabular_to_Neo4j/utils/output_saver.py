@@ -78,7 +78,7 @@ class OutputSaver:
                 json.dump(self._make_serializable(output), f, indent=2)
             logger.info(f"Saved LLM output for node '{node_name}' (order: {node_order}, suffix: '{unique_suffix}') to {output_file}")
         except Exception as e:
-            logger.error(f"Failed to save LLM output for node '{node_name}': {str(e)}")
+            logger.warning(f"Failed to save LLM output for node '{node_name}': {str(e)}")
 
     def _get_table_dir(self, table_name: str = None):
         """Return the directory for a given table or inter_table."""
