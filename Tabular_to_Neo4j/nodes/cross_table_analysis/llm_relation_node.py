@@ -28,7 +28,6 @@ def llm_relation_node(state: MultiTableGraphState, node_order: int) -> MultiTabl
     relations = {}
     for table_name, table_state in state.items():
         similarity_matrix = table_state.get("cross_table_column_similarity", {})
-        contextualizations = {c["column"]: c["contextualization"] for c in table_state.get("columns_contextualization", [])}
         for pair_key, similarity in similarity_matrix.items():
             if similarity < threshold:
                 continue
@@ -47,6 +46,7 @@ def llm_relation_node(state: MultiTableGraphState, node_order: int) -> MultiTabl
             context2_map = {c["column"]: c["contextualization"] for c in context2}
             prompt = format_prompt(
                 "infer_cross_table_column_relation.txt",
+                table_name="inter_table",
                 col1=col1,
                 table1=table1,
                 col2=col2,
@@ -58,7 +58,7 @@ def llm_relation_node(state: MultiTableGraphState, node_order: int) -> MultiTabl
             # Call the LLM using the unified dispatcher with JSON output
             llm_result = call_llm_with_json_output(
                 prompt=prompt,
-                state_name="inter_table",
+                state_name="llm_relation_node",
                 unique_suffix=f"{table1}_{col1}__{table2}_{col2}",
                 node_order=node_order,
                 table_name="inter_table",

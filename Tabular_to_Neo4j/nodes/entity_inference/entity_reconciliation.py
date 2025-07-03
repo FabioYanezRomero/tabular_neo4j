@@ -145,8 +145,8 @@ def reconcile_entity_property_node(
             rule_info = rule_based_classification.get(column_name, {})
 
             # Check if there's a discrepancy between the classifications
-            llm_classification_result = llm_info.get("classification", "")
-            rule_classification_result = rule_info.get("classification", "")
+            llm_classification_result = llm_info.get("classification") or llm_info.get("consensus_classification", "")
+            rule_classification_result = rule_info.get("classification") or rule_info.get("consensus_classification", "")
 
             # If classifications match, no need for reconciliation
             if llm_classification_result == rule_classification_result:
@@ -207,15 +207,17 @@ def reconcile_entity_property_node(
                 )
                 logger.info(f"LLM reconciliation result for '{column_name}': {llm_result}")
                 llm_result["analytics"] = analytics
-                llm_info = llm_result if isinstance(llm_result, dict) else {"classification": str(llm_result)}
-                consensus[column_name] = llm_info
+                norm_info = llm_result if isinstance(llm_result, dict) else {"classification": str(llm_result)}
+                if "consensus_classification" in norm_info:
+                    norm_info["classification"] = norm_info.pop("consensus_classification")
+                consensus[column_name] = norm_info
             except Exception as llm_error:
                 logger.error(f"Error calling LLM for reconciliation on column '{column_name}': {str(llm_error)}")
                
 
         # Add uniqueness information for entities to help with later processing
         for column_name, info in consensus.items():
-            if info["classification"] == "entity":
+            if info.get("classification", "") == "entity":
                 analytics = state.get("column_analytics", {}).get(column_name, {})
                 info["uniqueness_ratio"] = analytics.get(
                     "uniqueness", 0

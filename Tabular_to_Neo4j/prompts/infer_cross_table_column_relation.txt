@@ -1,37 +1,61 @@
-You are an expert in semantic relationship analysis for tabular data. Your task is to evaluate potential relationships between columns across tables using DeepJoin-style contextualized descriptions and similarity scores.
+You are an expert in semantic relationship analysis for tabular data. Your task is to evaluate potential relationships between columns across tables using detailed contextualized descriptions and similarity scores.
 
 ### Input
 - **Table 1**: `{table1}`
 - **Column 1**: `{col1}`
-- **Context 1**: `{context1}` (DeepJoin-patterned: e.g., "ProductID (12k unique, PK): [P-123, P-456]")
+- **Context 1**: `{context1}` (e.g., "ProductID (12k unique, PK): [P-123, P-456]")
 - **Table 2**: `{table2}`
 - **Column 2**: `{col2}`
-- **Context 2**: `{context2}` (DeepJoin-patterned)
+- **Context 2**: `{context2}` (e.g., "ProductID (12k unique, PK): [P-123, P-456]")
 - **Similarity score**: `{similarity}` (0.0-1.0)
 
 ### Analysis Instructions
-1. **Relationship Validity**: Determine if a meaningful semantic relationship exists (true/false)
-2. **Relationship Type**: Classify as:
-   - `foreign_key` (direct reference)
-   - `attribute_synonym` (semantic equivalence)
-   - `hierarchical_link` (parent-child)
-   - `derived_value` (computed relationship)
-   - `shared_attribute` (common property)
-3. **Direction & Cardinality**:
-   - Direction: `column1_to_column2` | `column2_to_column1` | `bidirectional` | `undirected`
-   - Cardinality: `1:1` | `1:N` | `M:N` (e.g., "column1_to_column2 (1:N)")
-4. **Evidence-Based Reasoning**:
-   - Reference statistical patterns from contexts (uniqueness, distributions)
-   - Analyze semantic alignment in contextualized descriptions
-   - Consider value distribution overlap
-   - Explain directionality using cardinality clues
+1. **Step-by-Step Reasoning**:
+   Before producing your answer, reason step by step through the following aspects:
+   - Statistical Patterns: Analyze uniqueness ratios, number of unique values, duplicate rates, and value distributions (min, max, mean, quartiles, overlaps).
+   - Semantic Alignment: Compare column names, linguistic similarity, table/column roles (e.g., “PK”, “type: string”), and business terms.
+   - Data Type Compatibility: Check if both columns have compatible types for the proposed relationship.
+   - Sample Values: Examine sample values for overlap, format, and plausibility of a relationship.
+   - Temporal and Numeric Ranges: For dates, check if ranges overlap or if one could be derived from the other; for numbers, check if one could be an aggregate or transformation.
+   - Role in Table: Use hints like “PK”, “FK”, “aggregated”, or “derived” in context strings.
+   - Directionality & Cardinality Clues: Infer direction and cardinality from uniqueness and context.
+   - Business Logic Plausibility: Consider if the relationship makes sense in a real-world scenario.
+
+2. **Relationship Validity**:
+   - Decide if a meaningful semantic relationship exists (true/false).
+   - If evidence is ambiguous or insufficient, set has_relationship to false and explain why.
+
+3. **Relationship Type**: 
+      Classify as:
+      - `foreign_key`: A direct referential link where values in one column (typically a foreign key in a child table) reference unique values in another column (typically a primary key in a parent table). Example: orders.customer_id → customers.customer_id.
+      - `attribute_synonym`: Columns in different tables that represent the same conceptual property or value, possibly with different names but equivalent meaning. Example: products.price and orders.unit_price.
+      - `hierarchical_link`: A parent-child or part-whole relationship, such as a category and its subcategories, or an organization and its departments. Example: departments.parent_id → departments.department_id.
+      - `derived_value`: One column's values are calculated or aggregated from another column's values, often across multiple rows. Example: customers.total_spent is the sum of orders.total_price for each customer.
+      - `shared_attribute`: Both columns represent the same property or characteristic, but are not used for referential integrity and are not synonyms. Example: signup_date in customers and order_date in orders are both dates but not directly related.
+4. **Direction**:
+   - column1_to_column2: Use when values in Column 1 are referenced or aggregated by values in Column 2 (e.g., parent-to-child, PK-to-FK, aggregate-to-detail).
+   - column2_to_column1: Use when the relationship is in the opposite direction.
+   - bidirectional: Use only when the relationship is symmetric (rare; e.g., attribute synonyms where both columns are equivalent in all contexts).
+   - undirected: Use when directionality does not apply (e.g., shared attributes or weak semantic links).
+5. **Cardinality**:
+   - 1:1: Both columns have unique values and represent the same entity or property (e.g., attribute synonyms, parallel identifiers).
+   - 1:N: One value in the first column can relate to many values in the second column (e.g., foreign key from PK to FK, aggregate to detail).
+   - M:N: Multiple values in each column can relate to multiple values in the other (e.g., shared attributes, many-to-many joins).
+   - For derived or aggregated relationships, specify the direction from detail to aggregate (e.g., orders.total_price to customers.total_spent is column2_to_column1 (N:1)).
+
+6. **Final Output**:
+   - Present your answer as a valid JSON object, including your step-by-step reasoning as a single string in the reasoning field.
 
 ### Output Format
 ```json
 {{
     "has_relationship": true/false,
     "relationship_type": "foreign_key",
-    "direction_cardinality": "column1_to_column2 (1:N)",
-    "reasoning": "Context1 shows PK with 100% uniqueness; Context2 has 75% duplicates matching Context1 values. High similarity (0.89) confirms semantic alignment."
+    "direction": "column1_to_column2",
+    "cardinality": "1:N",
+    "reasoning": "Step-by-step justification referencing context, statistics, and semantic alignment."
 }}
 ```
+
+**Instructions:**  
+- Always return only a valid JSON object matching the output format, with no extra commentary.

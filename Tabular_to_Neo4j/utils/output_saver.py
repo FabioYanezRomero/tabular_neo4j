@@ -40,7 +40,7 @@ class OutputSaver:
         self,
         *,
         node_name: str,
-        output: dict,
+        output: dict | list,
         node_order: int = 0,
         table_name: str = None,
         unique_suffix: str = "",
@@ -61,15 +61,19 @@ class OutputSaver:
         llm_outputs_dir = os.path.join(table_dir, "llm_outputs")
         os.makedirs(llm_outputs_dir, exist_ok=True)
         # Compose file name
-        suffix = f"_{unique_suffix}" if unique_suffix else ""
+        # Remove any occurrence of .txt from unique_suffix to avoid .txt.json files
+        clean_suffix = unique_suffix.replace('.txt', '') if unique_suffix else unique_suffix
+        suffix = f"_{clean_suffix}" if clean_suffix else ""
         template_part = f"_{template_name}" if template_name else ""
         file_name = f"{node_order:02d}_{node_name}{suffix}{template_part}.json"
         # Clean up file name (remove spaces, problematic chars)
         file_name = file_name.replace(" ", "_").replace("/", "-")
+        file_name = file_name.replace('.txt', '')
         output_file = os.path.join(llm_outputs_dir, file_name)
         try:
-            # Attempt to repair embedded JSON if needed
-            output = self.clean_embedded_json(output, ["response", "raw_response"])
+            # Only attempt to repair embedded JSON if output is a dict
+            if isinstance(output, dict):
+                output = self.clean_embedded_json(output, ["response", "raw_response"])
             with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(self._make_serializable(output), f, indent=2)
             logger.info(f"Saved LLM output for node '{node_name}' (order: {node_order}, suffix: '{unique_suffix}') to {output_file}")
@@ -219,9 +223,13 @@ class OutputSaver:
         # Traverse to the target field
         target = json_obj
         for key in key_path[:-1]:
+            if not isinstance(target, dict):
+                return json_obj
             target = target.get(key, {})
         last_key = key_path[-1]
 
+        if not isinstance(target, dict):
+            return json_obj  # Can't get the last key if not a dict
         raw_json_str = target.get(last_key)
         if not isinstance(raw_json_str, str):
             return json_obj  # Nothing to do
@@ -249,7 +257,6 @@ class OutputSaver:
                 target[last_key] = parsed
             except json.JSONDecodeError as e:
                 logging.warning(f"Could not fix embedded JSON: {e}")
-                # If still fails, leave as is or handle as needed
             return json_obj
 
 # Global instance for use across the application

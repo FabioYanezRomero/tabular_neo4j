@@ -93,6 +93,10 @@ def translate_header_llm_node(state: GraphState, node_order: int) -> GraphState:
 
         # Validate the response
         if not isinstance(translated_header, list):
+            # If the response is a dict indicating no translation was needed, skip error
+            if isinstance(translated_header, dict) and translated_header.get("is_in_target_language") is True:
+                logger.info("Header is already in the target language; no translation needed.")
+                return state
             error_msg = (
                 f"LLM did not return a list of translated headers: {translated_header}"
             )

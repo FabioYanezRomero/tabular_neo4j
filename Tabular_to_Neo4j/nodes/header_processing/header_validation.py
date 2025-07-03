@@ -81,7 +81,6 @@ def validate_header_llm_node(state: GraphState, node_order: int) -> GraphState:
                 1.0  # High confidence since it's from metadata
             )
 
-        # Convert current_header to JSON string for consistent formatting
         import json
 
         headers_json = json.dumps(current_header)
@@ -97,34 +96,29 @@ def validate_header_llm_node(state: GraphState, node_order: int) -> GraphState:
             metadata_text=metadata_text,
         )
 
-        # Call the LLM to validate headers
         logger.debug("Calling LLM for header validation")
         response = call_llm_with_json_output(
-            prompt,
+            prompt=prompt,
             state_name="validate_header",
             node_order=node_order,
             table_name=table_name,
             template_name="validate_header.txt"
         )
-        # Extract the validation results (no is_correct field as per requirements)
-        validated_header = response.get("validated_header", current_header)
-        suggestions = response.get("suggestions", "")
+        if isinstance(response, list):
+            validated_header = response
+        else:
+            validated_header = response.get("validated_header", current_header)
 
-        # Validate the response
         if not isinstance(validated_header, list):
-            # Try to handle the case where the response is a string
             if isinstance(validated_header, str):
-                # Try to parse it as a comma-separated list
                 try:
                     validated_header = [h.strip() for h in validated_header.split(",")]
                 except Exception:
-                    # If that fails, just use the current header
                     logger.warning(
                         f"Could not parse validated_header as list: {validated_header}"
                     )
                     validated_header = current_header
             else:
-                # If it's not a string or a list, use the current header
                 error_msg = f"LLM did not return a list of headers: {validated_header}"
                 logger.error(error_msg)
                 state["error_messages"].append(error_msg)
@@ -136,15 +130,11 @@ def validate_header_llm_node(state: GraphState, node_order: int) -> GraphState:
             state["error_messages"].append(error_msg)
             return state
 
-        # Update the state with the validated headers
         state["validated_header"] = validated_header
 
-        # Check if the validated header is different from the current header
         headers_changed = validated_header != current_header
 
-        # If the headers changed or there are suggestions, update the final header
         if headers_changed:
-            logger.info(f"LLM suggested header improvements: {suggestions}")
             logger.info(f"Updated headers: {validated_header}")
             state["final_header"] = validated_header
         else:
