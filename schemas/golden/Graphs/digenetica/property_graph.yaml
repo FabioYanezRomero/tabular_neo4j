@@ -1,0 +1,76 @@
+# Attributes on both, nodes and edges
+
+nodes:
+  - type: user
+    attributes:
+      - user_id
+
+  - type: session
+    attributes:
+      - session_id
+      - date
+      - timeframe
+
+  - type: item
+    attributes:
+      - item_id
+      - log2price
+      - name_tokens
+
+  - type: category
+    attributes:
+      - category_id
+
+  - type: purchase
+    attributes:
+      - order_id
+      - date
+
+  - type: view
+    attributes:
+      - timeframe
+      - date
+
+  - type: query
+    attributes:
+      - query_id
+      - tokens
+      - duration
+      - date
+      - is_test
+
+edges:
+  - type: started_session
+    source: user
+    target: session
+
+  - type: viewed
+    source: session
+    target: item
+    attributes:
+      - timeframe
+      - date
+
+  - type: purchased
+    source: session
+    target: purchase
+
+  - type: purchase_of
+    source: purchase
+    target: item
+
+  - type: belongs_to_category
+    source: item
+    target: category
+
+  - type: issued_query
+    source: session
+    target: query
+
+  - type: query_for_category
+    source: query
+    target: category
+
+  - type: query_for_item
+    source: query
+    target: item

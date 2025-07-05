@@ -1,0 +1,60 @@
+# Attributes only on nodes
+
+nodes:
+  - type: user
+    attributes:
+      - userId
+      - gender
+      - age
+      - occupation
+      - zipcode
+
+  - type: movie
+    attributes:
+      - movieId
+      - title
+      - genres
+
+  - type: genre
+    attributes:
+      - genre_name
+
+  - type: external_link
+    attributes:
+      - imdbId
+      - tmdbId
+
+  - type: rating
+    attributes:
+      - value
+      - timestamp
+
+  - type: tag
+    attributes:
+      - value
+      - timestamp
+
+edges:
+  - type: gave_rating
+    source: user
+    target: rating
+
+  - type: rating_of
+    source: rating
+    target: movie
+
+  - type: gave_tag
+    source: user
+    target: tag
+
+  - type: tag_of
+    source: tag
+    target: movie
+
+  - type: has_genre
+    source: movie
+    target: genre
+
+  - type: has_link
+    source: movie
+    target: external_link

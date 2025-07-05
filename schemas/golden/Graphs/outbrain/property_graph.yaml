@@ -1,0 +1,94 @@
+nodes:
+  - type: user
+    properties:
+      - uuid
+
+  - type: event
+    properties:
+      - display_id
+      - timestamp
+      - platform
+      - geo_location
+      - traffic_source
+
+  - type: ad
+    properties:
+      - ad_id
+
+  - type: promoted_content
+    properties:
+      - document_id
+      - campaign_id
+      - advertiser_id
+
+  - type: document
+    properties:
+      - document_id
+      - source_id
+      - publisher_id
+      - publish_time
+      - title
+      - text
+      - keywords
+      - description
+      - url
+
+  - type: topic
+    properties:
+      - topic_id
+
+  - type: entity
+    properties:
+      - entity_id
+
+  - type: category
+    properties:
+      - category_id
+
+edges:
+  - type: performed_event
+    source: user
+    target: event
+    properties: []
+
+  - type: event_shown_ad
+    source: event
+    target: ad
+    properties:
+      - position
+      - display_id
+
+  - type: ad_promotes_content
+    source: ad
+    target: promoted_content
+    properties: []
+
+  - type: content_is_document
+    source: promoted_content
+    target: document
+    properties: []
+
+  - type: document_has_topic
+    source: document
+    target: topic
+    properties:
+      - confidence_level
+
+  - type: document_has_entity
+    source: document
+    target: entity
+    properties:
+      - confidence_level
+
+  - type: document_has_category
+    source: document
+    target: category
+    properties:
+      - confidence_level
+
+  - type: clicked
+    source: event
+    target: ad
+    properties:
+      - clicked
+      - timestamp

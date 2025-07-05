@@ -1,0 +1,66 @@
+dataset_name: MovieLens
+tables:
+  - name: users
+    columns:
+      - name: userId
+        dtype: integer
+        primary_key: true
+      - name: gender
+        dtype: string
+      - name: age
+        dtype: integer
+      - name: occupation
+        dtype: string
+      - name: zip_code
+        dtype: string
+
+  - name: movies
+    columns:
+      - name: movieId
+        dtype: integer
+        primary_key: true
+      - name: title
+        dtype: string
+      - name: genres
+        dtype: string
+
+  - name: ratings
+    columns:
+      - name: userId
+        dtype: integer
+        foreign_key:
+          references: users.userId
+      - name: movieId
+        dtype: integer
+        foreign_key:
+          references: movies.movieId
+      - name: rating
+        dtype: float
+      - name: timestamp
+        dtype: integer
+
+  - name: tags
+    columns:
+      - name: userId
+        dtype: integer
+        foreign_key:
+          references: users.userId
+      - name: movieId
+        dtype: integer
+        foreign_key:
+          references: movies.movieId
+      - name: tag
+        dtype: string
+      - name: timestamp
+        dtype: integer
+
+  - name: links
+    columns:
+      - name: movieId
+        dtype: integer
+        foreign_key:
+          references: movies.movieId
+      - name: imdbId
+        dtype: integer
+      - name: tmdbId
+        dtype: integer

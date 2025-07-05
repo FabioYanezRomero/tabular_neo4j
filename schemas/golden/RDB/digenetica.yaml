@@ -1,0 +1,142 @@
+dataset_name: Diginetica
+tables:
+  - name: users
+    columns:
+      - name: userId
+        dtype: string
+        primary_key: true
+
+  - name: sessions
+    columns:
+      - name: sessionId
+        dtype: string
+        primary_key: true
+      - name: userId
+        dtype: string
+        foreign_key:
+          references: users.userId
+
+  - name: items
+    columns:
+      - name: itemId
+        dtype: string
+        primary_key: true
+      - name: categoryId
+        dtype: string
+        foreign_key:
+          references: categories.categoryId
+      - name: price_log2
+        dtype: float
+      - name: name_tokens
+        dtype: string
+
+  - name: categories
+    columns:
+      - name: categoryId
+        dtype: string
+        primary_key: true
+
+  - name: views
+    columns:
+      - name: sessionId
+        dtype: string
+        foreign_key:
+          references: sessions.sessionId
+      - name: userId
+        dtype: string
+        foreign_key:
+          references: users.userId
+      - name: itemId
+        dtype: string
+        foreign_key:
+          references: items.itemId
+      - name: timestamp
+        dtype: datetime
+
+  - name: purchases
+    columns:
+      - name: sessionId
+        dtype: string
+        foreign_key:
+          references: sessions.sessionId
+      - name: userId
+        dtype: string
+        foreign_key:
+          references: users.userId
+      - name: itemId
+        dtype: string
+        foreign_key:
+          references: items.itemId
+      - name: orderId
+        dtype: string
+      - name: timestamp
+        dtype: datetime
+
+  - name: queries
+    columns:
+      - name: queryId
+        dtype: string
+        primary_key: true
+      - name: sessionId
+        dtype: string
+        foreign_key:
+          references: sessions.sessionId
+      - name: userId
+        dtype: string
+        foreign_key:
+          references: users.userId
+      - name: tokens
+        dtype: string
+      - name: categoryId
+        dtype: string
+        foreign_key:
+          references: categories.categoryId
+      - name: is_test
+        dtype: boolean
+      - name: timestamp
+        dtype: datetime
+
+  - name: query_results
+    columns:
+      - name: queryId
+        dtype: string
+        foreign_key:
+          references: queries.queryId
+      - name: itemId
+        dtype: string
+        foreign_key:
+          references: items.itemId
+      - name: timestamp
+        dtype: datetime
+
+  - name: product_tokens
+    columns:
+      - name: itemId
+        dtype: string
+        foreign_key:
+          references: items.itemId
+      - name: token
+        dtype: string
+
+  - name: query_searchstring_tokens
+    columns:
+      - name: queryId
+        dtype: string
+        foreign_key:
+          references: queries.queryId
+      - name: token
+        dtype: string
+
+  - name: orders
+    columns:
+      - name: orderId
+        dtype: string
+        primary_key: true
+      - name: sessionId
+        dtype: string
+        foreign_key:
+          references: sessions.sessionId
+      - name: userId
+        dtype: string
+        foreign_key:
+          references: users.userId

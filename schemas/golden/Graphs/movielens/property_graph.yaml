@@ -1,0 +1,52 @@
+# Attributes on both, nodes and edges
+
+nodes:
+  - type: user
+    attributes:
+      - userId
+      - gender
+      - age
+      - occupation
+      - zipcode
+
+  - type: movie
+    attributes:
+      - movieId
+      - title
+      - genres
+
+  - type: genre
+    attributes:
+      - genre_name
+
+  - type: tag
+    attributes:
+      - tag
+
+  - type: external_link
+    attributes:
+      - imdbId
+      - tmdbId
+
+edges:
+  - type: rated
+    source: user
+    target: movie
+    attributes:
+      - rating
+      - timestamp
+
+  - type: tagged
+    source: user
+    target: movie
+    attributes:
+      - tag
+      - timestamp
+
+  - type: has_genre
+    source: movie
+    target: genre
+
+  - type: has_link
+    source: movie
+    target: external_link

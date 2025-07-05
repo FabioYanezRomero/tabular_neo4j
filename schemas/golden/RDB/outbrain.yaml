@@ -1,0 +1,106 @@
+dataset_name: Outbrain
+tables:
+  - name: events
+    columns:
+      - name: display_id
+        dtype: string
+        primary_key: true
+      - name: uuid
+        dtype: string
+      - name: document_id
+        dtype: string
+      - name: timestamp
+        dtype: datetime
+      - name: platform
+        dtype: integer
+      - name: geo_location
+        dtype: string
+
+  - name: page_views
+    columns:
+      - name: uuid
+        dtype: string
+      - name: document_id
+        dtype: string
+      - name: timestamp
+        dtype: datetime
+      - name: platform
+        dtype: integer
+      - name: geo_location
+        dtype: string
+      - name: traffic_source
+        dtype: integer
+
+  - name: clicks
+    columns:
+      - name: display_id
+        dtype: string
+        foreign_key:
+          references: events.display_id
+      - name: ad_id
+        dtype: string
+        foreign_key:
+          references: promoted_content.ad_id
+      - name: clicked
+        dtype: boolean
+      - name: timestamp
+        dtype: datetime
+
+  - name: promoted_content
+    columns:
+      - name: ad_id
+        dtype: string
+        primary_key: true
+      - name: document_id
+        dtype: string
+        foreign_key:
+          references: documents_meta.document_id
+      - name: campaign_id
+        dtype: string
+      - name: advertiser_id
+        dtype: string
+
+  - name: documents_meta
+    columns:
+      - name: document_id
+        dtype: string
+        primary_key: true
+      - name: source_id
+        dtype: string
+      - name: publisher_id
+        dtype: string
+      - name: publish_time
+        dtype: datetime
+
+  - name: documents_entities
+    columns:
+      - name: document_id
+        dtype: string
+        foreign_key:
+          references: documents_meta.document_id
+      - name: entity_id
+        dtype: string
+      - name: confidence_level
+        dtype: float
+
+  - name: documents_topics
+    columns:
+      - name: document_id
+        dtype: string
+        foreign_key:
+          references: documents_meta.document_id
+      - name: topic_id
+        dtype: string
+      - name: confidence_level
+        dtype: float
+
+  - name: documents_categories
+    columns:
+      - name: document_id
+        dtype: string
+        foreign_key:
+          references: documents_meta.document_id
+      - name: category_id
+        dtype: string
+      - name: confidence_level
+        dtype: float
