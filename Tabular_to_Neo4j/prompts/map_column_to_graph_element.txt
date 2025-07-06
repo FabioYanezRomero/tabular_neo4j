@@ -1,0 +1,30 @@
+You are building a Neo4j property-graph model from a single table.
+
+Your task: for the supplied *single column*, decide whether it belongs to
+one of the detected **entities** (as a property) or represents the value of an
+**intra-table relationship**.
+
+### Input
+- **Table name**: `{table_name}`
+- **Column**: `{column_name}`
+- **Column analytic**: `{column_analytic}`
+- **Detected entities**: {entities}
+- **Detected intra-table relationships**: {relationships}
+- **Sample values**: {sample_values}
+
+### Output
+Return ONLY a JSON object:
+```json
+{
+  "graph_element_type": "entity_property" | "relationship_property" | "ignore",
+  "belongs_to": "<entity_or_relationship_name_if_applicable>",
+  "confidence": 0.87,
+  "reasoning": "≤40 words"
+}
+```
+
+Constraints:
+- If the column is clearly a property of an entity, set `graph_element_type` = `entity_property` and `belongs_to` = that entity label.
+- If the column stores the value of a relationship edge (e.g., a join/quantitative value between two entities), set `graph_element_type` = `relationship_property` and `belongs_to` = that relationship type.
+- If the column is irrelevant for the graph, return `ignore` with a brief reason.
+- Respond with JSON only, no markdown.

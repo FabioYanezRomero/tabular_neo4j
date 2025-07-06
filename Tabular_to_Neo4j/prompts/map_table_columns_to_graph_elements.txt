@@ -1,0 +1,40 @@
+You are designing a Neo4j property-graph schema for the table below.
+
+### Input
+- **Table name**: `{table_name}`
+- **Detected entities**: {entities}
+- **Detected intra-table relationships**: {relationships}
+- **Columns & analytics** (one per line):
+  ```
+  {columns_analytics}
+  ```
+- **Sample rows (up to 5)**:
+  ```
+  {sample_rows}
+  ```
+
+### Task
+For EVERY column, decide whether it is:
+1. A property of one of the entities.
+2. A property of an intra-table relationship.
+3. Irrelevant to the graph model (`ignore`).
+
+### Output
+Return ONLY a JSON object mapping column names to a decision object:
+```json
+{
+  "column_graph_mapping": {
+    "col_name": {
+      "graph_element_type": "entity_property" | "relationship_property" | "ignore",
+      "belongs_to": "<entity_or_relationship_name_if_applicable>",
+      "confidence": 0.91
+    }
+    // one entry per column
+  }
+}
+```
+
+Constraints:
+- `belongs_to` must be the entity label or relationship type when applicable; empty string for `ignore`.
+- Provide confidence 0-1 but omit verbose reasoning (keep output compact).
+- Respond with **JSON only**, no markdown.
