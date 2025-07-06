@@ -46,7 +46,8 @@ def calculate_missing_percentage(column: pd.Series) -> float:
     """
     if len(column) == 0:
         return 0.0
-    return column.isna().mean()
+    # Explicitly cast to float to satisfy static type checkers that infer a possible Series return type
+    return float(column.isna().mean())
 
 def detect_data_type(column: pd.Series) -> str:
     """
@@ -72,6 +73,8 @@ def detect_data_type(column: pd.Series) -> str:
         return 'float'
     elif 'datetime' in orig_dtype:
         return 'datetime'
+    elif 'timedelta' in orig_dtype:
+        return 'timedelta'
     elif 'bool' in orig_dtype:
         return 'boolean'
     elif 'category' in orig_dtype:
@@ -79,12 +82,21 @@ def detect_data_type(column: pd.Series) -> str:
     
     # Try to convert to numeric
     try:
-        numeric_values = pd.to_numeric(clean_column)
-        # Determine if integer or float
-        if all(numeric_values == numeric_values.astype(int)):
-            return 'integer'
+        # Attempt to convert to numeric
+        numeric_values = pd.to_numeric(clean_column, errors='coerce')
+
+        # Convert to pandas Series unconditionally for unified processing
+        if not isinstance(numeric_values, pd.Series):
+            numeric_series = pd.Series([numeric_values])
         else:
-            return 'float'
+            numeric_series = numeric_values
+
+        # Determine if all non-NA numeric values are whole numbers (no fractional part)
+        # Using the pandas `mod` and `eq` methods keeps static typing happy (avoids the
+        # operator overload that causes Pylance to think the intermediate result is a
+        # plain `bool`).
+        is_integer = numeric_series.dropna().mod(1).eq(0).all()
+        return 'integer' if is_integer else 'float'
     except:
         pass
     
@@ -258,7 +270,7 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
             sampled_values = []  # No raw samples
         else:
             sampled_values = mode_values[:5] if cardinality < 100 else mode_values[:3]
-    # Temporal columns
+    # Temporal columns (date/datetime)
     elif data_type in ['date', 'datetime']:
         try:
             min_value = str(column.min()) if not column.dropna().empty else ''
@@ -268,12 +280,20 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
             min_value = max_value = ''
         contextual_description = f"start: {min_value}, end: {max_value}"
         sampled_values = mode_values[:3]
-    
+    # Timedelta/duration columns
+    elif data_type == 'timedelta':
+        try:
+            min_value = str(column.min()) if not column.dropna().empty else ''
+            max_value = str(column.max()) if not column.dropna().empty else ''
+            avg_value = str(column.mean()) if not column.dropna().empty else ''
+        except Exception:
+            min_value = max_value = avg_value = ''
+        contextual_description = f"duration range: {min_value} to {max_value}"
+        sampled_values = []
     # Categorical columns
     elif data_type == 'categorical':
         sampled_values = mode_values[:5] if cardinality < 100 else mode_values[:3]
         contextual_description = f"{cardinality} unique"
-    
     # Text/multi-value columns
     elif data_type == 'string':
         if cardinality > 10000:
@@ -323,7 +343,10 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
     return analysis
 
 
-def analyze_all_columns(df: pd.DataFrame, llm_to_original: dict = None) -> Dict[str, Dict[str, Any]]:
+from typing import Optional, Dict, Any, List, Tuple
+
+
+def analyze_all_columns(df: pd.DataFrame, llm_to_original: Optional[Dict[str, str]] = None) -> Dict[str, Dict[str, Any]]:
     """
     Analyze all columns in a DataFrame, optionally referencing original column names.
     Args:
@@ -332,14 +355,26 @@ def analyze_all_columns(df: pd.DataFrame, llm_to_original: dict = None) -> Dict[
     Returns:
         Dictionary mapping LLM-inferred column names to their analysis results (with both names)
     """
+    from typing import cast  # local import to avoid polluting module namespace if not needed elsewhere
+
     results = {}
     for column_name in df.columns:
         original_name = llm_to_original[column_name] if llm_to_original and column_name in llm_to_original else column_name
-        # Run analytics on the original column if available, else fallback
+
+        # Select the column. pandas returns either a Series or a DataFrame depending on the input
         if original_name in df.columns:
-            col_series = df[original_name]
+            _col = df[original_name]
         else:
-            col_series = df[column_name]
+            _col = df[column_name]
+
+        # If a single-column DataFrame is returned, squeeze it down to a Series so that the
+        # downstream analytics functions receive the expected type at runtime, and help the
+        # static type-checker by casting explicitly.
+        if isinstance(_col, pd.DataFrame):
+            _col = _col.squeeze(axis=1)
+
+        col_series: pd.Series = cast(pd.Series, _col)
+
         analysis = analyze_column(col_series)
         analysis['column_name'] = column_name
         analysis['original_column_name'] = original_name

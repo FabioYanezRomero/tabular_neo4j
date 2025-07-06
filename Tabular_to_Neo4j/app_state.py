@@ -125,16 +125,27 @@ class MultiTableGraphState(dict):
 
     def __setitem__(self, key: str, value) -> None:
         from collections.abc import MutableMapping
+        # Attempt to import `AddableValuesDict` from LangChain. If it is not available,
+        # fall back to `None`. We explicitly *cast* the imported symbol to a
+        # ``type[Any] | None`` so that static type checkers recognise it as a valid
+        # ``class_or_tuple`` argument for ``isinstance``.
+        from typing import Any, Type, cast
+
         try:
-            from langchain_core.utils import AddableValuesDict
+            from langchain_core.utils import AddableValuesDict as _AddableValuesDict  # type: ignore
         except ImportError:
-            AddableValuesDict = None
+            _AddableValuesDict = None  # pragma: no cover
+
+        AddableValuesDict = cast("Type[Any] | None", _AddableValuesDict)
+        # Only call isinstance with AddableValuesDict when the import succeeded.
         if not (
             isinstance(value, (GraphState, MutableMapping)) or
-            (AddableValuesDict and isinstance(value, AddableValuesDict))
+            (AddableValuesDict is not None and isinstance(value, AddableValuesDict))
         ):
-            raise ValueError(f"Value for key '{key}' must be a GraphState, AddableValuesDict, or MutableMapping instance. Got {type(value)}")
+            raise ValueError(
+                f"Value for key '{key}' must be a GraphState, AddableValuesDict, or MutableMapping instance. Got {type(value)}"
+            )
         super().__setitem__(key, value)
 
-    def get(self, key: str, default=None) -> GraphState:
+    def get(self, key: str, default: Any = None) -> Any:
         return super().get(key, default)

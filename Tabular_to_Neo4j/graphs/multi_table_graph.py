@@ -86,8 +86,25 @@ def create_multi_table_graph() -> StateGraph:
     The folder path and table enumeration are handled elsewhere (initialize_multi_table_state and pipeline runner).
     """
     graph = StateGraph(GraphState)
-    for node_name, node_func in PIPELINE_NODES:
-        graph.add_node(node_name, node_func)
+
+    # LangGraph expects each node callable to accept (state: GraphState) (and optionally a
+    # RunnableConfig/StreamWriter). Our node functions also need the `node_order` so they
+    # can produce deterministic file names and logs.  We therefore create a small wrapper
+    # around every node function that injects the `node_order`, while still presenting the
+    # correct callable signature to LangGraph's type checker and runtime.
+    from functools import partial
+    from langchain_core.runnables import RunnableConfig  # runtime import, avoids hard dep here
+
+    for idx, (node_name, node_func) in enumerate(PIPELINE_NODES, start=1):
+        # Each wrapper only takes the state (plus optional config) and forwards the call
+        # to the original implementation with the captured node index.
+        def _make_wrapper(func, order):
+            def _wrapper(state: GraphState, config: RunnableConfig | None = None):  # type: ignore[override]
+                # Pass through to real implementation with `node_order`.
+                return func(state, node_order=order)
+            return _wrapper
+
+        graph.add_node(node_name, _make_wrapper(node_func, idx))
     for edge in PIPELINE_EDGES:
         if isinstance(edge, dict):
             graph.add_conditional_edges(edge["source"], edge["condition"], edge["edges"])
@@ -95,14 +112,16 @@ def create_multi_table_graph() -> StateGraph:
             graph.add_edge(*edge)
     graph.set_entry_point(ENTRY_POINT)
     graph.set_finish_point("infer_entity_relationships")
+
+    # Configure output_saver with node order mapping so downstream nodes can
+    # create deterministic file names using the same ordering we defined above.
+    output_saver.set_node_order_map(PIPELINE_NODES)
     return graph
         
 
 def run_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]] = None) -> MultiTableGraphState:
     import logging
     logger = logging.getLogger(__name__)
-
-
 
     def initialize_multi_table_state(table_folder: str) -> MultiTableGraphState:
         """
@@ -146,16 +165,23 @@ def run_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]]
     # Enforce that all table states are valid mapping types (GraphState, AddableValuesDict, or MutableMapping)
     from collections.abc import MutableMapping
     try:
-        from langchain_core.utils import AddableValuesDict
-    except ImportError:
-        AddableValuesDict = None
+        from langchain_core.utils import AddableValuesDict  # type: ignore
+    except ImportError:  # pragma: no cover
+        AddableValuesDict = None  # type: ignore
+
+    # Build a tuple of allowed types for isinstance that passes static type checking
+    per_table_allowed_types: tuple[type, ...] = (GraphState, MutableMapping)
+    if AddableValuesDict is not None and isinstance(AddableValuesDict, type):  # runtime safety check
+        per_table_allowed_types = (*per_table_allowed_types, AddableValuesDict)  # type: ignore[arg-type]
+
     for table_name, table_state in state.items():
-        if not (
-            isinstance(table_state, (GraphState, MutableMapping)) or
-            (AddableValuesDict and isinstance(table_state, AddableValuesDict))
-        ):
-            logger.error(f"[PER_TABLE][{table_name}] Invalid state type after pipeline: {type(table_state).__name__}")
-            raise TypeError(f"Table state for '{table_name}' must be a GraphState, AddableValuesDict, or MutableMapping, got {type(table_state)}")
+        if not isinstance(table_state, per_table_allowed_types):
+            logger.error(
+                f"[PER_TABLE][{table_name}] Invalid state type after pipeline: {type(table_state).__name__}"
+            )
+            raise TypeError(
+                f"Table state for '{table_name}' must be one of {[t.__name__ for t in per_table_allowed_types]}, got {type(table_state)}"
+            )
     
     # Cross-table phase
     for node_idx, (node_name, node_func) in enumerate(CROSS_TABLE_NODES, 1):
@@ -175,14 +201,20 @@ def run_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]]
     # Ensure all table states are valid mapping types (GraphState, AddableValuesDict, or MutableMapping) after cross-table nodes
     from collections.abc import MutableMapping
     try:
-        from langchain_core.utils import AddableValuesDict
-    except ImportError:
-        AddableValuesDict = None
+        from langchain_core.utils import AddableValuesDict  # type: ignore
+    except ImportError:  # pragma: no cover
+        AddableValuesDict = None  # type: ignore
+
+    allowed_types_final: tuple[type, ...] = (GraphState, MutableMapping)
+    if AddableValuesDict is not None and isinstance(AddableValuesDict, type):  # runtime safety check
+        allowed_types_final = (*allowed_types_final, AddableValuesDict)  # type: ignore[arg-type]
+
     for table_name, table_state in state.items():
-        if not (
-            isinstance(table_state, (GraphState, MutableMapping)) or
-            (AddableValuesDict and isinstance(table_state, AddableValuesDict))
-        ):
-            logger.error(f"[FINAL][{table_name}] Invalid state type after cross-table nodes: {type(table_state).__name__}")
-            raise TypeError(f"Table state for '{table_name}' must be a GraphState, AddableValuesDict, or MutableMapping after cross-table nodes, got {type(table_state)}")
+        if not isinstance(table_state, allowed_types_final):
+            logger.error(
+                f"[FINAL][{table_name}] Invalid state type after cross-table nodes: {type(table_state).__name__}"
+            )
+            raise TypeError(
+                f"Table state for '{table_name}' must be one of {[t.__name__ for t in allowed_types_final]} after cross-table nodes, got {type(table_state)}"
+            )
     return state

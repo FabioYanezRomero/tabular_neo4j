@@ -7,7 +7,7 @@ import json
 import datetime
 import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, MutableMapping
 
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 
@@ -86,7 +86,7 @@ class OutputSaver:
             return self.output_dir  # fallback for legacy/single-table
         return os.path.join(self.output_dir, table_name)
 
-    def save_node_output(self, node_name: str, state: Dict[str, Any], node_order: int = 0, table_name: str = None) -> None:
+    def save_node_output(self, node_name: str, state: MutableMapping[str, Any], node_order: int = 0, table_name: str = None) -> None:
         """
             Save the output of a node to a file, organized by table (or inter_table).
         Args:
@@ -112,7 +112,7 @@ class OutputSaver:
         # Update previous state for this table/inter_table
         self.previous_state[table_name] = state.copy()
 
-    def _extract_new_info(self, current_state: Dict[str, Any], prev_state: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _extract_new_info(self, current_state: MutableMapping[str, Any], prev_state: MutableMapping[str, Any] | None = None) -> Dict[str, Any]:
         """
         Extract only the new or changed information from the current state, using table-specific previous state.
         """
