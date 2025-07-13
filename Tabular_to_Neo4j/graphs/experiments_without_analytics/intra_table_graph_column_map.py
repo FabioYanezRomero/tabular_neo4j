@@ -82,7 +82,7 @@ from Tabular_to_Neo4j.nodes.inter_table_nodes import (
 from Tabular_to_Neo4j.utils.output_saver import output_saver
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_path_for_csv
 
-def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]] = None, use_analytics: bool = True) -> MultiTableGraphState:
+def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict[str, Any]] = None, use_analytics: bool = use_analytics) -> MultiTableGraphState:
     """Runs the column-mapping intra-table graph for every CSV in *table_folder*, then executes
     all inter-table nodes in sequence and returns the resulting MultiTableGraphState.
     Output is saved via the global `output_saver` after each node for traceability.
