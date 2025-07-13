@@ -12,7 +12,7 @@ from Tabular_to_Neo4j.nodes.Intra_table_nodes import (
     map_column_to_graph_element_node,
 )
 
-use_analytics = True
+use_analytics = False
 
 # Ordered list defines node order for output naming
 PIPELINE_NODES = [
