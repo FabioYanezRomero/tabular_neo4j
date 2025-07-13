@@ -30,7 +30,7 @@ def _collect_entity_labels(multi_state: MultiTableGraphState) -> List[str]:
     return sorted(labels)
 
 
-def merge_synonym_entities_node(state: MultiTableGraphState, node_order: int) -> MultiTableGraphState:  # type: ignore[type-arg]
+def merge_synonym_entities_node(state: MultiTableGraphState, node_order: int, use_analytics: bool = False) -> MultiTableGraphState:  # type: ignore[type-arg]
     logger.info("[merge_synonym_entities_node] Starting synonym merge detection")
 
     entity_labels = _collect_entity_labels(state)
@@ -43,6 +43,7 @@ def merge_synonym_entities_node(state: MultiTableGraphState, node_order: int) ->
         template_name="merge_synonym_entities.txt",
         entity_labels="\n".join(entity_labels),
         unique_suffix="",
+        use_analytics=use_analytics,
     )
 
     llm_resp = call_llm_with_json_output(

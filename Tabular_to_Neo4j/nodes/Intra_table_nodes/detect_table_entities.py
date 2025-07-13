@@ -18,7 +18,7 @@ from Tabular_to_Neo4j.utils.csv_utils import get_sample_rows, df_to_json_sample
 logger = logging.getLogger(__name__)
 
 
-def _build_columns_analytics(state: GraphState) -> str:
+def _build_columns_analytics(state: GraphState, use_analytics: bool = False) -> str:
     """Return multiline string summarising column analytics for the prompt."""
     analytics: Dict[str, Dict[str, Any]] = state.get("column_analytics", {}) or {}
     lines = []
@@ -43,7 +43,7 @@ def _get_sample_rows_json(state: GraphState, max_rows: int = 5) -> str:
     return df_to_json_sample(df_sample)
 
 
-def detect_table_entities_node(state: GraphState, node_order: int) -> GraphState:
+def detect_table_entities_node(state: GraphState, node_order: int, use_analytics: bool = False) -> GraphState:
     """Main entrypoint for the LangGraph node."""
     logger.info("[detect_table_entities_node] Starting entity detection for table")
 
@@ -66,6 +66,7 @@ def detect_table_entities_node(state: GraphState, node_order: int) -> GraphState
         columns_analytics=columns_analytics_str,
         sample_rows=sample_rows_json,
         unique_suffix="",
+        use_analytics=True,
     )
 
     llm_response = call_llm_with_json_output(

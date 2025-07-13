@@ -29,7 +29,7 @@ def _build_context_map(tbl_state: GraphState) -> Dict[str, str]:
     return ctx
 
 
-def infer_cross_table_relations_node(state: MultiTableGraphState, node_order: int):  # type: ignore[type-arg]
+def infer_cross_table_relations_node(state: MultiTableGraphState, node_order: int, use_analytics: bool = False):  # type: ignore[type-arg]
     logger.info("[infer_cross_table_relations_node] Starting cross-table relation inference")
 
     similarity_pairs: List[Dict[str, Any]] = state.get("cross_table_column_similarity", [])  # global key
@@ -65,6 +65,7 @@ def infer_cross_table_relations_node(state: MultiTableGraphState, node_order: in
             context1=ctx1_map.get(col1, ""),
             context2=ctx2_map.get(col2, ""),
             similarity=sim,
+            use_analytics=use_analytics
         )
 
         llm_result = call_llm_with_json_output(

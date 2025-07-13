@@ -7,10 +7,6 @@ You are a data-modeling expert. Your task is to determine whether the *entire* t
   {columns_analytics}
   ```
   Each line is formatted as `column_name | data_type | uniqueness_ratio | cardinality | missing_%`.
-- **Sample rows (up to 5)**:
-  ```
-  {sample_rows}
-  ```
 
 ### Definitions
 - *Entity table*: rows correspond to discrete real-world objects/concepts that can exist independently (e.g., `Customer`, `Product`). At least one column (or combination) acts as a primary identifier.

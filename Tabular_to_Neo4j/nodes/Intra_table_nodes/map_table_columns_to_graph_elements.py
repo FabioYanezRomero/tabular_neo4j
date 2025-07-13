@@ -27,7 +27,7 @@ def _columns_analytics_multiline(state: GraphState) -> str:
     return "\n".join(lines)
 
 
-def map_table_columns_to_graph_elements_node(state: GraphState, node_order: int) -> GraphState:
+def map_table_columns_to_graph_elements_node(state: GraphState, node_order: int, use_analytics: bool = False) -> GraphState:
     logger.info("[map_table_columns_to_graph_elements_node] Starting")
 
     if state.get("column_analytics") is None:
@@ -62,6 +62,7 @@ def map_table_columns_to_graph_elements_node(state: GraphState, node_order: int)
         columns_analytics=_columns_analytics_multiline(state),
         sample_rows=sample_rows_json,
         unique_suffix="",
+        use_analytics=use_analytics
     )
 
     llm_resp = call_llm_with_json_output(

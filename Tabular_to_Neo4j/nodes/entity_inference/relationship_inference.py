@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 
 def infer_entity_relationships_node(
-    state: GraphState, node_order: int
+    state: GraphState, node_order: int, use_analytics:bool
 ) -> GraphState:
     """
     Infer relationships between entities based on property mapping and entity types.
@@ -165,6 +165,7 @@ def infer_entity_relationships_node(
                         metadata_text=metadata_text,
                         sample_data=sample_data,
                         unique_suffix=f"{pair[0]}_{pair[1]}",
+                        use_analytics=use_analytics
                     )
                     
                     # Call the LLM for this specific entity pair

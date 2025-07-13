@@ -28,7 +28,7 @@ def _column_analytics_str(col_name: str, analytics: Dict[str, Any]) -> str:
     )
 
 
-def map_column_to_graph_element_node(state: GraphState, node_order: int) -> GraphState:
+def map_column_to_graph_element_node(state: GraphState, node_order: int, use_analytics: bool = False) -> GraphState:
     logger.info("[map_column_to_graph_element_node] Starting")
 
 
@@ -58,6 +58,7 @@ def map_column_to_graph_element_node(state: GraphState, node_order: int) -> Grap
             relationships=str(relationships),
             sample_values=json.dumps(sample_vals),
             unique_suffix=col,
+            use_analytics=use_analytics
         )
         llm_resp = call_llm_with_json_output(
             prompt=prompt,

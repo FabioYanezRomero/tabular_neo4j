@@ -20,7 +20,7 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def translate_header_llm_node(state: GraphState, node_order: int) -> GraphState:
+def translate_header_llm_node(state: GraphState, node_order: int, use_analytics: bool = False) -> GraphState:
     """
     Use LLM to translate headers to match the metadata language.
     This node is only called if the detect_header_language_node determined translation is needed.
@@ -75,6 +75,7 @@ def translate_header_llm_node(state: GraphState, node_order: int) -> GraphState:
             source_language=header_language,
             target_language=metadata_language,
             metadata_text=metadata_text,
+            use_analytics=use_analytics
         )
 
         # Call the LLM to translate headers

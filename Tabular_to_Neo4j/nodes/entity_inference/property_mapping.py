@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 
 
 def map_properties_to_entities_node(
-    state: GraphState, node_order: int
+    state: GraphState, node_order: int, use_analytics: bool = False
 ) -> GraphState:
     """
     Map properties to their respective entities and create a clear property-entity mapping.
@@ -169,6 +169,7 @@ def map_properties_to_entities_node(
                 sample_values=sample_values,
                 analytics=analytics,
                 unique_suffix=prop,
+                use_analytics=use_analytics
             )
             # Call the LLM for property-entity mapping
             logger.info("Calling LLM to map properties to entities")

@@ -22,7 +22,7 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def infer_header_llm_node(state: GraphState, node_order: int) -> GraphState:
+def infer_header_llm_node(state: GraphState, node_order: int, use_analytics: bool = False) -> GraphState:
     """
     Use LLM to infer appropriate headers when no header is detected.
 
@@ -64,6 +64,7 @@ def infer_header_llm_node(state: GraphState, node_order: int) -> GraphState:
             metadata_text=metadata_text,
             num_columns=len(df.columns),
             data_sample=data_sample,
+            use_analytics=use_analytics
         )
 
         # Call the LLM to infer headers

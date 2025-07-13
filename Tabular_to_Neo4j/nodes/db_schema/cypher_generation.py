@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 def generate_cypher_templates_node(
-    state: GraphState, config: RunnableConfig
+    state: GraphState, config: RunnableConfig, use_analytics: bool = False
 ) -> GraphState:
     """
     Generate template Cypher queries for the inferred schema.
@@ -154,6 +154,7 @@ def generate_cypher_templates_node(
                 relationships=json.dumps(relationships_for_prompt, indent=2),
                 metadata_text=metadata_text,
                 sample_data=sample_data,
+                use_analytics=use_analytics,
             )
 
             # Call the LLM to generate Cypher templates

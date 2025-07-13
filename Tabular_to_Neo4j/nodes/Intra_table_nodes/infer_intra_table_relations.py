@@ -38,7 +38,7 @@ def _sample_rows(state: GraphState, max_rows: int = 5) -> str:
     return df_to_json_sample(df_sample)
 
 
-def infer_intra_table_relations_node(state: GraphState, node_order: int) -> GraphState:
+def infer_intra_table_relations_node(state: GraphState, node_order: int, use_analytics: bool = False) -> GraphState:
     """Infer relationships among entities within the same table."""
     logger.info("[infer_intra_table_relations_node] Starting")
 
@@ -61,6 +61,7 @@ def infer_intra_table_relations_node(state: GraphState, node_order: int) -> Grap
         columns_analytics=_build_columns_analytics(state),
         sample_rows=_sample_rows(state),
         unique_suffix="",
+        use_analytics=use_analytics
     )
 
     llm_resp = call_llm_with_json_output(

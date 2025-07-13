@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 
 
 def classify_entities_properties_node(
-    state: GraphState, node_order: int
+    state: GraphState, node_order: int, use_analytics: bool = False
 ) -> GraphState:
     """First step in schema synthesis: Classify columns as entities or properties using both LLM and rule-based approaches.
 
@@ -158,6 +158,7 @@ def classify_entities_properties_node(
                             missing_percentage=analytics.get("null_percentage", 0) * 100,
                             metadata_text=metadata_text,
                             unique_suffix=column_name,
+                            use_analytics=use_analytics
                         )
                     except Exception as e:
                         error_msg = f"Error formatting prompt for column '{column_name}': {str(e)}"

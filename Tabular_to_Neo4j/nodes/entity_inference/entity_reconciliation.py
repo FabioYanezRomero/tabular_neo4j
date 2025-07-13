@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 def reconcile_entity_property_node(
-    state: GraphState, node_order: int
+    state: GraphState, node_order: int, use_analytics: bool = False
 ) -> GraphState:
     """
     Reconcile analytics-based and LLM-based classifications
@@ -192,6 +192,7 @@ def reconcile_entity_property_node(
                 metadata_text=metadata_text,
                 sample_values=sample_values,
                 unique_suffix=column_name,
+                use_analytics=use_analytics
             )
             logger.info(f"Formatted and saved reconciliation prompt for column '{column_name}' due to classification discrepancy.")
 

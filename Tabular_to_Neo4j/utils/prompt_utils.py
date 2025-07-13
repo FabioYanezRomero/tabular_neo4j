@@ -10,10 +10,10 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-def load_prompt_template(template_name: str) -> str:
+def load_prompt_template(template_name: str, use_analytics: bool = False) -> str:
     """Load a prompt template from the prompts directory."""
     base_dir = Path(__file__).parent.parent
-    prompt_path = base_dir / "prompts" / template_name
+    prompt_path = base_dir / "prompts" / ("experiment_with_analytics" if use_analytics else "experiment_without_analytics") / template_name
     try:
         with open(prompt_path, "r", encoding="utf-8") as file:
             return file.read()
@@ -90,13 +90,13 @@ def save_prompt_sample(
     # Only the .txt file is created.
 
 
-def format_prompt(template_name: str, *, table_name: Optional[str] = None, unique_suffix: str = "", **kwargs) -> str:
+def format_prompt(template_name: str, *, table_name: Optional[str] = None, unique_suffix: str = "", use_analytics: bool = False, **kwargs) -> str:
     """
     Format a prompt template with the given arguments.
     Pass table_name or subfolder for correct prompt saving location.
     """
     
-    template = load_prompt_template(template_name)
+    template = load_prompt_template(template_name, use_analytics)
 
     formatted_kwargs: Dict[str, str] = {}
     for key, value in kwargs.items():

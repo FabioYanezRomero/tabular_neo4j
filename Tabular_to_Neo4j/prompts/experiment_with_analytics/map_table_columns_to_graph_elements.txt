@@ -8,10 +8,7 @@ You are designing a Neo4j property-graph schema for the table below.
   ```
   {columns_analytics}
   ```
-- **Sample rows (up to 5)**:
-  ```
-  {sample_rows}
-  ```
+
 
 ### Task
 For EVERY column, decide whether it is:

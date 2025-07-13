@@ -14,7 +14,6 @@ from Tabular_to_Neo4j.nodes.Intra_table_nodes import (
 
 PIPELINE_NODES = [
     ("load_csv", load_csv_node),
-
     ("detect_table_entities", detect_table_entities_node),
     ("infer_intra_table_relations", infer_intra_table_relations_node),
     ("map_table_columns_to_graph_elements", map_table_columns_to_graph_elements_node),
@@ -60,8 +59,6 @@ from Tabular_to_Neo4j.app_state import MultiTableGraphState
 from Tabular_to_Neo4j.nodes.inter_table_nodes import (
     merge_synonym_entities_node,
     merge_relation_types_node,
-    column_semantic_similarity_node,
-    infer_cross_table_relations_node,
 )
 from Tabular_to_Neo4j.utils.output_saver import output_saver
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_path_for_csv
@@ -95,9 +92,8 @@ def run_table_map_multi_table_pipeline(table_folder: str, config: Optional[Dict[
 
     cross_nodes = [
         ("merge_synonym_entities", merge_synonym_entities_node),
+        ("synonym_entities_analytics", synonym_entities_analytics_node),
         ("merge_relation_types", merge_relation_types_node),
-        ("column_semantic_similarity", column_semantic_similarity_node),
-        ("infer_cross_table_relations", infer_cross_table_relations_node),
     ]
     for idx, (n_name, n_func) in enumerate(cross_nodes, 1):
         real_idx = idx + len(intra_nodes)

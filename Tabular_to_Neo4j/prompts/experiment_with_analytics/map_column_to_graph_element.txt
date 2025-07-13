@@ -7,10 +7,9 @@ one of the detected **entities** (as a property) or represents the value of an
 ### Input
 - **Table name**: `{table_name}`
 - **Column**: `{column_name}`
-- **Column analytic**: `{column_analytic}`
 - **Detected entities**: {entities}
 - **Detected intra-table relationships**: {relationships}
-- **Sample values**: {sample_values}
+- **Column analytic**: `{column_analytic}`
 
 ### Output
 Return ONLY a JSON object:

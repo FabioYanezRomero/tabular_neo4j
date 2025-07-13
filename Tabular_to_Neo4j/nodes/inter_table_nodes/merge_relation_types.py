@@ -76,7 +76,7 @@ def _candidate_lines(candidates: List[Tuple[str, str, str]]) -> str:
 
 # ----------------------------- main node -----------------------------
 
-def merge_relation_types_node(state: MultiTableGraphState, node_order: int):  # type: ignore[type-arg]
+def merge_relation_types_node(state: MultiTableGraphState, node_order: int, use_analytics: bool = False):  # type: ignore[type-arg]
     logger.info("[merge_relation_types_node] Starting relation-type merge detection")
 
     merges_obj = state.get("entity_label_merges", {})
@@ -98,6 +98,7 @@ def merge_relation_types_node(state: MultiTableGraphState, node_order: int):  # 
         merged_entities=json.dumps(merge_groups, ensure_ascii=False, indent=2),
         candidate_relationships=_candidate_lines(candidates),
         unique_suffix="",
+        use_analytics=use_analytics
     )
 
     llm_resp = call_llm_with_json_output(

@@ -16,7 +16,7 @@ def load_llm_prompt(path: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
-def llm_relation_node(state: MultiTableGraphState, node_order: int) -> MultiTableGraphState:
+def llm_relation_node(state: MultiTableGraphState, node_order: int, use_analytics: bool = False) -> MultiTableGraphState:
     """
     For each pair of columns with similarity above threshold, call LLM to decide the relationship.
     Stores results in each table's GraphState under 'cross_table_column_relations'.
@@ -54,6 +54,7 @@ def llm_relation_node(state: MultiTableGraphState, node_order: int) -> MultiTabl
                 context1=context1_map.get(col1, ""),
                 context2=context2_map.get(col2, ""),
                 similarity=similarity,
+                use_analytics=use_analytics,
             )
             # Call the LLM using the unified dispatcher with JSON output
             llm_result = call_llm_with_json_output(

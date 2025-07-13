@@ -114,9 +114,8 @@ def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict
     # --- inter-table phase
     cross_nodes = [
         ("merge_synonym_entities", merge_synonym_entities_node),
+        ("synonym_entities_analytics", synonym_entities_analytics_node),
         ("merge_relation_types", merge_relation_types_node),
-        ("column_semantic_similarity", column_semantic_similarity_node),
-        ("infer_cross_table_relations", infer_cross_table_relations_node),
     ]
     for idx, (n_name, n_func) in enumerate(cross_nodes, 1):
         real_idx = idx + len(intra_nodes)

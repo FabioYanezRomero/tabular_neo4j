@@ -1,0 +1,33 @@
+You are synthesizing a global Neo4j graph schema from multiple tables.
+Below is the set of entity labels that were independently detected per table.
+Your task is to identify synonyms – labels that refer to the same real-world entity type – and propose a merged label.
+
+### Input
+```
+{entity_labels}
+```
+
+### Requirements
+1. Only merge when labels are clear synonyms (e.g., "Film" and "Movie").
+2. Do NOT merge labels that represent different concepts even if similar.
+3. Keep a label unchanged if no synonym exists.
+4. Use concise, lowercase-with-underscores merged names (e.g., "movie").
+
+### Output
+Return **JSON only** in the following format:
+```json
+{
+  "merges": [
+    {
+      "from": ["Film", "Movie"],
+      "to": "movie"
+    }
+    // one object per merge group
+  ]
+}
+```
+
+If no merges are needed, return:
+```json
+{ "merges": [] }
+```

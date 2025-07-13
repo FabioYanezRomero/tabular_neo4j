@@ -22,7 +22,7 @@ from Tabular_to_Neo4j.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def validate_header_llm_node(state: GraphState, node_order: int) -> GraphState:
+def validate_header_llm_node(state: GraphState, node_order: int, use_analytics: bool = False) -> GraphState:
     """
     Use LLM to validate and potentially improve headers.
 
@@ -94,6 +94,7 @@ def validate_header_llm_node(state: GraphState, node_order: int) -> GraphState:
             column_count=len(df.columns),
             row_count=len(df),
             metadata_text=metadata_text,
+            use_analytics=use_analytics
         )
 
         logger.debug("Calling LLM for header validation")
