@@ -1,0 +1,27 @@
+You are an expert in data modeling and semantic analysis. Your task is to review a list of proposed entity merges and, using the provided column analytics, determine if each merge is semantically valid.
+
+Proposed Merges (JSON format, list of objects, each with 'source' and 'target' entity labels):
+```json
+{proposed_merges}
+```
+
+Column Analytics (JSON format, mapping of column_name to its analytics):
+```json
+{column_analytics}
+```
+
+Based on the column analytics, for each proposed merge, decide if the 'source' and 'target' entity labels truly represent the same underlying concept. Consider data types, value distributions, patterns, and any other relevant statistical information.
+
+Output a JSON object with a single key 'validated_merges', which is a list of only the merge objects that you consider semantically valid. If a merge is not valid, exclude it from the output.
+
+Example Output:
+```json
+{
+  "validated_merges": [
+    {
+      "source": "Customer_ID",
+      "target": "Client_Number"
+    }
+  ]
+}
+```

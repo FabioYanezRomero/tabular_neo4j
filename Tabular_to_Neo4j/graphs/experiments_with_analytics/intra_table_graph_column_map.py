@@ -78,6 +78,7 @@ from Tabular_to_Neo4j.app_state import MultiTableGraphState
 from Tabular_to_Neo4j.nodes.inter_table_nodes import (
     merge_synonym_entities_node,
     merge_relation_types_node,
+    merge_entities_analytics_node,
 )
 from Tabular_to_Neo4j.utils.output_saver import output_saver
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_path_for_csv
@@ -114,6 +115,7 @@ def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict
     # --- inter-table phase
     cross_nodes = [
         ("merge_synonym_entities", merge_synonym_entities_node),
+        ("merge_entities_analytics", merge_entities_analytics_node),
         ("merge_relation_types", merge_relation_types_node),
     ]
     for idx, (n_name, n_func) in enumerate(cross_nodes, 1):
