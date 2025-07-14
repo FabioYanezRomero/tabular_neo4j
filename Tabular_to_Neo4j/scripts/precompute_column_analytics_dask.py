@@ -32,8 +32,104 @@ logger = get_logger(__name__)
 
 # DeepJoin contextualized analytics output directory
 CONTEXT_OUTPUT_DIR = Path("/app/contextualized_analytics")
+# Directory for samples-only outputs
+NO_ANALYTICS_DIR = Path("/app/no_analytics")
 
-# ---- Helpers -------------------------------------------------------------
+def contextualize_integer_float(token_sequence: str, column_info: dict) -> str:
+    """
+    Contextualize integer/float token sequences using JSON metadata.
+    Implementation provided by the user.
+    """
+    delimiter = column_info.get('list_delimiter', ',')
+    tokens = token_sequence.split(delimiter) if token_sequence else []
+    token_count = len(tokens)
+    unique_tokens = len(set(tokens)) if tokens else 0
+    repeated_tokens = token_count - unique_tokens
+
+    token_list = ", ".join(tokens)
+
+    context = (
+        f"{column_info['column_name']}: {token_list}. "
+
+        f"This {column_info['cardinality_type']} cardinality {column_info['data_type']} sequence has {column_info['distinct_count']} distinct combinations "
+        f"from {column_info['total_count']} total entries. "
+        f"Token value range: {column_info['min_value']:.0f} to {column_info['max_value']:.0f}, "
+        f"average value: {column_info['avg_value']:.0f}. "
+        f"Sequence length statistics: average {column_info.get('tokens_per_cell_avg', 1):.1f}, "
+        f"range {column_info.get('tokens_per_cell_min', 1)}-{column_info.get('tokens_per_cell_max', 1)} tokens. "
+        f"Distribution uniformity: {column_info['distribution']['uniformity']*100:.1f}%, "
+        f"uniqueness ratio: {column_info['uniqueness_ratio']*100:.2f}%. "
+        f"Most frequent token: {column_info['mode_values'][0]}. "
+        f"Table: {column_info['table_name']}. "
+        f"Context: {column_info['contextual_description']}"
+    )
+    return context
+
+
+def contextualize_string(string_value: str, column_info: dict) -> str:
+    """Contextualize string values using JSON metadata"""
+    value_length = len(string_value)
+    is_mode_value = string_value in column_info['mode_values']
+    popularity = "mode" if is_mode_value else "non-mode"
+
+    context = (
+        f"{column_info['column_name']}: {string_value} (length: {value_length} chars, {popularity} value). "
+        f"String statistics: min {column_info['value_lengths']['min']}, "
+        f"max {column_info['value_lengths']['max']}, "
+        f"mean {column_info['value_lengths']['mean']:.1f}, "
+        f"median {column_info['value_lengths']['median']}, "
+        f"std {column_info['value_lengths']['std']:.2f}. "
+        f"Cardinality: {column_info['cardinality_type']} ({column_info['distinct_count']} distinct values). "
+        f"Distribution: uniformity {column_info['distribution']['uniformity']*100:.1f}%, "
+        f"top frequency {column_info['distribution']['top_value_frequency']*100:.2f}%. "
+        f"Uniqueness ratio: {column_info['uniqueness_ratio']:.3f}. "
+        f"Table: {column_info['table_name']} ({column_info['total_count']} entries). "
+        f"Context: {column_info['contextual_description']}"
+    )
+    return context
+
+
+def contextualize_boolean(bool_value: bool, column_info: dict) -> str:
+    """Contextualize boolean values using JSON metadata"""
+    status = "enabled" if bool_value else "disabled"
+    mode_value = column_info['mode_values'][0]
+    is_majority = bool_value == mode_value
+    case_type = "majority" if is_majority else "minority"
+
+    context = (
+        f"{column_info['column_name']}: {bool_value} ({status}, {case_type} case). "
+        f"Data type: {column_info['data_type']} with {column_info['cardinality_type']} cardinality. "
+        f"Distribution: top value frequency {column_info['distribution']['top_value_frequency']*100:.1f}%, "
+        f"uniformity {column_info['distribution']['uniformity']*100:.1f}%. "
+        f"Mode value: {mode_value}. "
+        f"Uniqueness ratio: {column_info['uniqueness_ratio']:.9f}. "
+        f"Total entries: {column_info['total_count']:,}, distinct values: {column_info['distinct_count']}. "
+        f"Table: {column_info['table_name']}. "
+        f"Context: {column_info['contextual_description']}"
+    )
+    return context
+
+
+def contextualize_date(date_value: str, column_info: dict) -> str:
+    """Contextualize date values using JSON metadata"""
+    from datetime import datetime
+    date_obj = datetime.strptime(date_value, "%Y-%m-%d")
+    day_of_week = date_obj.strftime("%A")
+    month_name = date_obj.strftime("%B")
+
+    context = (
+        f"{column_info['column_name']}: {date_value} ({day_of_week}, {month_name} {date_obj.day}, {date_obj.year}). "
+        f"Date range: {column_info['min_value']} to {column_info['max_value']}. "
+        f"Cardinality: {column_info['cardinality_type']} ({column_info['distinct_count']} unique dates). "
+        f"Distribution: uniformity {column_info['distribution']['uniformity']*100:.2f}%, "
+        f"top frequency {column_info['distribution']['top_value_frequency']*100:.2f}%. "
+        f"Most frequent: {column_info['mode_values'][0]}. "
+        f"Uniqueness ratio: {column_info['uniqueness_ratio']:.8f}. "
+        f"Total events: {column_info['total_count']:,} in table {column_info['table_name']}. "
+        f"Context: {column_info['contextual_description']}"
+    )
+    return context
+
 import numpy as np
 
 def _to_py_scalar(val):
@@ -103,25 +199,59 @@ def _llm_generate_column_description(table_name: str, column_name: str, samples:
     return result  # description string (may be empty on failure)
 
 
+def _write_samples_only(dataset_name: str, table_name: str, column_name: str, samples: list[Any]) -> None:
+    """Write only the sampled values for a column (no analytics)."""
+    out_dir = NO_ANALYTICS_DIR / dataset_name / table_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"{column_name}.txt"
+    try:
+        path.write_text(", ".join(map(str, samples)), encoding="utf-8")
+    except Exception as exc:
+        logger.error("Failed writing samples for %s.%s: %s", table_name, column_name, exc)
+
 
 def _write_contextualized_text(dataset_name: str, table_name: str, column_name: str, enriched: dict[str, Any]) -> None:
-    """Write a plain-text contextualization suitable as LM input."""
+    """Write a plain-text contextualization using specialized helper functions."""
     out_dir = CONTEXT_OUTPUT_DIR / dataset_name / table_name
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{column_name}.txt"
-    samples = ", ".join(map(str, enriched.get("sampled_values", [])))
-    lines = [
-        f"Table: {table_name}",
-        f"Column: {column_name}",
-        f"Type: {enriched.get('semantic_type', enriched.get('inferred_type', 'unknown'))}",
-        f"Context: {enriched.get('contextual_description', '')}",
-        f"Stats: distinct={enriched.get('distinct_count')}, min_len={enriched.get('min_length')}, max_len={enriched.get('max_length')} ",
-        f"Min value: {enriched.get('min_value')}",
-        f"Max value: {enriched.get('max_value')}",
-        f"Samples: {samples}",
-    ]
+
+    data_type = (enriched.get("data_type") or enriched.get("semantic_type") or enriched.get("inferred_type") or "unknown").lower()
+    context_text: str
+
     try:
-        path.write_text("\n".join(lines), encoding="utf-8")
+        # Choose contextualization strategy by data type
+        if data_type in {"integer", "float"}:
+            # Build a representative token sequence (use sampled values if available)
+            # Ensure list_delimiter exists for helper
+            delimiter = enriched.get("list_delimiter", ",")
+            if "list_delimiter" not in enriched:
+                enriched["list_delimiter"] = delimiter
+            token_sequence = delimiter.join(map(str, enriched.get("sampled_values", [])[:10]))
+            context_text = contextualize_integer_float(token_sequence, enriched)
+        elif data_type == "string":
+            sample_val = str(enriched.get("sampled_values", [""])[0]) if enriched.get("sampled_values") else ""
+            context_text = contextualize_string(sample_val, enriched)
+        elif data_type in {"boolean", "categorical"}:
+            mode_val = enriched.get("mode_values", [True])[0]
+            # Convert possible string representation to boolean
+            if isinstance(mode_val, str):
+                mode_val_bool = mode_val.lower() in {"true", "1", "yes", "y", "t"}
+            else:
+                mode_val_bool = bool(mode_val)
+            context_text = contextualize_boolean(mode_val_bool, enriched)
+        elif data_type in {"date", "datetime"}:
+            date_val = str(enriched.get("mode_values", [enriched.get("min_value", "1970-01-01")])[0])
+            context_text = contextualize_date(date_val, enriched)
+        else:
+            # Fallback to LLM-generated contextual description if available
+            context_text = enriched.get("contextual_description", "")
+    except Exception as exc:
+        logger.error("Contextualization helper failed for %s.%s: %s", table_name, column_name, exc)
+        context_text = enriched.get("contextual_description", "")
+
+    try:
+        path.write_text(context_text, encoding="utf-8")
     except Exception as exc:
         logger.error("Failed writing contextualized text for %s.%s: %s", table_name, column_name, exc)
 
@@ -233,6 +363,8 @@ def compute_and_save_for_csv(csv_path: Path, dataset_name: str) -> None:
             analytics[col] = stats_dict
             # Write contextualized text for LLM input
             _write_contextualized_text(dataset_name, table_name, col, stats_dict)
+            # Also write samples-only file in /app/no_analytics
+            _write_samples_only(dataset_name, table_name, col, sampled_values)
         except Exception as e:
             logger.error("Failed analytics for %s column %s: %s", csv_path, col, e)
 

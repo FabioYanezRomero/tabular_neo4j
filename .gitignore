@@ -51,3 +51,4 @@ neo4j/data/
 datasets/
 analytics/
 contextualized_analytics/
+no_analytics/
