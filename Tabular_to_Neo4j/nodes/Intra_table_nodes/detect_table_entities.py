@@ -66,7 +66,7 @@ def detect_table_entities_node(state: GraphState, node_order: int, use_analytics
         columns_analytics=columns_analytics_str,
         sample_rows=sample_rows_json,
         unique_suffix="",
-        use_analytics=True,
+        use_analytics=use_analytics,
     )
 
     llm_response = call_llm_with_json_output(

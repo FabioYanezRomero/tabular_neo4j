@@ -5,3 +5,5 @@ from .infer_intra_table_relations import infer_intra_table_relations_node
 from .map_column_to_graph_element import map_column_to_graph_element_node
 from .map_table_columns_to_graph_elements import map_table_columns_to_graph_elements_node
 from .load_column_analytics import load_column_analytics_node
+from .load_column_contextualized import load_column_contextualized_node
+from .load_column_samples import load_column_samples_node
