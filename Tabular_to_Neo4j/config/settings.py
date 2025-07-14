@@ -217,4 +217,18 @@ LLM_CONFIGS = DynamicLLMConfigs({
     "auto_load": True,
     "auto_unload": True
 },
+    "analyse": {
+    "provider": DEFAULT_LLM_PROVIDER,
+    "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
+    "temperature": DEFAULT_TEMPERATURE,
+    "seed": DEFAULT_SEED,
+    "description": "Model for semantic analysis of columns",
+    "output_format": {
+        "type": "json_object",
+        "description": "Object with semantic analysis of a column",
+        "example": "{\"semantic_type\": \"Email\", \"neo4j_role\": \"PRIMARY_ENTITY_PROPERTY\", \"new_node_label_suggestion\": \"\", \"relationship_type_suggestion\": \"\", \"reasoning\": \"This column contains email addresses which are typically used as properties of entities.\"}"
+    },
+    "auto_load": True,
+    "auto_unload": True
+},
 })
