@@ -51,8 +51,10 @@ def run(
     if not output_saver:
         raise RuntimeError("OutputSaver is not initialized. All output saving must use the same timestamp for the run.")
     
-    # Abstract graph creation
-    graph = create_graph(pipeline)
+    # Create graph object only for the original pipelines; the experiment pipelines build graphs internally.
+    graph = None
+    if pipeline in {"single_table_graph", "multi_table_graph"}:
+        graph = create_graph(pipeline)
     if pipeline == "single_table_graph":
         from Tabular_to_Neo4j.graphs.single_table_graph import run_pipeline
         csv_file_path = input_path
@@ -75,6 +77,18 @@ def run(
         except Exception as e:
             raise e
         return final_state
+    elif pipeline == "experiments_with_analytics":
+        from Tabular_to_Neo4j.graphs.experiments_with_analytics.intra_table_graph_column_map import run_column_map_multi_table_pipeline as run_exp
+        table_folder = input_path
+        return run_exp(table_folder, use_analytics=True)
+    elif pipeline == "experiments_with_contextualized_analytics":
+        from Tabular_to_Neo4j.graphs.experiments_with_contextualized_analytics.intra_table_graph_column_map import run_column_map_multi_table_pipeline as run_exp
+        table_folder = input_path
+        return run_exp(table_folder, use_analytics=True)
+    elif pipeline == "experiments_without_analytics":
+        from Tabular_to_Neo4j.graphs.experiments_without_analytics.intra_table_graph_column_map import run_column_map_multi_table_pipeline as run_exp
+        table_folder = input_path
+        return run_exp(table_folder, use_analytics=False)
     else:
         raise ValueError(f"Unknown pipeline: {pipeline}")
 
@@ -84,7 +98,13 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Run Tabular to Neo4j converter.")
     parser.add_argument("--input_path", help="Path to the CSV file (single-table) or directory of CSVs (multi-table)")
-    parser.add_argument("--pipeline", default="single_table_graph", choices=["single_table_graph", "multi_table_graph"], help="Pipeline/graph to use: 'single_table_graph' (default) or 'multi_table_graph'")
+    parser.add_argument("--pipeline", default="single_table_graph", choices=[
+        "single_table_graph",
+        "multi_table_graph",
+        "experiments_with_analytics",
+        "experiments_with_contextualized_analytics",
+        "experiments_without_analytics",
+    ], help="Pipeline graph to run")
     parser.add_argument("--output_dir", "-o", default="samples", help="Path to save the results (single-table: one file, multi-table: summary)")
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Print verbose output"
