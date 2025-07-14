@@ -6,12 +6,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import csv
 from typing import Dict, Any
 
 import dask.dataframe as dd
 import pandas as pd
 from pandas.errors import ParserError
-from tqdm import tqdm
 
 from Tabular_to_Neo4j.utils.analytics_utils import analyze_all_columns
 from Tabular_to_Neo4j.utils.logging_config import get_logger
@@ -24,15 +24,25 @@ OUTPUT_DIR = Path("/app/analytics/csvs")
 
 
 def compute_and_save_for_csv(csv_path: Path, dataset_name: str) -> None:
+    # Detect delimiter by header count heuristic
+    try:
+        header = csv_path.open().readline()
+        # Choose among common delimiters by highest count in header
+        candidates = [',', ';', '\t', '|']
+        sep = max(candidates, key=lambda d: header.count(d))
+        if header.count(sep) == 0:
+            sep = ','
+    except Exception:
+        sep = ','
     """Compute and save analytics for a single CSV using Dask."""
     try:
         # Read CSV lazily with 64MB partitions
-        ddf = dd.read_csv(csv_path, assume_missing=True, blocksize="64MB")
+        ddf = dd.read_csv(csv_path, sep=sep, assume_missing=True, blocksize="64MB", engine="python", on_bad_lines="skip")
         cols = list(ddf.columns)
     except ParserError as e:
         logger.warning("ParserError reading %s: %s; falling back to pandas with skip", csv_path, e)
         try:
-            df = pd.read_csv(csv_path, on_bad_lines='skip')
+            df = pd.read_csv(csv_path, sep=sep, engine="python", on_bad_lines='skip')
             ddf = dd.from_pandas(df, npartitions=1)
             cols = list(df.columns)
         except Exception as e2:
@@ -69,28 +79,20 @@ def compute_and_save_for_csv(csv_path: Path, dataset_name: str) -> None:
 
 
 def main() -> None:
-    # Verify datasets directory
     if not DATASETS_DIR.exists():
         logger.error("Datasets directory %s not found", DATASETS_DIR)
         return
 
-    # Dataset subdirectories
-    dataset_dirs = [d for d in DATASETS_DIR.iterdir() if d.is_dir()]
-    if not dataset_dirs:
-        logger.warning("No dataset directories found under %s", DATASETS_DIR)
+    csv_files = list(DATASETS_DIR.rglob("*.csv"))
+    if not csv_files:
+        logger.warning("No CSV files found under %s", DATASETS_DIR)
         return
 
-    # Iterate per-dataset with progress
-    for dataset_dir in tqdm(dataset_dirs, desc="Datasets"):
-        dataset_name = dataset_dir.name
-        csv_files = list(dataset_dir.rglob("*.csv"))
-        if not csv_files:
-            logger.warning("No CSV files found under %s", dataset_dir)
-            continue
-
-        # Iterate per-table with nested progress
-        for csv_path in tqdm(csv_files, desc=f"Tables in {dataset_name}", leave=False):
-            compute_and_save_for_csv(csv_path, dataset_name)
+    logger.info("Found %d CSV files – starting analytics precompute", len(csv_files))
+    for csv_path in csv_files:
+        rel = csv_path.relative_to(DATASETS_DIR)
+        dataset_name = rel.parts[0]
+        compute_and_save_for_csv(csv_path, dataset_name)
 
     logger.info("Analytics precomputation completed.")
 

@@ -7,6 +7,7 @@ from Tabular_to_Neo4j.nodes.input import load_csv_node
 
 
 from Tabular_to_Neo4j.nodes.Intra_table_nodes import (
+    load_column_analytics_node,
     detect_table_entities_node,
     infer_intra_table_relations_node,
     map_column_to_graph_element_node,
@@ -17,7 +18,7 @@ use_analytics = True
 # Ordered list defines node order for output naming
 PIPELINE_NODES = [
     ("load_csv", load_csv_node),
-
+    ("load_column_analytics", load_column_analytics_node),
     ("detect_table_entities", detect_table_entities_node),
     ("infer_intra_table_relations", infer_intra_table_relations_node),
     ("map_column_to_graph_element", map_column_to_graph_element_node),
@@ -29,7 +30,8 @@ from typing import Union, Tuple, Dict, Any
 PipeEdge = Union[Tuple[str, str], Dict[str, Any]]
 
 PIPELINE_EDGES: list[PipeEdge] = [
-    ("load_csv", "detect_table_entities"),
+    ("load_csv", "load_column_analytics"),
+    ("load_column_analytics", "detect_table_entities"),
     ("detect_table_entities", "infer_intra_table_relations"),
     ("infer_intra_table_relations", "map_column_to_graph_element"),
     ("map_column_to_graph_element", END),
