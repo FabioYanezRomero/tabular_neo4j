@@ -33,15 +33,42 @@ logger = get_logger(__name__)
 # DeepJoin contextualized analytics output directory
 CONTEXT_OUTPUT_DIR = Path("/app/contextualized_analytics")
 
+# ---- Helpers -------------------------------------------------------------
+import numpy as np
 
-def _llm_generate_column_description(table_name: str, column_name: str, samples: list[str], stats: dict[str, Any]) -> dict[str, Any]:
+def _to_py_scalar(val):
+    """Convert numpy scalars to native Python types for JSON serialization."""
+    if isinstance(val, (np.integer,)):
+        return int(val)
+    if isinstance(val, (np.floating,)):
+        return float(val)
+    if isinstance(val, (np.bool_,)):
+        return bool(val)
+    return val
+
+
+def _make_json_serializable(obj):  # type: ignore[override]
+    """Recursively convert numpy types in a nested structure to Python primitives."""
+    if isinstance(obj, dict):
+        return {k: _make_json_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_make_json_serializable(v) for v in obj]
+    return _to_py_scalar(obj)
+
+
+def _llm_generate_column_description(table_name: str, column_name: str, samples: list[str], stats: dict[str, Any]) -> str:
     """Generate semantic analysis for a column using configured LLM."""
-    # Prepare analytics for prompt
     # Prepare analytics for prompt
     stats_for_prompt = {k: v for k, v in stats.items() if k not in {"contextual_description"}}
     # Determine data type for prompt customization
     data_type = stats.get("inferred_type") or stats.get("semantic_type") or "unknown"
     dt = data_type.lower()
+    # Error on undetected (unknown) types
+    if dt == "unknown":
+        logger.error("Data type detection failed for %s.%s: %s", table_name, column_name, stats)
+        raise ValueError(f"Unknown data type for {table_name}.{column_name}")
+    stats_for_prompt['data_type'] = dt
+    stats_for_prompt['sampled_values'] = samples
     if dt in ("int", "integer", "numeric", "float", "int64"):  # Numeric types
         type_instr = "Focus on distribution, range, mean, and outliers."
     elif dt in ("datetime", "date", "timestamp", "datetime64[ns]"):  # Temporal types
@@ -50,30 +77,36 @@ def _llm_generate_column_description(table_name: str, column_name: str, samples:
         type_instr = "Focus on category frequency, cardinality, and common values."
     else:  # Text and other types
         type_instr = "Focus on text characteristics: average length, unique values overview, and sample texts."
+    # Ensure JSON-serializable analytics
+    stats_for_prompt = _make_json_serializable(stats_for_prompt)  # type: ignore[name-defined]
     # Build prompt including type instruction
-    prompt = (
-        f"Column data type: {data_type}. {type_instr}\n\n"
+    prompt = (  # use dt for data type label
+
+        f"Column data type: {dt}. {type_instr}\n\n"
         "You are an expert data analyst. Using the following analytics about a column, "
-        "return only the JSON object exactly as defined in the schema.\n\n"
+        "write a concise natural-language description of what this column represents.\n\n"
         f"Table: {table_name}\n"
         f"Column: {column_name}\n"
         f"Analytics: {json.dumps(stats_for_prompt, ensure_ascii=False)}\n\n"
-        "Schema: " + json.dumps(LLM_CONFIGS["analyse"]["output_format"], ensure_ascii=False)
+        "IMPORTANT: Respond ONLY with plain text – no markdown, no JSON, no code fences. Return just the description sentence(s)."
     )
     try:
         # Dispatch to LLM API (Ollama or LMStudio) via unified client
         response_text = call_llm_api(prompt, config=LLM_CONFIGS["analyse"])
-        result = json.loads(response_text)
+        description = response_text.strip().strip('`').strip()
+        # remove leading/lowering quotes if model wrapped
+        description = description.strip('"')
+        result = description
     except Exception as exc:
         logger.warning("LLM semantic analysis failed for %s.%s: %s", table_name, column_name, exc)
-        result = {"semantic_type": "Unknown", "contextual_description": ""}
-    return result
+        result = ""
+    return result  # description string (may be empty on failure)
 
 
 
-def _write_contextualized_text(table_name: str, column_name: str, enriched: dict[str, Any]) -> None:
+def _write_contextualized_text(dataset_name: str, table_name: str, column_name: str, enriched: dict[str, Any]) -> None:
     """Write a plain-text contextualization suitable as LM input."""
-    out_dir = CONTEXT_OUTPUT_DIR / table_name
+    out_dir = CONTEXT_OUTPUT_DIR / dataset_name / table_name
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{column_name}.txt"
     samples = ", ".join(map(str, enriched.get("sampled_values", [])))
@@ -156,10 +189,19 @@ def compute_and_save_for_csv(csv_path: Path, dataset_name: str) -> None:
             if pdf[col].dtype == object:
                 try:
                     converted = pd.to_numeric(pdf[col], errors="coerce")  # type: ignore[arg-type]
-                    num_numeric = converted.dropna().shape[0]  # type: ignore[attr-defined]
                     total = pdf.shape[0]
+                    num_numeric = converted.dropna().shape[0]  # type: ignore[attr-defined]
                     if total > 0 and num_numeric / total > 0.9:
                         pdf[col] = converted
+                except Exception:
+                    pass
+            # If object, attempt datetime conversion if >90% parseable
+            if pdf[col].dtype == object:
+                try:
+                    dt_parsed = pd.to_datetime(pdf[col], errors="coerce", utc=False, infer_datetime_format=True)
+                    num_dt = dt_parsed.dropna().shape[0]
+                    if total > 0 and num_dt / total > 0.9:
+                        pdf[col] = dt_parsed
                 except Exception:
                     pass
             # Apply dtype override if specified
@@ -184,11 +226,13 @@ def compute_and_save_for_csv(csv_path: Path, dataset_name: str) -> None:
             stats_dict["table_name"] = table_name
             stats_dict["column_name"] = col
             # Semantic LLM analysis
-            semantic_info = _llm_generate_column_description(table_name, col, sampled_values, stats_dict)
-            stats_dict.update(semantic_info)
+            description = _llm_generate_column_description(table_name, col, sampled_values, stats_dict)
+            stats_dict["contextual_description"] = description
+            # ensure serializable early
+            stats_dict = _make_json_serializable(stats_dict)
             analytics[col] = stats_dict
             # Write contextualized text for LLM input
-            _write_contextualized_text(table_name, col, stats_dict)
+            _write_contextualized_text(dataset_name, table_name, col, stats_dict)
         except Exception as e:
             logger.error("Failed analytics for %s column %s: %s", csv_path, col, e)
 
@@ -201,7 +245,7 @@ def compute_and_save_for_csv(csv_path: Path, dataset_name: str) -> None:
         out_file = out_dir / f"{col}.json"
         try:
             with out_file.open("w", encoding="utf-8") as f:
-                json.dump(stats, f, ensure_ascii=False, indent=2)
+                json.dump(_make_json_serializable(stats), f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error("Failed writing analytics for %s %s: %s", table_name, col, e)
 

@@ -222,7 +222,17 @@ def call_ollama_api(
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=180)
             response.raise_for_status()
-            response_data = response.json()
+            try:
+                response_data = response.json()
+            except ValueError as ve:
+                # Log raw text for inspection when JSON parsing fails
+                logger.error(
+                    "Invalid JSON from Ollama (model '%s') for state '%s': first 500 chars:\n%s",
+                    model_name,
+                    state_name or "<unspecified>",
+                    response.text[:500],
+                )
+                raise
             if "message" in response_data:
                 return response_data["message"]["content"]
             elif "choices" in response_data and len(response_data["choices"]):

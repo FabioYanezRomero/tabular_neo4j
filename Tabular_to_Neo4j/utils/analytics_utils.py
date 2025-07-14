@@ -65,39 +65,75 @@ def detect_data_type(column: pd.Series) -> str:
     if len(clean_column) == 0:
         return 'unknown'
     
-    # Check original pandas dtype first
-    orig_dtype = str(column.dtype)
-    if 'int' in orig_dtype:
-        return 'integer'
-    elif 'float' in orig_dtype:
-        return 'float'
-    elif 'datetime' in orig_dtype:
+    # Check original pandas dtype first with precise ordering
+    orig_dtype = str(column.dtype).lower()
+    # Prioritize datetime-related dtypes to avoid false keyword hits (e.g., "datetime64" contains "int")
+    if any(x in orig_dtype for x in ('datetime', 'date', 'timedelta')):
         return 'datetime'
-    elif 'timedelta' in orig_dtype:
-        return 'timedelta'
-    elif 'bool' in orig_dtype:
+    if 'bool' in orig_dtype:
         return 'boolean'
+    if orig_dtype.startswith('int') or orig_dtype.endswith('int') or orig_dtype == 'int64':
+        # Check if integers may actually be encoded dates in YYYYMMDD format
+        sample_ints = clean_column.dropna().astype(str).head(100)
+        date_like_count = 0
+        for val in sample_ints:
+            if len(val) == 8 and val.isdigit():
+                try:
+                    datetime.strptime(val, "%Y%m%d")
+                    date_like_count += 1
+                except Exception:
+                    pass
+        if date_like_count / max(len(sample_ints), 1) > 0.8:
+            return 'date'
+        return 'integer'
+    if 'float' in orig_dtype:
+        # Detect floats that are effectively integers (e.g., 1.0, 2.0)
+        sample_vals = clean_column.dropna().head(100)
+        if not sample_vals.empty and (sample_vals % 1 == 0).mean() > 0.95:  # type: ignore[operator]
+            return 'integer'
+        return 'float'
     elif 'category' in orig_dtype:
         return 'categorical'
     
-    # Try to convert to numeric
+    # Detect delimited (multi-value) strings early
+    # Use a random sample (up to 500) to avoid bias from early rows lacking delimiters
+    sample_size = min(500, len(clean_column))
+    str_sample = clean_column.astype(str).sample(n=sample_size, random_state=42, replace=False)
+    delimiters = [',', ';', '|', ' ']
+    delim_count = sum(any(d in val for d in delimiters) for val in str_sample)
+    # Check for list-like structures based on delimiters
+    tokens_per_cell_counts = []
+    if delim_count > 0:
+        # Calculate token counts for rows that have delimiters
+        for s in str_sample:
+            if any(d in s for d in delimiters):
+                tokens_per_cell_counts.append(len([t for t in re.split(r'[ ,;|]+', s) if t]))
+    # Decide list status: more than one token in at least 3 rows OR >1% delimiter presence
+    if (delim_count / max(len(str_sample), 1) > 0.01) or (sum(c > 1 for c in tokens_per_cell_counts) >= 3):
+        # Detect if tokens are mostly numeric to distinguish numeric vs string lists
+        tokens: List[str] = []
+        for s in str_sample:
+            tokens.extend(re.split(r'[ ,;|]+', s))
+        tokens = [t for t in tokens if t]
+        if tokens:
+            numeric_tokens = sum(tok.replace('.', '', 1).isdigit() for tok in tokens)
+            if numeric_tokens / len(tokens) > 0.9:
+                return 'list_numeric'
+        return 'list_string'
+
+    # Try to convert to numeric with coverage check
     try:
-        # Attempt to convert to numeric
         numeric_values = pd.to_numeric(clean_column, errors='coerce')
-
-        # Convert to pandas Series unconditionally for unified processing
-        if not isinstance(numeric_values, pd.Series):
-            numeric_series = pd.Series([numeric_values])
-        else:
-            numeric_series = numeric_values
-
-        # Determine if all non-NA numeric values are whole numbers (no fractional part)
-        # Using the pandas `mod` and `eq` methods keeps static typing happy (avoids the
-        # operator overload that causes Pylance to think the intermediate result is a
-        # plain `bool`).
-        is_integer = numeric_series.dropna().mod(1).eq(0).all()
+        numeric_series = numeric_values if isinstance(numeric_values, pd.Series) else pd.Series([numeric_values])
+        non_na_numeric = numeric_series.dropna()
+        coverage = len(non_na_numeric) / len(clean_column)
+        if coverage < 0.9:
+            # Not enough numeric coverage – fall through to date/string logic
+            raise ValueError("Low numeric coverage")
+        # Determine if all numeric values are whole numbers (no fractional part)
+        is_integer = non_na_numeric.mod(1).eq(0).all()
         return 'integer' if is_integer else 'float'
-    except:
+    except Exception:
         pass
     
     # Check if all values are boolean
@@ -215,12 +251,72 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
     uniqueness_ratio = calculate_uniqueness_ratio(column)
     cardinality = calculate_cardinality(column)
     data_type = detect_data_type(column)
-    missing_percentage = calculate_missing_percentage(column)
-    value_lengths = calculate_value_length_stats(column)
-    distribution = analyze_value_distribution(column)
-    total_count = len(column)
-    mode_series = column.mode(dropna=True)
-    mode_values = mode_series.tolist()[:5] if not mode_series.empty else []
+    # Treat booleans as a form of categorical for analytics purposes
+    original_data_type = data_type
+    if data_type == 'boolean':
+        data_type = 'categorical'
+
+    # Handle list types separately by flattening tokens for stats while preserving list nature
+    list_delimiter = None  # Track detected delimiter for metadata
+    is_list_col = data_type in ['list_numeric', 'list_string']
+    if is_list_col:
+        # Decide delimiter by first non-null value
+        sample_non_null = column.dropna().astype(str).iloc[0] if not column.dropna().empty else ''
+        for d in [',', ';', '|', ' ']:
+            if d in sample_non_null:
+                list_delimiter = d
+                break
+        if list_delimiter is None:
+            list_delimiter = ','
+        # Split all cells into tokens
+        token_lists = column.dropna().astype(str).apply(lambda x: [t for t in re.split(r'[ ,;|]+', x) if t])
+        token_lengths = token_lists.apply(len)
+        # Flatten tokens for further numeric / categorical analysis
+        flattened_tokens = [tok for sublist in token_lists for tok in sublist]
+        flattened_series = pd.Series(flattened_tokens)
+        # Recompute mode values based on flattened tokens
+        mode_series = flattened_series.mode(dropna=True)
+        mode_values = mode_series.tolist()[:5] if not mode_series.empty else []
+        # Update data_type for downstream processing
+        if data_type == 'list_numeric':
+            data_type = 'integer' if all(tok.isdigit() for tok in flattened_tokens) else 'float'
+        else:
+            data_type = 'string'
+        # Replace column reference for stats with flattened values where appropriate
+        if not flattened_series.empty:
+            # Store extra metadata
+            extra_list_stats = {
+                'tokens_per_cell_min': int(token_lengths.min()) if not token_lengths.empty else 0,
+                'tokens_per_cell_max': int(token_lengths.max()) if not token_lengths.empty else 0,
+                'tokens_per_cell_avg': float(token_lengths.mean()) if not token_lengths.empty else 0.0,
+                'list_delimiter': list_delimiter
+            }
+        else:
+            extra_list_stats = {
+                'tokens_per_cell_min': 0,
+                'tokens_per_cell_max': 0,
+                'tokens_per_cell_avg': 0.0,
+                'list_delimiter': list_delimiter
+            }
+    else:
+        flattened_series = None  # keep linters happy
+        extra_list_stats = {}
+
+    # Decide which series to use for downstream stats
+    stats_series = flattened_series if is_list_col and flattened_series is not None else column
+
+    missing_percentage = calculate_missing_percentage(column)  # still based on original cells
+    # Only compute value length statistics for string-like data
+    if data_type == 'string':
+        value_lengths = calculate_value_length_stats(column)
+    else:
+        value_lengths = {}
+
+    distribution = analyze_value_distribution(stats_series)
+    total_count = len(stats_series)
+    if not is_list_col:  # mode already computed for list columns
+        mode_series = stats_series.mode(dropna=True)
+        mode_values = mode_series.tolist()[:5] if not mode_series.empty else []
     min_value = max_value = avg_value = ''
     quantiles = {}
     sampled_values = []
@@ -296,7 +392,11 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
         contextual_description = f"{cardinality} unique"
     # Text/multi-value columns
     elif data_type == 'string':
-        if cardinality > 10000:
+        if is_list_col:
+            # For list columns use flattened tokens for samples
+            sampled_values = flattened_series.sample(min(5, len(flattened_series)), random_state=42).tolist() if flattened_series is not None and not flattened_series.empty else []
+            contextual_description = f"list column with delimiter '{list_delimiter}', cardinality {cardinality}"
+        elif cardinality > 10000:
             sampled_values = []
             contextual_description = f"{cardinality} unique, text format"
         elif cardinality > 1000:
@@ -320,26 +420,44 @@ def analyze_column(column: pd.Series) -> Dict[str, Any]:
         if (cardinality / total_count) <= EFFECTIVE_CATEGORICAL_PERCENT:
             is_effectively_categorical = True
 
+    # Base analysis structure
     analysis = {
         'column_name': column.name,
         'original_column_name': column.name,
         'uniqueness_ratio': uniqueness_ratio,
         'cardinality': cardinality,
-        'data_type': data_type,
+        'data_type': original_data_type if original_data_type == 'boolean' else data_type,
         'missing_percentage': missing_percentage,
-        'value_lengths': value_lengths,
         'distribution': distribution,
         'total_count': total_count,
         'mode_values': mode_values,
-        'min_value': min_value,
-        'max_value': max_value,
-        'avg_value': avg_value,
-        'quantiles': quantiles,
         'sampled_values': sampled_values,
         'contextual_description': contextual_description,
         'cardinality_type': cardinality_type,
         'is_effectively_categorical': is_effectively_categorical,
     }
+
+    # Include list-specific metadata if present
+    if extra_list_stats:
+        analysis.update(extra_list_stats)
+
+    # Add optional fields only when meaningful
+    if data_type == 'string':
+        analysis['value_lengths'] = value_lengths
+    if data_type in ['integer', 'float']:
+        analysis.update({
+            'min_value': min_value,
+            'max_value': max_value,
+            'avg_value': avg_value,
+            'quantiles': quantiles,
+        })
+    elif data_type in ['date', 'datetime']:
+        analysis.update({
+            'min_value': min_value,
+            'max_value': max_value,
+        })
+    # categorical/boolean: no numeric stats
+
     return analysis
 
 
