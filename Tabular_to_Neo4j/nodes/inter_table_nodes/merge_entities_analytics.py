@@ -31,6 +31,32 @@ def _collect_all_column_analytics(state: MultiTableGraphState) -> Dict[str, Dict
 def merge_entities_analytics_node(state: MultiTableGraphState, node_order: int, use_analytics: bool = False) -> MultiTableGraphState:
     logger.info("[merge_entities_analytics_node] Starting entity merge validation using analytics")
 
+    # Build a mapping of entity label -> {column_key: analytics} using prior column_graph_mapping decisions
+    def _collect_entity_column_analytics(state: MultiTableGraphState) -> Dict[str, Dict[str, Any]]:
+        """Return analytics grouped by the entity each column was mapped to."""
+        entity_map: Dict[str, Dict[str, Any]] = {}
+        for tbl_name, tbl_state in state.items():
+            if not isinstance(tbl_state, GraphState):
+                continue
+            col_mapping: Dict[str, Any] = tbl_state.get("column_graph_mapping", {}) or {}
+            analytics = tbl_state.get("column_analytics", {}) or {}
+            for col_name, mapping_info in col_mapping.items():
+                if not isinstance(mapping_info, dict):
+                    continue
+                if mapping_info.get("graph_element_type") != "entity_property":
+                    continue
+                entity_label = mapping_info.get("belongs_to") or ""
+                if not entity_label:
+                    continue
+                col_key = f"{tbl_name}.{col_name}"
+                col_stats = analytics.get(col_name)
+                if col_stats is None:
+                    continue
+                entity_map.setdefault(entity_label, {})[col_key] = col_stats
+        return entity_map
+
+    entity_to_col_analytics = _collect_entity_column_analytics(state)
+
     # Get proposed merges from the state
     proposed_merges = state.get("entity_label_merges", {}).get("merges", [])
     if not proposed_merges:
@@ -38,11 +64,20 @@ def merge_entities_analytics_node(state: MultiTableGraphState, node_order: int, 
         return state
 
     # Collect and filter column analytics so the prompt stays concise
+    # Fallback analytics across all columns (used if entity-specific mapping empty)
     all_column_analytics = _collect_all_column_analytics(state)
 
     def _filter_analytics_for_merges(merges, analytics):
         """Return only analytics whose column key mentions any label in the proposed merges."""
-        label_set = {lbl.lower() for m in merges for lbl in m.get("from", []) + [m.get("to", "")]}
+        def _extract_labels(merge):
+            from_field = merge.get("from", [])
+            if isinstance(from_field, list):
+                labels = from_field.copy()
+            else:
+                labels = [from_field]
+            labels.append(merge.get("to", ""))
+            return labels
+        label_set = {lbl.lower() for m in merges for lbl in _extract_labels(m)}
         return {
             col_key: stats
             for col_key, stats in analytics.items()
@@ -70,20 +105,23 @@ def merge_entities_analytics_node(state: MultiTableGraphState, node_order: int, 
         )
         return {k: stats[k] for k in keep if k in stats}
 
-    # Eliminate duplicates in proposed merges
-    proposed_merges_copy = []
+    # Explode merges so each entry has exactly one 'from' label and one 'to' label.
+    exploded: List[Dict[str, Any]] = []
     for merge in proposed_merges:
-        from_labels_first = merge.get("from")[0]
-        try:
-            from_labels_second = merge.get("from")[1]
-        except IndexError:
-            continue
-        to_label = merge.get("to")[0]
-        if from_labels_first.lower() == from_labels_second.lower() and to_label.lower() == from_labels_first.lower():
-            continue
-        proposed_merges_copy.append(merge)
-
-    proposed_merges = proposed_merges_copy
+        from_field = merge.get("from")
+        to_label = merge.get("to")
+        if isinstance(from_field, list):
+            for lbl in from_field:
+                if lbl.lower() == (to_label or "").lower():
+                    # skip identity merge
+                    continue
+                new_merge = merge.copy()
+                new_merge["from"] = lbl
+                new_merge["to"] = to_label
+                exploded.append(new_merge)
+        else:
+            exploded.append(merge)
+    proposed_merges = exploded
 
     # Apply filtering and compaction
     all_column_analytics = _filter_analytics_for_merges(proposed_merges, all_column_analytics)
@@ -92,8 +130,22 @@ def merge_entities_analytics_node(state: MultiTableGraphState, node_order: int, 
     # Iterate through each merge pair and validate individually to minimise prompt size
     validated_groups = []
     for idx, merge in enumerate(proposed_merges):
-        single_analytics = _filter_analytics_for_merges([merge], all_column_analytics)
-        single_analytics = {k: _compact_stats(v) for k, v in single_analytics.items()}
+        # Prefer analytics only for columns previously mapped to the entities in this merge
+        from_field = merge.get("from", [])
+        if isinstance(from_field, list):
+            lbls = from_field.copy()
+        else:
+            lbls = [from_field]
+        lbls.append(merge.get("to", ""))
+        labels_in_merge = set([lbl for lbl in lbls if lbl])
+        single_analytics: Dict[str, Any] = {}
+        for lbl in labels_in_merge:
+            if lbl in entity_to_col_analytics:
+                single_analytics[lbl] = {k: _compact_stats(v) for k, v in entity_to_col_analytics[lbl].items()}
+        # If none found (e.g., mapping missing), fall back to heuristic filtering
+        if not single_analytics:
+            tmp = _filter_analytics_for_merges([merge], all_column_analytics)
+            single_analytics = {k: _compact_stats(v) for k, v in tmp.items()}
 
         prompt = format_prompt(
             template_name="merge_entities_analytics.txt",
@@ -118,7 +170,7 @@ def merge_entities_analytics_node(state: MultiTableGraphState, node_order: int, 
         else:
             logger.warning("Unexpected LLM response for merge index %d: %s", idx, llm_resp)
 
-        # Normalise validated merge objects to a standard schema expected downstream
+    # Normalise validated merge objects to a standard schema expected downstream
     normalised = []
     for m in validated_groups:
         if not isinstance(m, dict):

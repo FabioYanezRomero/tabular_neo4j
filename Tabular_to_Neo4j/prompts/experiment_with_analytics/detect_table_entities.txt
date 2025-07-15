@@ -5,7 +5,7 @@ You are a data-modeling expert. Your task is to identify what real-world **entit
 - **Columns & analytics** (one per line):
 {columns_analytics}
 
-Each line is formatted as `column_name | {json_analytics}` where `{json_analytics}` is a compact JSON object containing all available statistics for the column (e.g., data_type, uniqueness_ratio, cardinality, missing_percentage, sample values, etc.).
+Each line is formatted as `column_name | <json_analytics>` where the JSON object contains all available statistics for the column (e.g., data_type, uniqueness_ratio, cardinality, missing_percentage, sample values, etc.).
 
 ### Task
 Analyze the table columns to identify entities that are referenced through foreign key relationships. Focus on:

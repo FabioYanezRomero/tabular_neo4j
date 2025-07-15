@@ -123,8 +123,10 @@ def merge_relation_types_node(state: MultiTableGraphState, node_order: int, use_
 
     merge_map = _build_entity_merge_map(merge_groups)
     candidate_triples = _collect_candidate_relationships(state, merge_map)
+    # remove self-loop triples where source and target are identical
+    candidate_triples = [t for t in candidate_triples if t[0].lower() != t[2].lower()]
     if not candidate_triples:
-        logger.warning("No candidate relationships connecting merged entities; nothing to merge")
+        logger.warning("No candidate relationships connecting merged entities (after self-loop filter); nothing to merge")
         state["relation_type_merges"] = {"merges": []}
         return state
 

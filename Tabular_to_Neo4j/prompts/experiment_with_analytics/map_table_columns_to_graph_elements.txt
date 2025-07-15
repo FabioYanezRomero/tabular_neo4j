@@ -4,7 +4,7 @@ You are designing a Neo4j property-graph schema for the table below.
 - **Table name**: `{table_name}`
 - **Detected entities**: {entities}
 - **Detected intra-table relationships**: {relationships}
-- **Columns & analytics** (one per line, `column_name | {json_analytics}`):
+- **Columns & analytics** (one per line, `column_name | <json_analytics>`):
   ```
   {columns_analytics}
   ```

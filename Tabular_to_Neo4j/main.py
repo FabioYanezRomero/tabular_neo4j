@@ -80,15 +80,45 @@ def run(
     elif pipeline == "experiments_with_analytics":
         from Tabular_to_Neo4j.graphs.experiments_with_analytics.intra_table_graph_column_map import run_column_map_multi_table_pipeline as run_exp
         table_folder = input_path
-        return run_exp(table_folder, use_analytics=True)
+        final_state = run_exp(table_folder, use_analytics=True)
+        try:
+            from pathlib import Path
+            import json
+            out_path = Path(table_folder) / "GLOBAL" / "final_state.json"
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(final_state, f, indent=2, default=str)
+        except Exception as e:
+            print(f"[main] Warning: could not write final_state.json: {e}")
+        return final_state
     elif pipeline == "experiments_with_contextualized_analytics":
         from Tabular_to_Neo4j.graphs.experiments_with_contextualized_analytics.intra_table_graph_column_map import run_column_map_multi_table_pipeline as run_exp
         table_folder = input_path
-        return run_exp(table_folder, use_analytics=True)
+        final_state = run_exp(table_folder, use_analytics=True)
+        try:
+            from pathlib import Path
+            import json
+            out_path = Path(table_folder) / "GLOBAL" / "final_state.json"
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(final_state, f, indent=2, default=str)
+        except Exception as e:
+            print(f"[main] Warning: could not write final_state.json: {e}")
+        return final_state
     elif pipeline == "experiments_without_analytics":
         from Tabular_to_Neo4j.graphs.experiments_without_analytics.intra_table_graph_column_map import run_column_map_multi_table_pipeline as run_exp
         table_folder = input_path
-        return run_exp(table_folder, use_analytics=False)
+        final_state = run_exp(table_folder, use_analytics=False)
+        try:
+            from pathlib import Path
+            import json
+            out_path = Path(table_folder) / "GLOBAL" / "final_state.json"
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(final_state, f, indent=2, default=str)
+        except Exception as e:
+            print(f"[main] Warning: could not write final_state.json: {e}")
+        return final_state
     else:
         raise ValueError(f"Unknown pipeline: {pipeline}")
 
