@@ -1,0 +1,62 @@
+nodes:
+- type: Category
+  attributes:
+  - categoryId
+  - itemId
+- type: Product
+  attributes:
+  - itemId
+  - pricelog2
+  - product.name.tokens
+- type: Purchase
+  attributes:
+  - ordernumber
+- type: Query
+  attributes:
+  - categoryId
+  - eventdate
+  - is.test
+  - items
+  - queryId
+  - searchstring.tokens
+  - timeframe
+  - userId
+- type: Session
+  attributes:
+  - eventdate
+  - sessionId
+  - timeframe
+- type: User
+  attributes:
+  - userId
+edges:
+- type: associated_with
+  source: Query
+  target: Product
+- type: belongs_to
+  source: Category
+  target: Category
+- type: belongs_to
+  source: Query
+  target: Category
+- type: belongs_to
+  source: User
+  target: Session
+- type: contains
+  source: Session
+  target: Query
+- type: occurs_in
+  source: Product
+  target: Session
+- type: occurs_in
+  source: Query
+  target: Session
+- type: participates_in
+  source: User
+  target: Session
+- type: purchases
+  source: User
+  target: Product
+- type: views
+  source: Session
+  target: Product

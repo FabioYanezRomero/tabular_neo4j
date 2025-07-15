@@ -117,23 +117,25 @@ def generate_yaml_schema(state: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Generate YAML graph schema from final_state.json")
-    parser.add_argument("final_state", help="Path to final_state.json")
-    parser.add_argument("output_dir", help="Directory to write generated schema YAML")
-    args = parser.parse_args()
+def main(final_state_path: str | None = None):
+    if final_state_path is None:
+        parser = argparse.ArgumentParser(description="Generate YAML graph schema from final_state.json")
+        parser.add_argument("final_state", help="Path to final_state.json")
+        args = parser.parse_args()
+        final_state_path = args.final_state
 
-    state = load_state(args.final_state)
+    state = load_state(final_state_path)
     schema = generate_yaml_schema(state)
 
-    os.makedirs(args.output_dir, exist_ok=True)
-    # Use directory name two levels up from final_state (dataset name) for file naming if possible
-    dataset_name = os.path.basename(os.path.dirname(os.path.dirname(args.final_state)))
-    out_path = os.path.join(args.output_dir, f"{dataset_name}_schema.yaml")
+    output_dir = "/app/schemas/generated"
+    os.makedirs(output_dir, exist_ok=True)
+    # Use the *timestamp* folder (three levels up: samples/<timestamp>/GLOBAL/...) for the filename
+    timestamp_folder = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(final_state_path))))
+    out_path = os.path.join(output_dir, f"{timestamp_folder}_schema.yaml")
     with open(out_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(schema, f, sort_keys=False, default_flow_style=False, allow_unicode=True)
     print(f"Schema written to {out_path}")
 
 
 if __name__ == "__main__":
-    main()
+    main("/app/samples/20250715_183522/GLOBAL/GLOBAL/final_state.json")
