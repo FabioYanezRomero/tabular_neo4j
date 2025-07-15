@@ -109,7 +109,10 @@ def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict
     for table_name, tbl_state in state.items():
         current = tbl_state
         for idx, (n_name, n_func) in enumerate(intra_nodes, 1):
-            current = n_func(current, node_order=idx, use_analytics=use_analytics)
+            try:
+                current = n_func(current, node_order=idx, use_analytics=use_analytics)
+            except Exception as e:
+                current = n_func(current, node_order=idx)
             output_saver.save_node_output(n_name, current, node_order=idx, table_name=table_name)
         state[table_name] = current  # update
 

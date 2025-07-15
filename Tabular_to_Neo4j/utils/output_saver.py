@@ -80,10 +80,26 @@ class OutputSaver:
         except Exception as e:
             logger.warning(f"Failed to save LLM output for node '{node_name}': {str(e)}")
 
-    def _get_table_dir(self, table_name: str = None):
-        """Return the directory for a given table or inter_table."""
+    def _get_table_dir(self, table_name: str) -> str:
+        """
+        Return the directory path where outputs for *table_name* should be written.
+        The layout is now::
+            <output_dir>/<dataset>/<table_name>/node_outputs/
+            <output_dir>/<dataset>/inter_table/node_outputs/
+        A *table_name* is expected to follow the convention  "<dataset>__<table>"
+        or "<dataset>__inter_table".  If the separator is not present, we treat the
+        entire string as the dataset (legacy behaviour).
+        """
         if table_name is None:
-            return self.output_dir  # fallback for legacy/single-table
+            return self.output_dir  # safeguard – should not generally happen
+
+        # Split the synthetic key created in the pipeline
+        if "__" in table_name:
+            dataset, table = table_name.split("__", 1)
+            if table == "inter_table":
+                return os.path.join(self.output_dir, dataset, "inter_table")
+            return os.path.join(self.output_dir, dataset, table)
+        # No separator – legacy single-dataset layout
         return os.path.join(self.output_dir, table_name)
 
     def save_node_output(self, node_name: str, state: MutableMapping[str, Any], node_order: int = 0, table_name: str = None) -> None:
@@ -99,14 +115,13 @@ class OutputSaver:
         node_outputs_dir = os.path.join(table_dir, "node_outputs")
         os.makedirs(node_outputs_dir, exist_ok=True)
         # Track previous state per table/inter_table
-        prev_state = self.previous_state.get(table_name, None)
-        new_info = self._extract_new_info(state, prev_state)
-        serializable_new_info = self._make_serializable(new_info)
+        # PATCH: Always write the full state for each node, not just the diff
+        serializable_state = self._make_serializable(state)
         output_file = os.path.join(node_outputs_dir, f"{node_order:02d}_{node_name}.json")
         try:
             with open(output_file, 'w') as f:
-                json.dump(serializable_new_info, f, indent=2)
-            logger.debug(f"Saved new output from node '{node_name}' (order: {node_order}) to {output_file}")
+                json.dump(serializable_state, f, indent=2)
+            logger.debug(f"[PATCHED] Saved full state from node '{node_name}' (order: {node_order}) to {output_file}")
         except Exception as e:
             logger.error(f"Failed to save output of node '{node_name}': {str(e)}")
         # Update previous state for this table/inter_table

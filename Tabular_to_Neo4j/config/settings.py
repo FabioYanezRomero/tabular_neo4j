@@ -89,6 +89,22 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_load": True,
         "auto_unload": True
     },
+    # Entity detection state
+    "detect_table_entities": {
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING[DEFAULT_OLLAMA_MODEL] if DEFAULT_LLM_PROVIDER == "ollama" else DEFAULT_OLLAMA_MODEL,
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
+        "description": "Model for detecting whether a table contains entity records and listing entity labels",
+        "output_format": {
+            "type": "json_object",
+            "description": "Entity detection result",
+            "example": "{\"has_entities\": true, \"entities\": [\"Customer\"], \"reasoning\": \"Contains customer identifiers and descriptive columns\"}"
+        },
+        "auto_load": True,
+        "auto_unload": True
+    },
+
     # Analysis states
     "analyze_column_semantics": {
         "provider": DEFAULT_LLM_PROVIDER,
@@ -231,4 +247,74 @@ LLM_CONFIGS = DynamicLLMConfigs({
     "auto_load": True,
     "auto_unload": True
 },
+    "merge_synonym_entities": {
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
+        "description": "Model for detecting synonym entity labels across tables",
+        "output_format": {
+            "type": "json_object",
+            "description": "Object with merges list",
+            "example": "{\"merges\": []}"
+        },
+        "auto_load": True,
+        "auto_unload": True
+    },
+    "merge_entities_analytics": {
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
+        "description": "Model for validating entity merges using column analytics",
+        "output_format": {
+            "type": "json_object",
+            "description": "Object with validated_merges list",
+            "example": "{\"validated_merges\": []}"
+        },
+        "auto_load": True,
+        "auto_unload": True
+    },
+    "merge_relation_types": {
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
+        "description": "Model for consolidating relationship types after entity merges",
+        "output_format": {
+            "type": "json_object",
+            "description": "Object with merges list for relation types",
+            "example": "{\"merges\": []}"
+        },
+        "auto_load": True,
+        "auto_unload": True
+    },
+    "infer_intra_table_relations": {
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
+        "description": "Model for inferring relationships among entities within the same table",
+        "output_format": {
+            "type": "json_object",
+            "description": "Object with inferred intra-table relationships among detected entities",
+            "example": "{\"entity_relationships\": []}"
+        },
+        "auto_load": True,
+        "auto_unload": True
+    },
+    "map_column_to_graph_element": {
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
+        "description": "Model for mapping columns to graph elements",
+        "output_format": {
+            "type": "json_object",
+            "description": "Object with column to graph element mapping",
+            "example": "{\"column_graph_mapping\": {}}"
+        },
+        "auto_load": True,
+        "auto_unload": True
+    }
 })

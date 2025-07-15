@@ -99,6 +99,10 @@ def format_prompt(template_name: str, *, table_name: Optional[str] = None, uniqu
     template = load_prompt_template(template_name, use_analytics)
 
     formatted_kwargs: Dict[str, str] = {}
+    # Include explicit function parameters that may be referenced in the template
+    if table_name is not None:
+        formatted_kwargs["table_name"] = str(table_name)
+
     for key, value in kwargs.items():
         if isinstance(value, (int, float)):
             formatted_kwargs[key] = str(value)

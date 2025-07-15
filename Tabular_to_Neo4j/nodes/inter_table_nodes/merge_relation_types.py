@@ -45,7 +45,7 @@ def _build_entity_merge_map(merges: List[Dict[str, Any]]) -> Dict[str, str]:
     """Return dict mapping **original** label -> merged label."""
     mapping: Dict[str, str] = {}
     for merge in merges:
-        to_label_raw = merge.get("to")
+        to_label_raw = merge.get("to")[0]
         if not isinstance(to_label_raw, str):
             logger.warning("Skipping merge entry with non-string 'to': %s", merge)
             continue
@@ -143,6 +143,7 @@ def merge_relation_types_node(state: MultiTableGraphState, node_order: int, use_
 
         prompt = format_prompt(
             template_name="merge_relation_types.txt",
+            table_name="GLOBAL",
             merged_entities=json.dumps(merge_groups, ensure_ascii=False, indent=2),
             candidate_relationships="\n".join(candidate_lines),
             unique_suffix=f"{src_lbl}__{tgt_lbl}",

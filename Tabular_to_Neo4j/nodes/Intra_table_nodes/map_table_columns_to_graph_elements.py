@@ -6,6 +6,7 @@ Uses the `map_table_columns_to_graph_elements.txt` prompt. Stores output in
 from __future__ import annotations
 
 import logging
+import json
 from typing import Dict, Any, List
 
 from Tabular_to_Neo4j.app_state import GraphState
@@ -20,10 +21,11 @@ def _columns_analytics_multiline(state: GraphState) -> str:
     analytics: Dict[str, Dict[str, Any]] = state.get("column_analytics", {}) or {}
     lines: List[str] = []
     for col, stats in analytics.items():
-        lines.append(
-            f"{col} | {stats.get('data_type', 'unknown')} | {stats.get('uniqueness_ratio', 0):.3f} | "
-            f"{stats.get('cardinality', 0)} | {stats.get('missing_percentage', 0):.3f}"
-        )
+        try:
+            json_str = json.dumps(stats, ensure_ascii=False, separators=(",", ":"))
+        except Exception:
+            json_str = str(stats)
+        lines.append(f"{col} | {json_str}")
     return "\n".join(lines)
 
 

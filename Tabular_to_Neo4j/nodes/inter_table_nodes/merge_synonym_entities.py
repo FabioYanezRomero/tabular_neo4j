@@ -24,9 +24,12 @@ def _collect_entity_labels(multi_state: MultiTableGraphState) -> List[str]:
     for tbl_state in multi_state.values():
         if not isinstance(tbl_state, (GraphState, dict)):
             continue
-        ted = tbl_state.get("table_entity_detection", {}) or {}
-        if ted.get("has_entities") and isinstance(ted.get("entities"), list):
-            labels.update(ted["entities"])
+        ted = tbl_state._extra.get("table_entity_detection", {}) or {}
+        # Check for new format first
+        if ted.get("has_entity_references", False):
+            entities = ted.get("referenced_entities", [])
+            if isinstance(entities, list):
+                labels.update(entities)
     return sorted(labels)
 
 
@@ -41,6 +44,7 @@ def merge_synonym_entities_node(state: MultiTableGraphState, node_order: int, us
 
     prompt = format_prompt(
         template_name="merge_synonym_entities.txt",
+        table_name="GLOBAL",
         entity_labels="\n".join(entity_labels),
         unique_suffix="",
         use_analytics=use_analytics,

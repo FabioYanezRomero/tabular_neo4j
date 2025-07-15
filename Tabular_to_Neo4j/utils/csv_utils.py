@@ -157,11 +157,23 @@ def delimiter_detection(file_path: str) -> str:
         The detected delimiter
     """
     delimiters = [',', ';', '\t', '|']
+    best_delim = CSV_DELIMITER
+    best_col_count = float('inf')
+
     for delimiter in delimiters:
-        df = pd.read_csv(file_path, delimiter=delimiter, header=None)
-        if len(df.columns) > 1:
-            return delimiter
-    return CSV_DELIMITER
+        try:
+            # Read only a small sample for speed
+            df_sample = pd.read_csv(file_path, delimiter=delimiter, header=None, nrows=50, engine="python")
+            col_count = len(df_sample.columns)
+            # We need more than 1 column, but prefer the delimiter with the FEWEST columns
+            if col_count > 1 and col_count < best_col_count:
+                best_col_count = col_count
+                best_delim = delimiter
+        except Exception:
+            # Ignore delimiters that break the parser
+            continue
+
+    return best_delim
     
     
 def fallback_encoding(file_path: str, df: pd.DataFrame, encoding: str, confidence: float, delimiter: str, header: str) -> pd.DataFrame:

@@ -53,7 +53,13 @@ def create_intra_table_column_map_graph() -> StateGraph:
         for idx, (name, func) in enumerate(PIPELINE_NODES, 1):
             def _make_node(f, order):
                 def _node(state: GraphState):  # type: ignore[override]
-                    return f(state, node_order=order, use_analytics=use_analytics)
+                    try:
+                        return f(state, node_order=order, use_analytics=use_analytics)
+                    except TypeError as te:
+                        # Fallback for nodes that do not accept use_analytics
+                        if "use_analytics" in str(te):
+                            return f(state, node_order=order)
+                        raise
                 return _node
             graph.add_node(name, _make_node(func, idx))
         for edge in PIPELINE_EDGES:
@@ -96,12 +102,16 @@ def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict
     if not output_saver:
         raise RuntimeError("OutputSaver not initialised – call init_output_saver() first")
 
-    # --- initialise state per table
+    # --- initialise state per table (recursively include CSVs in subfolders)
     state: MultiTableGraphState = MultiTableGraphState()
-    for fname in os.listdir(table_folder):
-        if fname.lower().endswith(".csv"):
-            table_name = os.path.splitext(fname)[0]
-            csv_path = os.path.join(table_folder, fname)
+    for root, _dirs, files in os.walk(table_folder):
+        for fname in files:
+            if not fname.lower().endswith(".csv"):
+                continue
+            csv_path = os.path.join(root, fname)
+            # Create a unique table key relative to the base folder, replacing path separators
+            rel_path_no_ext = os.path.splitext(os.path.relpath(csv_path, table_folder))[0]
+            table_name = rel_path_no_ext.replace(os.sep, "__")
             meta_path = get_metadata_path_for_csv(csv_path)
             state[table_name] = GraphState(csv_file_path=csv_path, metadata_file_path=meta_path)
 
@@ -110,7 +120,13 @@ def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict
     for table_name, tbl_state in state.items():
         current = tbl_state
         for idx, (n_name, n_func) in enumerate(intra_nodes, 1):
-            current = n_func(current, node_order=idx, use_analytics=use_analytics)
+            try:
+                current = n_func(current, node_order=idx, use_analytics=use_analytics)
+            except TypeError as te:
+                if "use_analytics" in str(te):
+                    current = n_func(current, node_order=idx)
+                else:
+                    raise
             output_saver.save_node_output(n_name, current, node_order=idx, table_name=table_name)
         state[table_name] = current  # update
 
@@ -122,6 +138,19 @@ def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict
     ]
     for idx, (n_name, n_func) in enumerate(cross_nodes, 1):
         real_idx = idx + len(intra_nodes)
-        state = n_func(state, node_order=real_idx, use_analytics=use_analytics)
-        output_saver.save_node_output(n_name, state, node_order=real_idx, table_name="inter_table")
+        try:
+            state = n_func(state, node_order=real_idx, use_analytics=use_analytics)
+        except TypeError as te:
+            if "use_analytics" in str(te):
+                state = n_func(state, node_order=real_idx)
+            else:
+                raise
+        # Save inter_table output separately for each dataset to avoid mixing datasets
+        dataset_names = {
+            tbl.split("__", 1)[0]
+            for tbl in state.keys()
+            if "__" in tbl and not tbl.endswith("__inter_table")
+        }
+        for ds in dataset_names:
+            output_saver.save_node_output(n_name, state, node_order=real_idx, table_name=f"{ds}__inter_table")
     return state

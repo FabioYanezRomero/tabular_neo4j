@@ -8,6 +8,7 @@ LLM through `call_llm_with_json_output`, and stores the JSON response in the
 from __future__ import annotations
 
 import logging
+import json
 from typing import Dict, Any
 
 from Tabular_to_Neo4j.app_state import GraphState
@@ -18,53 +19,73 @@ from Tabular_to_Neo4j.utils.csv_utils import get_sample_rows, df_to_json_sample
 logger = logging.getLogger(__name__)
 
 
-def _build_columns_analytics(state: GraphState, use_analytics: bool = False) -> str:
+def _build_columns_analytics(state: GraphState, use_analytics: bool = False, contextualized: bool = False) -> str:
     """Return multiline string summarising column analytics for the prompt."""
     analytics: Dict[str, Dict[str, Any]] = state.get("column_analytics", {}) or {}
+    indent = "  "  # two spaces to match template indentation within code block
     lines = []
-    for col, stats in analytics.items():
-        line = (
-            f"{col} | {stats.get('data_type', 'unknown')} | "
-            f"{stats.get('uniqueness_ratio', 0):.3f} | "
-            f"{stats.get('cardinality', 0)} | "
-            f"{stats.get('missing_percentage', 0):.3f}"
-        )
-        lines.append(line)
-    return "\n".join(lines)
-
+    if use_analytics:
+        if contextualized:
+            for col, stats in analytics.items():
+                # The stats represent the string already formated
+                line = stats
+                lines.append(line)
+        else:
+            for col, stats in analytics.items():
+                try:
+                    json_str = json.dumps(stats, ensure_ascii=False, separators=(",", ":"))
+                except Exception:
+                    json_str = str(stats)
+                line = f"{indent}{col} | {json_str}"
+                lines.append(line)
+        return "\n".join(lines)
+    else:
+        # return only the samples values
+        for col, stats in analytics.items():
+            line = (
+                f"{indent}{col} | {stats.get('sampled_values', 'unknown')}"
+            )
+            lines.append(line)
+        return "\n".join(lines)
 
 def _get_sample_rows_json(state: GraphState, max_rows: int = 5) -> str:
-    """Return up-to-`max_rows` sample rows from the processed DataFrame as JSON string."""
-    if state.get("processed_dataframe") is None:
+    """Return up-to-`max_rows` sample rows from the *raw* DataFrame as JSON string.
+
+    We purposefully avoid `processed_dataframe` here so that the node does not
+    depend on downstream cleaning/pre-processing. If a raw_dataframe is not
+    present (should not happen), we simply omit the sample rows.
+    """
+    if state.get("raw_dataframe") is None:
         return "[]"
-    df_sample = get_sample_rows(state["processed_dataframe"], max_rows)
+    df_sample = get_sample_rows(state["raw_dataframe"], max_rows)
     if df_sample is None or df_sample.empty:
         return "[]"
     return df_to_json_sample(df_sample)
 
 
-def detect_table_entities_node(state: GraphState, node_order: int, use_analytics: bool = False) -> GraphState:
+def detect_table_entities_node(state: GraphState, node_order: int, use_analytics: bool = False, *, contextualized: bool = False) -> GraphState:
     """Main entrypoint for the LangGraph node."""
     logger.info("[detect_table_entities_node] Starting entity detection for table")
 
-    # Early validation of required state elements
-    if state.get("column_analytics") is None or state.get("processed_dataframe") is None:
-        msg = "Missing column analytics or processed dataframe — skipping entity detection"
+    # Ensure prerequisites for prompt exist – we must have column analytics and some dataframe to sample rows from.
+    if state.get("column_analytics") is None:
+        msg = "Missing column analytics – skipping entity detection"
         logger.warning(msg)
         state.setdefault("error_messages", []).append(msg)
         return state if isinstance(state, GraphState) else GraphState.from_dict(dict(state))
 
+
+
+
     # Build prompt parts
     import os
     table_name = os.path.splitext(os.path.basename(state.get("csv_file_path", "table")))[0]
-    columns_analytics_str = _build_columns_analytics(state)
-    sample_rows_json = _get_sample_rows_json(state)
+    columns_analytics_str = _build_columns_analytics(state, use_analytics, contextualized=contextualized)
 
     prompt = format_prompt(
         template_name="detect_table_entities.txt",
         table_name=table_name,
         columns_analytics=columns_analytics_str,
-        sample_rows=sample_rows_json,
         unique_suffix="",
         use_analytics=use_analytics,
     )

@@ -9,7 +9,7 @@ one of the detected **entities** (as a property) or represents the value of an
 - **Column**: `{column_name}`
 - **Detected entities**: {entities}
 - **Detected intra-table relationships**: {relationships}
-- **Column analytic**: `{column_analytic}`
+- **Column analytic**: `{column_analytic}` (compact JSON with full analytics)
 
 ### Output
 Return ONLY a JSON object:

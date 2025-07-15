@@ -41,7 +41,10 @@ def create_intra_table_column_map_graph() -> StateGraph:
         for idx, (name, func) in enumerate(PIPELINE_NODES, 1):
             def _make_node(f, order):
                 def _node(state: GraphState):  # type: ignore[override]
-                    return f(state, node_order=order, use_analytics=use_analytics)
+                    extra_kwargs = {}
+                    if f.__name__ == "detect_table_entities_node":
+                        extra_kwargs["contextualized"] = True
+                    return f(state, node_order=order, use_analytics=use_analytics, **extra_kwargs)
                 return _node
             graph.add_node(name, _make_node(func, idx))
         for edge in PIPELINE_EDGES:
@@ -91,7 +94,13 @@ def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict
     for table_name, tbl_state in state.items():
         current = tbl_state
         for idx, (n_name, n_func) in enumerate(intra_nodes, 1):
-            current = n_func(current, node_order=idx, use_analytics=use_analytics)
+            try:
+                extra_kwargs = {}
+                if n_func.__name__ == "detect_table_entities_node":
+                    extra_kwargs["contextualized"] = True
+                current = n_func(current, node_order=idx, use_analytics=use_analytics, **extra_kwargs)
+            except Exception as e:
+                current = n_func(current, node_order=idx, **({"contextualized": True} if n_func.__name__ == "detect_table_entities_node" else {}))
             output_saver.save_node_output(n_name, current, node_order=idx, table_name=table_name)
         state[table_name] = current
 

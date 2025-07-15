@@ -19,9 +19,24 @@ logger = logging.getLogger(__name__)
 
 
 def _build_columns_analytics(state: GraphState) -> str:
-    analytics: Dict[str, Dict[str, Any]] = state.get("column_analytics", {}) or {}
+    """Return a multiline string of column analytics.
+
+    Handles both normal analytics dicts *and* the contextualised variant where
+    the value is already a formatted string produced upstream. This keeps the
+    function backward-compatible while avoiding AttributeError when `stats` is
+    a string.
+    """
+    analytics: Dict[str, Any] = state.get("column_analytics", {}) or {}
     lines: List[str] = []
     for col, stats in analytics.items():
+        if isinstance(stats, str):
+            # Contextualised analytics already formatted by previous node
+            lines.append(stats)
+            continue
+        if not isinstance(stats, dict):
+            # Fallback – unexpected type, just stringify
+            lines.append(str(stats))
+            continue
         lines.append(
             f"{col} | {stats.get('data_type', 'unknown')} | {stats.get('uniqueness_ratio', 0):.3f} | "
             f"{stats.get('cardinality', 0)} | {stats.get('missing_percentage', 0):.3f}"
@@ -44,12 +59,12 @@ def infer_intra_table_relations_node(state: GraphState, node_order: int, use_ana
 
     # Guard: require entity detection output with >1 entity
     ent_det = state.get("table_entity_detection", {}) or {}
-    if not ent_det.get("has_entities") or len(ent_det.get("entities", [])) < 2:
+    if not ent_det.get("has_entity_references") or len(ent_det.get("referenced_entities", [])) < 2:
         logger.info("[infer_intra_table_relations_node] Less than two entities – skipping relation inference")
         state["intra_table_entity_relations"] = {"skipped": True, "reason": "<2 entities"}
         return state if isinstance(state, GraphState) else GraphState.from_dict(dict(state))
 
-    entities = ent_det.get("entities", [])
+    entities = ent_det.get("referenced_entities", [])
 
     # Build prompt
     import os

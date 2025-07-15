@@ -19,13 +19,25 @@ from Tabular_to_Neo4j.utils.csv_utils import get_sample_rows
 logger = logging.getLogger(__name__)
 
 
-def _column_analytics_str(col_name: str, analytics: Dict[str, Any]) -> str:
-    return (
-        f"{col_name} | {analytics.get('data_type', 'unknown')} | "
-        f"{analytics.get('uniqueness_ratio', 0):.3f} | "
-        f"{analytics.get('cardinality', 0)} | "
-        f"{analytics.get('missing_percentage', 0):.3f}"
-    )
+def _column_analytics_str(col_name: str, analytics: Any) -> str:
+    """Return formatted analytics line.
+
+    Works for both dict-style analytics and preformatted string analytics (contextualized).
+    """
+    if isinstance(analytics, str):
+        # Already formatted upstream
+        return analytics
+    if not isinstance(analytics, dict):
+        # Already formatted string or unknown type – return as-is
+        return str(analytics)
+
+    # Convert the full analytics dictionary to a compact JSON string so that **all**
+    # computed analytics are available to the LLM prompt, not just a limited subset.
+    try:
+        return json.dumps(analytics, ensure_ascii=False, separators=(",", ":"))
+    except Exception:
+        # Fallback to default string conversion
+        return str(analytics)
 
 
 def map_column_to_graph_element_node(state: GraphState, node_order: int, use_analytics: bool = False) -> GraphState:
@@ -35,7 +47,7 @@ def map_column_to_graph_element_node(state: GraphState, node_order: int, use_ana
     ent_det = state.get("table_entity_detection", {}) or {}
     intra_rel = state.get("intra_table_entity_relations", {}) or {}
 
-    entities = ent_det.get("entities", []) if ent_det.get("has_entities") else []
+    entities = ent_det.get("referenced_entities", []) if ent_det.get("has_entity_references") else []
     relationships = []
     if isinstance(intra_rel, dict):
         relationships = [rel.get("relationship_type") for rel in intra_rel.get("entity_relationships", [])]
@@ -44,11 +56,10 @@ def map_column_to_graph_element_node(state: GraphState, node_order: int, use_ana
 
     col_results: Dict[str, Any] = {}
 
-    for col in state.get("final_header", []) or []:
+    for col in state.get("column_analytics", {}).keys():
         analytics = state.get("column_analytics", {}).get(col, {})
-        sample_vals = []
-        if state.get("processed_dataframe") is not None and col in state["processed_dataframe"].columns:
-            sample_vals = state["processed_dataframe"][col].head(5).tolist()
+        # Sample values available only when analytics is dict
+        sample_vals = analytics.get('sampled_values', []) if isinstance(analytics, dict) else []
         prompt = format_prompt(
             template_name="map_column_to_graph_element.txt",
             table_name=table_name,
@@ -56,7 +67,7 @@ def map_column_to_graph_element_node(state: GraphState, node_order: int, use_ana
             column_analytic=_column_analytics_str(col, analytics),
             entities=str(entities),
             relationships=str(relationships),
-            sample_values=json.dumps(sample_vals),
+            sample_values=sample_vals,
             unique_suffix=col,
             use_analytics=use_analytics
         )

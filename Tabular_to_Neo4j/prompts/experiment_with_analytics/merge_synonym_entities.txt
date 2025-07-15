@@ -1,33 +1,55 @@
-You are synthesizing a global Neo4j graph schema from multiple tables.
-Below is the set of entity labels that were independently detected per table.
-Your task is to identify synonyms – labels that refer to the same real-world entity type – and propose a merged label.
+You are synthesizing a global Neo4j graph schema from multiple tables by identifying synonymous entity labels and proposing unified labels.
 
 ### Input
+Entity labels detected across tables:
 ```
 {entity_labels}
 ```
 
-### Requirements
-1. Only merge when labels are clear synonyms (e.g., "Film" and "Movie").
-2. Do NOT merge labels that represent different concepts even if similar.
-3. Keep a label unchanged if no synonym exists.
-4. Use concise, lowercase-with-underscores merged names (e.g., "movie").
+### Task
+Identify entity labels that refer to the same real-world concept and propose merged labels. Focus on **semantic equivalence**, not just similarity.
 
-### Output
-Return **JSON only** in the following format:
+**Important**: Only create merge groups when you have **multiple different entities** that are synonymous. Do NOT create merge groups for single entities.
+
+### Merging Criteria
+**DO merge when labels are:**
+- Clear synonyms: "Film" ↔ "Movie", "User" ↔ "Customer"  
+- Singular/plural variants: "Product" ↔ "Products"
+- Capitalization differences: "item" ↔ "Item"
+
+**DO NOT merge when labels are:**
+- Different granularity: "Person" vs "Employee" (employee is a subset)
+- Related but distinct: "Order" vs "Payment" (different entities)
+- Domain-specific variants: "Patient" vs "User" (same person, different contexts)
+- **Single entities**: Do not create merge groups for entities with no synonyms
+
+### Output Format
+Return **JSON only** (no markdown):
+
 ```json
 {
-  "merges": [
-    {
-      "from": ["Film", "Movie"],
-      "to": "movie"
-    }
-    // one object per merge group
-  ]
+"merges": [
+{
+"from": ["Film", "Movie"],
+"to": "Movie",
+"confidence": 0.95,
+"reasoning": "All terms refer to the same entertainment media concept with no semantic distinction."
+}
+]
 }
 ```
 
-If no merges are needed, return:
-```json
-{ "merges": [] }
-```
+### Guidelines
+- **Merged names**: Preserve one of the original entity labels exactly as it appears (maintaining original case and formatting)
+- **Label selection**: Choose the most representative or commonly used label from the merge group
+- **Merge requirement**: Only create merge objects when you have **2 or more different entities** to merge
+- **Confidence**: high confidence for synonyms, low confidence for probable matches
+- **Reasoning**: Justify why labels represent the same concept (≤50 words)
+- **No merges needed**: Return `{"merges": []}` if no synonymous entities are found
+
+### Quality Checks
+- Ensure merged label represents ALL source labels accurately
+- Verify no semantic information is lost in the merge
+- Consider domain context when evaluating synonymy
+- **Preserve exact formatting**: Do not modify the case or formatting of the selected entity label
+- **Never merge single entities**: Each merge group must contain at least 2 different entities

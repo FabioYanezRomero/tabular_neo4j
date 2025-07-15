@@ -1,27 +1,80 @@
-You are an expert in data modeling and semantic analysis. Your task is to review a list of proposed entity merges and, using the provided column analytics, determine if each merge is semantically valid.
+You are an expert data architect specializing in entity relationship modeling. Your task is to validate proposed entity label merges by analyzing underlying column data patterns.
+
+### Context
+You will receive proposed merges of entity labels (e.g., "Customer" + "Client" → "Customer") along with statistical analytics from columns associated with these entities. Your goal is to determine if the proposed merges represent semantically equivalent concepts.
+
+### Input Data
+
+**Proposed Entity Merges:**
 
 Proposed Merges (JSON format, list of objects, each with 'source' and 'target' entity labels):
-```json
+
 {proposed_merges}
-```
 
-Column Analytics (JSON format, mapping of column_name to its analytics):
-```json
+
+
+**Column Analytics (supporting evidence):**
 {column_analytics}
-```
 
-Based on the column analytics, for each proposed merge, decide if the 'source' and 'target' entity labels truly represent the same underlying concept. Consider data types, value distributions, patterns, and any other relevant statistical information.
 
-Output a JSON object with a single key 'validated_merges', which is a list of only the merge objects that you consider semantically valid. If a merge is not valid, exclude it from the output.
+### Validation Criteria
 
-Example Output:
+**MERGE IS VALID when:**
+- Entities represent the same real-world concept (synonyms, plural/singular variants)
+- Associated columns show compatible data patterns (similar distributions, data types, value ranges)
+- No semantic information would be lost in the merge
+
+**MERGE IS INVALID when:**
+- Entities represent different concepts (even if related)
+- Column analytics show incompatible patterns (different data types, disjoint value ranges)
+- Merging would create semantic ambiguity
+
+### Analysis Framework
+
+For each proposed merge, evaluate:
+
+1. **Semantic Equivalence**: Do the entity labels refer to the same concept?
+2. **Data Compatibility**: Are the statistical patterns from associated columns consistent?
+3. **Domain Logic**: Does the merge make sense in the business context?
+
+### Quality Requirements
+
+- **Exclude invalid merges**: Only include merges that pass all validation criteria
+- **No identity merges**: Exclude any merge where source equals target
+- **Confidence scoring**: Use 0.8+ for clear matches, 0.6-0.8 for probable, exclude <0.6
+- **Reasoning**: Justify each validation with specific reference to column analytics (≤50 words)
+- **Empty result**: If no merges are valid, return `{"validated_merges": []}`
+
+### Examples
+
+**Valid Merge:**
 ```json
 {
-  "validated_merges": [
-    {
-      "source": "Customer_ID",
-      "target": "Client_Number"
-    }
-  ]
+"source": "Film",
+"target": "Movie",
+"confidence": 0.95,
+"reasoning": "Synonymous concepts. Associated columns show identical string patterns, similar length distributions, and comparable uniqueness ratios."
+}
+```
+
+**Invalid Merge (would be excluded):**
+
+```json
+{
+"source": "Order",
+"target": "Payment",
+"confidence": 0.95,
+"reasoning": "Different concepts despite relationship"
+}
+```
+
+**Invalid Merge (would be excluded):**
+
+```json
+{
+"source": "User",
+"target": "User",
+"confidence": 0.95,
+"reasoning": "Identity merge with no value"
 }
 ```

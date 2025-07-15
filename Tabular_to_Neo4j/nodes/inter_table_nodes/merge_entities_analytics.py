@@ -37,36 +37,111 @@ def merge_entities_analytics_node(state: MultiTableGraphState, node_order: int, 
         logger.warning("No proposed entity merges found; skipping analytics validation.")
         return state
 
-    # Collect all column analytics
+    # Collect and filter column analytics so the prompt stays concise
     all_column_analytics = _collect_all_column_analytics(state)
 
-    # Format the prompt for the LLM
-    prompt = format_prompt(
-        template_name="merge_entities_analytics.txt",
-        proposed_merges=json.dumps(proposed_merges, indent=2),
-        column_analytics=json.dumps(all_column_analytics, indent=2),
-        unique_suffix="",
-        use_analytics=use_analytics,
-    )
+    def _filter_analytics_for_merges(merges, analytics):
+        """Return only analytics whose column key mentions any label in the proposed merges."""
+        label_set = {lbl.lower() for m in merges for lbl in m.get("from", []) + [m.get("to", "")]}
+        return {
+            col_key: stats
+            for col_key, stats in analytics.items()
+            if any(lbl in col_key.lower() for lbl in label_set)
+        }
 
-    # Call the LLM
-    llm_resp = call_llm_with_json_output(
-        prompt=prompt,
-        state_name="merge_entities_analytics",
-        unique_suffix="",
-        node_order=node_order,
-        table_name="GLOBAL",
-        template_name="merge_entities_analytics.txt",
-    )
+    def _compact_stats(stats: Any) -> Any:
+        """Return compacted analytics dict or pass through if already a string.
 
-    # Validate and store the LLM response
-    if not isinstance(llm_resp, dict) or "validated_merges" not in llm_resp:
-        logger.error("LLM response missing 'validated_merges'; storing raw response")
-        validated_merges = {"validated_merges": llm_resp}
-    else:
-        validated_merges = llm_resp
+        Contextualised analytics may be plain strings rather than dicts; in that
+        case we forward them unchanged. If *stats* is neither dict nor str, we
+        convert to ``str`` to avoid type errors.
+        """
+        if isinstance(stats, str):
+            return stats
+        if not isinstance(stats, dict):
+            return str(stats)
+        keep = (
+            "data_type",
+            "uniqueness_ratio",
+            "cardinality",
+            "missing_percentage",
+            "min_value",
+            "max_value",
+        )
+        return {k: stats[k] for k in keep if k in stats}
 
-    state["entity_label_merges"] = validated_merges
-    logger.info("[merge_entities_analytics_node] Validated %d merge groups", len(validated_merges.get("validated_merges", [])))
+    # Eliminate duplicates in proposed merges
+    proposed_merges_copy = []
+    for merge in proposed_merges:
+        from_labels_first = merge.get("from")[0]
+        try:
+            from_labels_second = merge.get("from")[1]
+        except IndexError:
+            continue
+        to_label = merge.get("to")[0]
+        if from_labels_first.lower() == from_labels_second.lower() and to_label.lower() == from_labels_first.lower():
+            continue
+        proposed_merges_copy.append(merge)
+
+    proposed_merges = proposed_merges_copy
+
+    # Apply filtering and compaction
+    all_column_analytics = _filter_analytics_for_merges(proposed_merges, all_column_analytics)
+    all_column_analytics = {k: _compact_stats(v) for k, v in all_column_analytics.items()}
+
+    # Iterate through each merge pair and validate individually to minimise prompt size
+    validated_groups = []
+    for idx, merge in enumerate(proposed_merges):
+        single_analytics = _filter_analytics_for_merges([merge], all_column_analytics)
+        single_analytics = {k: _compact_stats(v) for k, v in single_analytics.items()}
+
+        prompt = format_prompt(
+            template_name="merge_entities_analytics.txt",
+            table_name="GLOBAL",
+            proposed_merges=json.dumps([merge], indent=2),
+            column_analytics=json.dumps(single_analytics, indent=2),
+            unique_suffix=f"_{idx}",
+            use_analytics=use_analytics,
+        )
+
+        llm_resp = call_llm_with_json_output(
+            prompt=prompt,
+            state_name="merge_entities_analytics",
+            unique_suffix=f"_{idx}",
+            node_order=node_order,
+            table_name="GLOBAL",
+            template_name="merge_entities_analytics.txt",
+        )
+
+        if isinstance(llm_resp, dict) and "validated_merges" in llm_resp:
+            validated_groups.extend(llm_resp["validated_merges"])
+        else:
+            logger.warning("Unexpected LLM response for merge index %d: %s", idx, llm_resp)
+
+        # Normalise validated merge objects to a standard schema expected downstream
+    normalised = []
+    for m in validated_groups:
+        if not isinstance(m, dict):
+            continue
+        if "from" in m and "to" in m:
+            from_labels = m["from"] if isinstance(m["from"], list) else [m["from"]]
+            to_labels = m["to"] if isinstance(m["to"], list) else [m["to"]]
+        elif "source" in m and "target" in m:
+            from_labels = [m["source"]]
+            to_labels = [m["target"]]
+        else:
+            # Unrecognised format, skip
+            logger.warning("Skipping merge with unrecognised keys: %s", m)
+            continue
+        normalised.append({
+            "from": from_labels,
+            "to": to_labels,
+            "confidence": m.get("confidence"),
+            "reasoning": m.get("reasoning"),
+        })
+
+    # Store aggregated and normalised merges (legacy key name 'merges')
+    state["entity_label_merges"] = {"merges": normalised}
+    logger.info("[merge_entities_analytics_node] Validated %d merge groups", len(normalised))
 
     return state

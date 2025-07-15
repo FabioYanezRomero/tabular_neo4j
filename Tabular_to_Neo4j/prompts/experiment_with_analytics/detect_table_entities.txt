@@ -1,43 +1,54 @@
-You are a data-modeling expert. Your task is to determine whether the *entire* table supplied below represents one or more real-world **entities** or is purely a fact/bridge/lookup table with no standalone entities.
+You are a data-modeling expert. Your task is to identify what real-world **entities** are referenced by the table through foreign key relationships, regardless of whether the table itself is an entity or fact table.
 
 ### Input
 - **Table name**: `{table_name}`
 - **Columns & analytics** (one per line):
-  ```
-  {columns_analytics}
-  ```
-  Each line is formatted as `column_name | data_type | uniqueness_ratio | cardinality | missing_%`.
+{columns_analytics}
 
-### Definitions
-- *Entity table*: rows correspond to discrete real-world objects/concepts that can exist independently (e.g., `Customer`, `Product`). At least one column (or combination) acts as a primary identifier.
-- *Non-entity table*: rows are facts/measurements/links that only make sense in the context of other tables (e.g., `Sales`, `OrderLine`, many-to-many join tables).
+Each line is formatted as `column_name | {json_analytics}` where `{json_analytics}` is a compact JSON object containing all available statistics for the column (e.g., data_type, uniqueness_ratio, cardinality, missing_percentage, sample values, etc.).
 
-### Reasoning guidance
-1. Inspect column names and statistics for obvious identifiers (e.g., `*_id`, `uuid`, codes) with high uniqueness.
-2. Consider if most columns appear to *describe* a single thing (entity) versus multiple foreign keys or purely numeric measures.
-3. If table is an entity table, group columns into logical *entity* candidates (usually one per table). Edge cases such as polymorphic tables may contain multiple entity types—list them all.
+### Task
+Analyze the table columns to identify entities that are referenced through foreign key relationships. Focus on:
+
+1. **ID columns**: Look for columns ending with common identifier suffixes such as "Id", "ID", or "_id".
+2. **High-cardinality identifiers**: Columns with moderate to high uniqueness that likely reference other entities.
+3. **Naming patterns**: Column names that suggest references to business entities.
+
+### Entity Identification Rules
+- Extract the entity name from ID column names by removing common suffixes.
+- Consider uniqueness ratios and cardinality to validate if a column is likely a foreign key.
+- Ignore purely descriptive columns (dates, measures, flags) unless they clearly reference entities.
+- Focus on columns that would logically reference standalone business objects.
 
 ### Output
 Return **only** a valid JSON object in **one** of the following forms:
 
-1. When NO entities are present:
+1. When NO entity references are found:
+
 ```json
 {
-  "has_entities": false,
-  "reasoning": "Brief explanation (<40 words>)"
+"has_entity_references": false,
+"reasoning": "Brief explanation (<40 words)"
 }
 ```
 
-2. When the table DOES contain entities:
+2. When entity references are found:
+
 ```json
 {
-  "has_entities": true,
-  "entities": ["EntityName1", "EntityName2"],
-  "reasoning": "Brief explanation (<60 words>)"
+"has_entity_references": true,
+"referenced_entities": ["EntityName1", "EntityName2"],
+"reasoning": "Brief explanation (<60 words)"
 }
 ```
+
+### Examples
+- `someEntityId` (high cardinality, >0.8 uniqueness) → References `SomeEntity` entity
+- `anotherRef` (moderate uniqueness, >0.5 uniqueness) → References `AnotherRef` entity  
+- `timestamp` (low uniqueness, <0.1 uniqueness) → Not an entity reference
+- `amount` (numeric measure) → Not an entity reference
 
 Constraints:
-- Do **not** output any text outside the single JSON object.
-- `confidence` values must be between 0 and 1.
-- Keep `reasoning` short; do not exceed specified word limits.
+- Do **not** output any text outside the single JSON object
+- Focus on primary and foreign key relationships, not the table's primary purpose
+- Keep `reasoning` short; do not exceed specified word limits
