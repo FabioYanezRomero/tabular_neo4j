@@ -275,6 +275,20 @@ LLM_CONFIGS = DynamicLLMConfigs({
         "auto_load": True,
         "auto_unload": True
     },
+    "merge_entity_properties": {
+        "provider": DEFAULT_LLM_PROVIDER,
+        "model_name": MODEL_NAME_MAPPING[DEFAULT_OLLAMA_MODEL] if DEFAULT_LLM_PROVIDER == "ollama" else DEFAULT_OLLAMA_MODEL,
+        "temperature": DEFAULT_TEMPERATURE,
+        "seed": DEFAULT_SEED,
+        "description": "Model for consolidating properties after entity merges",
+        "output_format": {
+            "type": "json_object",
+            "description": "Object with filtered property list",
+            "example": "{\"properties\": []}"
+        },
+        "auto_load": True,
+        "auto_unload": True
+    },
     "merge_relation_types": {
         "provider": DEFAULT_LLM_PROVIDER,
         "model_name": MODEL_NAME_MAPPING["gemma-3-12b-it"] if DEFAULT_LLM_PROVIDER == "ollama" else "gemma-3-12b-it",

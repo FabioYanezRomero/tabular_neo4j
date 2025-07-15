@@ -1,29 +1,66 @@
-You are building a Neo4j property-graph model from a single table.
+### Task
+You are a Neo4j graph schema expert performing the final step in a multiagent pipeline. Your role is to map individual table columns to their appropriate graph elements based on previously inferred entities and relationships.
 
-Your task: for the supplied *single column*, decide whether it belongs to
-one of the detected **entities** (as a property) or represents the value of an
-**intra-table relationship**.
+**Context**: This is the third step in the pipeline:
+1. Node types have been inferred from table structure
+2. Relationship types have been detected within the table
+3. **Current task**: Map each column to the appropriate graph element
 
-### Input
+### Input Data
 - **Table name**: `{table_name}`
-- **Column**: `{column_name}`
-- **Detected entities**: {entities}
-- **Detected intra-table relationships**: {relationships}
-- **Column analytic**: `{column_analytic}` (compact JSON with full analytics)
+- **Target column**: `{column_name}`
+- **Inferred entities**: {entities}
+- **Inferred relationships**: {relationships}
+- **Column analytics**: `{column_analytic}` (statistical and semantic analysis)
 
-### Output
-Return ONLY a JSON object:
+### Decision Framework
+
+**Step 1: Analyze Column Characteristics**
+- **Data type**: Numeric, categorical, text, datetime, boolean
+- **Cardinality**: Unique values vs total rows ratio
+- **Null percentage**: Data completeness indicator
+- **Semantic patterns**: ID patterns, foreign key hints, descriptive content
+
+**Step 2: Apply Classification Rules**
+
+**Entity Property Indicators:**
+- Descriptive attributes (names, descriptions, categories)
+- Intrinsic properties (age, size, color, status)
+- Metadata fields (created_at, updated_at, version)
+- Identifier fields belonging to a specific entity
+- High cardinality with descriptive content
+
+**Relationship Property Indicators:**
+- Quantitative measures between entities (amount, weight, score)
+- Temporal aspects of relationships (start_date, duration)
+- Relationship metadata (confidence, source, method)
+- Bridge table foreign keys with additional context
+- Low-to-medium cardinality with measurable values
+
+**Step 3: Confidence Assessment**
+- **High (0.85-1.0)**: Clear semantic match with strong analytics support
+- **Medium (0.6-0.84)**: Good match with some ambiguity
+- **Low (0.3-0.59)**: Uncertain classification requiring review
+
+### Edge Case Handling
+- **Ambiguous columns**: Choose the most semantically appropriate based on analytics
+- **Multiple candidates**: Select the entity/relationship with strongest semantic alignment
+- **Hybrid columns**: Favor entity properties unless clearly relationship-focused
+- **Missing context**: Use column name patterns and data distribution as tiebreakers
+
+### Output Format
+Return exactly this JSON structure:
 ```json
 {
-  "graph_element_type": "entity_property" | "relationship_property" | "ignore",
-  "belongs_to": "<entity_or_relationship_name_if_applicable>",
-  "confidence": 0.87,
-  "reasoning": "≤40 words"
+"graph_element_type": "entity_property" | "relationship_property",
+"belongs_to": "<exact_entity_or_relationship_name>",
+"confidence": 0.87,
+"reasoning": "≤40 words explaining primary decision factor"
 }
 ```
 
-Constraints:
-- If the column is clearly a property of an entity, set `graph_element_type` = `entity_property` and `belongs_to` = that entity label.
-- If the column stores the value of a relationship edge (e.g., a join/quantitative value between two entities), set `graph_element_type` = `relationship_property` and `belongs_to` = that relationship type.
-- If the column is irrelevant for the graph, return `ignore` with a brief reason.
-- Respond with JSON only, no markdown.
+### Validation Rules
+- `belongs_to` must exactly match a name from the provided entities or relationships
+- `confidence` must be a decimal between 0.0 and 1.0
+- `reasoning` should focus on the primary decision factor, not list all considerations
+- Output valid JSON only, no markdown formatting or additional text

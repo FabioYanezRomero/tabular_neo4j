@@ -71,6 +71,7 @@ from Tabular_to_Neo4j.nodes.inter_table_nodes import (
     merge_entities_analytics_node,
     merge_relation_types_node,
 )
+from Tabular_to_Neo4j.nodes.inter_table_nodes.merge_entity_properties import merge_entity_properties_node
 from Tabular_to_Neo4j.utils.output_saver import output_saver
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_path_for_csv
 
@@ -108,6 +109,7 @@ def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict
         ("merge_synonym_entities", merge_synonym_entities_node),
         ("merge_entities_analytics", merge_entities_analytics_node),
         ("merge_relation_types", merge_relation_types_node),
+        ("merge_entity_properties", merge_entity_properties_node),
     ]
     for idx, (n_name, n_func) in enumerate(cross_nodes, 1):
         real_idx = idx + len(intra_nodes)

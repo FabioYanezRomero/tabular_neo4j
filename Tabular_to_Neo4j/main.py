@@ -3,6 +3,8 @@ Main script for the Tabular to Neo4j converter using LangGraph.
 """
 
 import argparse
+import json
+from Tabular_to_Neo4j.utils.serialization import json_default
 from typing import Dict, Any
 from Tabular_to_Neo4j.utils.logging_config import get_logger, setup_logging
 import sys
@@ -61,12 +63,12 @@ def run(
         final_state = run_pipeline(graph, csv_file_path)
         
         # Save the final state as metadata
-        import json
+        
         from pathlib import Path
         meta_dir = Path(output_saver.base_dir) / output_saver.timestamp
         meta_dir.mkdir(parents=True, exist_ok=True)
         with open(meta_dir / "final_state.json", "w", encoding="utf-8") as f:
-            json.dump(final_state, f, indent=2, default=str)
+            json.dump(final_state, f, indent=2, default=json_default)
         return final_state
     
     elif pipeline == "multi_table_graph":
@@ -83,11 +85,11 @@ def run(
         final_state = run_exp(table_folder, use_analytics=True)
         try:
             from pathlib import Path
-            import json
+            
             out_path = Path(table_folder) / "GLOBAL" / "final_state.json"
             out_path.parent.mkdir(parents=True, exist_ok=True)
             with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(final_state, f, indent=2, default=str)
+                json.dump(final_state, f, indent=2, default=json_default)
         except Exception as e:
             print(f"[main] Warning: could not write final_state.json: {e}")
         return final_state
@@ -97,11 +99,11 @@ def run(
         final_state = run_exp(table_folder, use_analytics=True)
         try:
             from pathlib import Path
-            import json
+            
             out_path = Path(table_folder) / "GLOBAL" / "final_state.json"
             out_path.parent.mkdir(parents=True, exist_ok=True)
             with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(final_state, f, indent=2, default=str)
+                json.dump(final_state, f, indent=2, default=json_default)
         except Exception as e:
             print(f"[main] Warning: could not write final_state.json: {e}")
         return final_state
@@ -111,11 +113,11 @@ def run(
         final_state = run_exp(table_folder, use_analytics=False)
         try:
             from pathlib import Path
-            import json
+            
             out_path = Path(table_folder) / "GLOBAL" / "final_state.json"
             out_path.parent.mkdir(parents=True, exist_ok=True)
             with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(final_state, f, indent=2, default=str)
+                json.dump(final_state, f, indent=2, default=json_default)
         except Exception as e:
             print(f"[main] Warning: could not write final_state.json: {e}")
         return final_state

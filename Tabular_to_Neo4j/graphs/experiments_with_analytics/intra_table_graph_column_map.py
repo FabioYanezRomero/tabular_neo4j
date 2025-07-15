@@ -88,6 +88,7 @@ from Tabular_to_Neo4j.nodes.inter_table_nodes import (
     merge_relation_types_node,
     merge_entities_analytics_node,
 )
+from Tabular_to_Neo4j.nodes.inter_table_nodes.merge_entity_properties import merge_entity_properties_node
 from Tabular_to_Neo4j.utils.output_saver import output_saver
 from Tabular_to_Neo4j.utils.metadata_utils import get_metadata_path_for_csv
 
@@ -135,6 +136,7 @@ def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict
         ("merge_synonym_entities", merge_synonym_entities_node),
         ("merge_entities_analytics", merge_entities_analytics_node),
         ("merge_relation_types", merge_relation_types_node),
+        ("merge_entity_properties", merge_entity_properties_node),
     ]
     for idx, (n_name, n_func) in enumerate(cross_nodes, 1):
         real_idx = idx + len(intra_nodes)
@@ -153,4 +155,20 @@ def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict
         }
         for ds in dataset_names:
             output_saver.save_node_output(n_name, state, node_order=real_idx, table_name=f"{ds}__inter_table")
+
+    # --- persist final consolidated state for later inspection ---
+    if not dataset_names:
+        dataset_names = {"GLOBAL"}
+    import json
+    from Tabular_to_Neo4j.utils.serialization import json_default
+    for ds in dataset_names:
+        ds_dir = os.path.join(output_saver.output_dir, ds, "GLOBAL")
+        os.makedirs(ds_dir, exist_ok=True)
+        out_path = os.path.join(ds_dir, "final_state.json")
+        try:
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2, default=json_default)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Could not write final_state.json: %s", e)
     return state
