@@ -406,7 +406,7 @@ if __name__ == "__main__":
     print("Graph Schema Evaluation Script")
     print("Use the functions evaluate_and_save() or evaluate_with_synonym_file() to run evaluations")
     evaluate_with_synonym_file(golden_schema_path="/app/schemas/golden/Graphs/diginetica/property_graph.yaml", 
-                               generated_schema_path="/app/schemas/generated/20250716_113824_schema.yaml", 
+                               generated_schema_path="/app/schemas/generated/20250716_145049_schema.yaml", 
                                synonyms_config_path="/app/schemas/synonyms/diginetica.yaml", 
-                               output_folder="/app/schemas/evaluation/diginetica_20250716_113824", 
+                               output_folder="/app/schemas/evaluation/diginetica_20250716_145049", 
                                output_name="diginetica")
