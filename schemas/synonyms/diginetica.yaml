@@ -15,9 +15,26 @@ relation_synonyms:
   clicks: ['views', 'clicked_on', 'interacted_with', 'viewed', 'accessed']
   purchases: ['bought', 'acquired', 'ordered', 'purchased', 'transacted']
   belongs_to: ['categorized_as', 'classified_as', 'is_in', 'part_of', 'member_of']
-  contains: ['has', 'includes', 'encompasses', 'holds', 'consists_of']
+  contains: ['has', 'includes', 'encompasses', 'holds', 'consists_of', 'issued_query', 'query_for_item', 'query_for_category', 'queryforitem', 'queryforcategory']
   adds_to_cart: ['added', 'placed_in_cart', 'selected', 'put_in_basket']
-  started_session: ['initiated', 'began', 'opened', 'commenced']
+  started_session: ['initiated', 'began', 'opened', 'commenced', 'participates_in']
+  purchase_of: ['purchases']
   occurred_in: ['happened_in', 'took_place_in', 'within', 'during']
   associated_with: ['linked_to', 'connected_to', 'related_to', 'tied_to']
   recommended: ['suggested', 'proposed', 'offered', 'presented']
+
+invertible_relations:
+  - started_session
+  - purchases
+  - purchase_of
+
+property_synonyms:
+  date: ['eventdate']
+  log2price: ['pricelog2', 'price_log2']
+  nametokens: ['name_tokens', 'productnametokens', 'product.name.tokens', 'searchstringtokens', 'searchstring.tokens']
+  orderid: ['ordernumber', 'order_id']
+  istest: ['is_test', 'is.test']
+  queryid: ['query_id']
+  categoryid: ['category_id']
+  itemid: ['item_id']
+  userid: ['user_id']

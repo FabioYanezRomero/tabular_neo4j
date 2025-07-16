@@ -14,10 +14,19 @@ class CompletenessResults:
     detailed_analysis: Dict[str, Any]
 
 class DatasetSynonymConfig:
+    """Configuration class for dataset-specific synonyms, including optional property synonyms."""
     """Configuration class for dataset-specific synonyms"""
-    def __init__(self, node_synonyms: Dict[str, List[str]], relation_synonyms: Dict[str, List[str]]):
+    def __init__(
+        self,
+        node_synonyms: Dict[str, List[str]],
+        relation_synonyms: Dict[str, List[str]],
+        property_synonyms: Dict[str, List[str]] | None = None,
+        invertible_relations: List[str] | None = None,
+    ):
         self.node_synonyms = node_synonyms
         self.relation_synonyms = relation_synonyms
+        self.property_synonyms = property_synonyms or {}
+        self.invertible_relations = set(invertible_relations or [])
 
 class GraphSchemaCompletenessEvaluator:
     """Evaluates completeness of generated graph schema against golden reference with synonym support"""
@@ -28,18 +37,49 @@ class GraphSchemaCompletenessEvaluator:
     
     def normalize_name(self, name: str) -> str:
         """Normalize names for comparison"""
-        return name.lower().replace('_', '').replace('-', '')
+        return name.lower().replace('_', '').replace('-', '').replace('.', '')
     
     def map_name_with_synonyms(self, name: str, element_type: str) -> str:
-        """Map name to canonical form using synonyms"""
+        """Map a provided name to its canonical form using the configured synonyms.
+
+        The previous implementation only matched *exact* canonical names or their
+        synonyms after normalisation.  In real-world datasets it is common to
+        append qualifiers to a relation or node name (e.g. ``belongs_to`` vs
+        ``belongs_to_category``).  This enhanced version therefore also returns a
+        match if the candidate name *starts with* or *contains* the canonical
+        token or one of its synonyms after normalisation.
+        """
         name_norm = self.normalize_name(name)
-        synonyms = self.synonyms.node_synonyms if element_type == 'node' else self.synonyms.relation_synonyms
-        
-        for canonical, syn_list in synonyms.items():
-            normalized_synonyms = [self.normalize_name(syn) for syn in syn_list]
-            if name_norm == canonical or name_norm in normalized_synonyms:
-                return canonical
-        
+        # Choose the correct synonym dictionary
+        if element_type == 'node':
+            raw_synonyms = self.synonyms.node_synonyms
+        elif element_type == 'relation':
+            raw_synonyms = self.synonyms.relation_synonyms
+        else:
+            raw_synonyms = self.synonyms.property_synonyms
+
+        for canonical, syn_list in raw_synonyms.items():
+            canonical_norm = self.normalize_name(canonical)
+
+            # 1. Exact match to canonical (previous behaviour)
+            if name_norm == canonical_norm:
+                return canonical_norm
+
+            # 2. The candidate starts with / contains the canonical token
+            if name_norm.startswith(canonical_norm) or canonical_norm in name_norm:
+                return canonical_norm
+
+            # 3. Check all synonyms for the same matching logic
+            for syn in syn_list:
+                syn_norm = self.normalize_name(syn)
+                if (
+                    name_norm == syn_norm or
+                    name_norm.startswith(syn_norm) or
+                    syn_norm in name_norm
+                ):
+                    return canonical_norm
+
+        # Fall back to the normalised original name if nothing matched
         return name_norm
     
     def extract_node_info(self, schema: Dict) -> Dict[str, Set[str]]:
@@ -47,7 +87,7 @@ class GraphSchemaCompletenessEvaluator:
         node_info = {}
         for node in schema.get('nodes', []):
             node_type = self.map_name_with_synonyms(node['type'], 'node')
-            attributes = {self.normalize_name(attr) for attr in node.get('attributes', [])}
+            attributes = {self.map_name_with_synonyms(attr, 'property') for attr in node.get('attributes', [])}
             
             if node_type not in node_info:
                 node_info[node_type] = set()
@@ -124,24 +164,46 @@ class GraphSchemaCompletenessEvaluator:
         
         return overall_completeness, node_property_analysis
     
-    def calculate_relation_completeness(self, gen_edges: Set[Tuple[str, str, str]], 
-                                      gold_edges: Set[Tuple[str, str, str]]) -> Tuple[float, Dict]:
-        """Calculate relation completeness"""
-        found_edges = gen_edges.intersection(gold_edges)
-        missing_edges = gold_edges - gen_edges
-        extra_edges = gen_edges - gold_edges
-        
+    def calculate_relation_completeness(
+        self,
+        gen_edges: Set[Tuple[str, str, str]],
+        gold_edges: Set[Tuple[str, str, str]],
+    ) -> Tuple[float, Dict]:
+        """Calculate relation completeness with support for invertible relations."""
+
+        found_edges: Set[Tuple[str, str, str]] = set()
+        missing_edges: Set[Tuple[str, str, str]] = set()
+
+        # Build a quick-lookup set for generated edges
+        gen_edges_lookup = set(gen_edges)
+
+        for edge in gold_edges:
+            r_type, src, tgt = edge
+            if edge in gen_edges_lookup:
+                found_edges.add(edge)
+                continue
+
+            # If relation is invertible, check reversed direction
+            if r_type in self.synonyms.invertible_relations and (r_type, tgt, src) in gen_edges_lookup:
+                found_edges.add((r_type, tgt, src))
+            else:
+                missing_edges.add(edge)
+
+        extra_edges = gen_edges_lookup - found_edges
+
         completeness = len(found_edges) / len(gold_edges) if gold_edges else 1.0
-        
+
+        fmt = lambda e: f"{e[0]}: {e[1]} -> {e[2]}"
         details = {
-            'found_relations': sorted([f"{edge[0]}: {edge[1]} -> {edge[2]}" for edge in found_edges]),
-            'missing_relations': sorted([f"{edge[0]}: {edge[1]} -> {edge[2]}" for edge in missing_edges]),
-            'extra_relations': sorted([f"{edge[0]}: {edge[1]} -> {edge[2]}" for edge in extra_edges]),
+            'found_relations': sorted(map(fmt, found_edges)),
+            'missing_relations': sorted(map(fmt, missing_edges)),
+            'extra_relations': sorted(map(fmt, extra_edges)),
             'total_golden_relations': len(gold_edges),
             'total_generated_relations': len(gen_edges),
-            'completeness_score': completeness
+            'completeness_score': completeness,
+            'invertible_relations_considered': sorted(self.synonyms.invertible_relations),
         }
-        
+
         return completeness, details
     
     def evaluate_completeness(self, generated_schema: Dict, golden_schema: Dict) -> CompletenessResults:
@@ -164,7 +226,9 @@ class GraphSchemaCompletenessEvaluator:
             'evaluation_timestamp': datetime.now().isoformat(),
             'synonym_mappings_applied': {
                 'node_synonyms': self.synonyms.node_synonyms,
-                'relation_synonyms': self.synonyms.relation_synonyms
+                'relation_synonyms': self.synonyms.relation_synonyms,
+                'invertible_relations': list(self.synonyms.invertible_relations),
+                'property_synonyms': self.synonyms.property_synonyms
             }
         }
         
@@ -241,7 +305,9 @@ def load_synonyms_from_yaml(synonyms_path: str) -> DatasetSynonymConfig:
     
     return DatasetSynonymConfig(
         node_synonyms=config.get('node_synonyms', {}),
-        relation_synonyms=config.get('relation_synonyms', {})
+        relation_synonyms=config.get('relation_synonyms', {}),
+        property_synonyms=config.get('property_synonyms', {}),
+        invertible_relations=config.get('invertible_relations', [])
     )
 
 def evaluate_and_save(golden_schema_path: str, 
@@ -328,3 +394,8 @@ if __name__ == "__main__":
     # Example usage
     print("Graph Schema Evaluation Script")
     print("Use the functions evaluate_and_save() or evaluate_with_synonym_file() to run evaluations")
+    evaluate_with_synonym_file(golden_schema_path="/app/schemas/golden/Graphs/diginetica/property_graph.yaml", 
+                               generated_schema_path="/app/schemas/generated/20250715_183522_schema.yaml", 
+                               synonyms_config_path="/app/schemas/synonyms/diginetica.yaml", 
+                               output_folder="/app/schemas/evaluation/diginetica_20250715_183522", 
+                               output_name="diginetica")

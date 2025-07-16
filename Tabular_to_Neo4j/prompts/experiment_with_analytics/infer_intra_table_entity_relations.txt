@@ -7,17 +7,20 @@ You are a data-modeling expert. Your task is to infer **intra-table** relationsh
   ```
   {columns_analytics}
   ```
-  Each line is formatted as `column_name | data_type | uniqueness_ratio | cardinality | missing_%`.
+Each line is formatted as `column_name | <json_analytics>` where the JSON object contains all available statistics for the column (e.g., data_type, uniqueness_ratio, cardinality, missing_percentage, sample values, etc.).
 
 ### Instructions
 1. For every meaningful relationship that can be deduced between two *different* entities in this single table, identify:
-   • `source_entity` – which entity the relation starts from.
-   • `target_entity` – which entity it points to.
-   • `relationship_type` – lower-snake-case verb phrase (e.g., `owns`, `contains`, `assigned_to`).
-   • `direction` – one of `source_to_target`, `target_to_source` or `undirected`.
-   • `confidence` – number 0-1.
-2. If no clear relationship exists, return an empty array.
-3. Keep reasoning concise (≤ 60 words per relationship).
+ • `source_entity` – which entity the relation starts from.
+ • `target_entity` – which entity it points to.
+ • `relationship_type` – domain-specific lower-snake-case verb phrase that reflects the table's business context and column characteristics (e.g., `purchased_by`, `assigned_to`, `managed_by`, `belongs_to_category`).
+ • `direction` – one of `source_to_target`, `target_to_source` or `undirected`.
+ • `confidence` – number 0-1.
+ • `reasoning` – Justification for the relationship.
+2. Use the **table name** and **column analytics** to infer domain-specific relationship semantics rather than generic ones.
+3. Consider column characteristics: high uniqueness suggests identifier/ownership relations, low cardinality suggests classification/grouping relations, missing percentages indicate optional relationships.
+4. If no clear relationship exists, return an empty array.
+5. Keep reasoning concise (≤ 60 words per relationship).
 
 ### Output format
 Return **only** a valid JSON object of the form:
@@ -25,9 +28,9 @@ Return **only** a valid JSON object of the form:
 {
   "entity_relationships": [
     {
-      "source_entity": "EntityA",
-      "target_entity": "EntityB",
-      "relationship_type": "related_to",
+      "source_entity": "Customer",
+      "target_entity": "Order",
+      "relationship_type": "placed_order",
       "direction": "source_to_target",
       "confidence": 0.92,
       "reasoning": "Brief justification (≤60 words)"
@@ -37,6 +40,8 @@ Return **only** a valid JSON object of the form:
 }
 ```
 
+
 Constraints:
 - Do not include properties or any text outside the single JSON object.
 - Omit duplicate or trivial self-relationships.
+- Focus on domain-specific relationship types that reflect the table's data context.

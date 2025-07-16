@@ -52,3 +52,5 @@ datasets/
 analytics/
 contextualized_analytics/
 no_analytics/
+schemas/evaluation/
+schemas/generated
