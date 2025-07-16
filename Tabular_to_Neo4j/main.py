@@ -110,7 +110,8 @@ def run(
     elif pipeline == "experiments_without_analytics":
         from Tabular_to_Neo4j.graphs.experiments_without_analytics.intra_table_graph_column_map import run_column_map_multi_table_pipeline as run_exp
         table_folder = input_path
-        final_state = run_exp(table_folder, use_analytics=False)
+        # Load analytics for compatibility but prune immediately inside pipeline
+        final_state = run_exp(table_folder, use_analytics=True)
         try:
             from pathlib import Path
             

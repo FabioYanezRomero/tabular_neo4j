@@ -19,28 +19,27 @@ logger = logging.getLogger(__name__)
 
 
 def _build_columns_analytics(state: GraphState) -> str:
-    """Return a multiline string of column analytics.
+    """Return a multiline string of column analytics where each line is a JSON object.
 
-    Handles both normal analytics dicts *and* the contextualised variant where
-    the value is already a formatted string produced upstream. This keeps the
-    function backward-compatible while avoiding AttributeError when `stats` is
-    a string.
+    This function now outputs only the JSON analytics per column (no pipe delimiters),
+    matching the expected input in the updated prompt instructions.
     """
+    import json
     analytics: Dict[str, Any] = state.get("column_analytics", {}) or {}
     lines: List[str] = []
     for col, stats in analytics.items():
         if isinstance(stats, str):
-            # Contextualised analytics already formatted by previous node
+            # Already a formatted string (contextualised) – keep as-is
             lines.append(stats)
             continue
         if not isinstance(stats, dict):
-            # Fallback – unexpected type, just stringify
             lines.append(str(stats))
             continue
-        lines.append(
-            f"{col} | {stats.get('data_type', 'unknown')} | {stats.get('uniqueness_ratio', 0):.3f} | "
-            f"{stats.get('cardinality', 0)} | {stats.get('missing_percentage', 0):.3f}"
-        )
+        try:
+            json_str = json.dumps({col: stats}, ensure_ascii=False, separators=(",", ":"))
+        except Exception:
+            json_str = str(stats)
+        lines.append(json_str)
     return "\n".join(lines)
 
 

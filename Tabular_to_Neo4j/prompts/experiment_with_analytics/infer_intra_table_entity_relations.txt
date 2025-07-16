@@ -3,11 +3,11 @@ You are a data-modeling expert. Your task is to infer **intra-table** relationsh
 ### Input
 - **Table name**: `{table_name}`
 - **Detected entities**: {entities}
-- **Columns & analytics** (one per line):
+- **Columns & analytics** (one JSON object per line):
   ```
   {columns_analytics}
   ```
-Each line is formatted as `column_name | <json_analytics>` where the JSON object contains all available statistics for the column (e.g., data_type, uniqueness_ratio, cardinality, missing_percentage, sample values, etc.).
+Each line is a JSON object of the form `{ "<column_name>": { ...analytics... } }`, containing all available statistics for that column (e.g., data_type, uniqueness_ratio, cardinality, missing_percentage, sample values, etc.).
 
 ### Instructions
 1. **Forbidden relationship types**: Avoid overly vague verbs such as `related_to`, `is_a`, `has`, `associated_with`. Use precise verbs instead.

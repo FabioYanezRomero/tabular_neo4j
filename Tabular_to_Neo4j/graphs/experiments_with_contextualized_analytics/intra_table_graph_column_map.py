@@ -115,4 +115,19 @@ def run_column_map_multi_table_pipeline(table_folder: str, config: Optional[Dict
         real_idx = idx + len(intra_nodes)
         state = n_func(state, node_order=real_idx, use_analytics=use_analytics)
         output_saver.save_node_output(n_name, state, node_order=real_idx, table_name="inter_table")
+
+    # --- persist final consolidated state (mirrors analytics pipeline) ---
+    dataset_names = {"GLOBAL"}
+    import json
+    from Tabular_to_Neo4j.utils.serialization import json_default
+    for ds in dataset_names:
+        ds_dir = os.path.join(output_saver.output_dir, ds, "GLOBAL")
+        os.makedirs(ds_dir, exist_ok=True)
+        out_path = os.path.join(ds_dir, "final_state.json")
+        try:
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2, default=json_default)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Could not write final_state.json: %s", e)
     return state

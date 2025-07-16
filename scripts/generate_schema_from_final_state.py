@@ -165,4 +165,4 @@ def main(final_state_path: str | None = None, golden_schema_path: str | None = N
 
 
 if __name__ == "__main__":
-    main(final_state_path="/app/samples/20250716_113824/GLOBAL/GLOBAL/final_state.json", golden_schema_path="/app/schemas/golden/Graphs/diginetica/property_graph.yaml")
+    main(final_state_path="/app/samples/20250716_145049/GLOBAL/GLOBAL/final_state.json", golden_schema_path="/app/schemas/golden/Graphs/diginetica/property_graph.yaml")
