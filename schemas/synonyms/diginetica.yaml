@@ -1,0 +1,23 @@
+version: "1.0"
+last_updated: "2025-07-15"
+dataset: "diginetica"
+
+node_synonyms:
+  user: ['customer', 'client', 'buyer', 'person', 'visitor', 'shopper']
+  session: ['visit', 'browsing_session', 'user_session', 'interaction', 'activity']
+  item: ['product', 'article', 'good', 'merchandise', 'sku', 'listing']
+  category: ['class', 'type', 'group', 'classification', 'product_category', 'item_category']
+  click: ['view', 'impression', 'page_view', 'interaction', 'event']
+  purchase: ['order', 'transaction', 'buy', 'acquisition', 'sale', 'checkout']
+  cart: ['basket', 'shopping_cart', 'cart_session', 'shopping_basket']
+
+relation_synonyms:
+  clicks: ['views', 'clicked_on', 'interacted_with', 'viewed', 'accessed']
+  purchases: ['bought', 'acquired', 'ordered', 'purchased', 'transacted']
+  belongs_to: ['categorized_as', 'classified_as', 'is_in', 'part_of', 'member_of']
+  contains: ['has', 'includes', 'encompasses', 'holds', 'consists_of']
+  adds_to_cart: ['added', 'placed_in_cart', 'selected', 'put_in_basket']
+  started_session: ['initiated', 'began', 'opened', 'commenced']
+  occurred_in: ['happened_in', 'took_place_in', 'within', 'during']
+  associated_with: ['linked_to', 'connected_to', 'related_to', 'tied_to']
+  recommended: ['suggested', 'proposed', 'offered', 'presented']

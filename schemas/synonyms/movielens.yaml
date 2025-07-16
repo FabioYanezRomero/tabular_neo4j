@@ -1,0 +1,24 @@
+version: "1.0"
+last_updated: "2025-07-15"
+dataset: "movielens"
+
+node_synonyms:
+  user: ['person', 'viewer', 'customer', 'member', 'subscriber', 'rater']
+  movie: ['film', 'title', 'motion_picture', 'cinema', 'video', 'content']
+  rating: ['score', 'evaluation', 'review_score', 'grade', 'assessment']
+  genre: ['category', 'type', 'classification', 'style', 'kind']
+  tag: ['keyword', 'label', 'descriptor', 'annotation', 'marker']
+  director: ['filmmaker', 'creator', 'movie_director', 'film_director']
+  actor: ['performer', 'cast_member', 'artist', 'star', 'player']
+  studio: ['production_company', 'producer', 'film_studio', 'production_house']
+
+relation_synonyms:
+  rates: ['rated', 'scored', 'evaluated', 'graded', 'reviewed']
+  tagged: ['labeled', 'marked', 'annotated', 'described', 'tagged_as']
+  belongs_to_genre: ['categorized_as', 'classified_as', 'is_genre', 'has_genre']
+  directed_by: ['directed', 'created_by', 'made_by', 'helmed_by']
+  acted_in: ['performed_in', 'starred_in', 'appeared_in', 'featured_in']
+  produced_by: ['made_by', 'created_by', 'developed_by', 'manufactured_by']
+  similar_to: ['like', 'comparable_to', 'related_to', 'resembles']
+  recommended: ['suggested', 'proposed', 'offered', 'presented']
+  watched: ['viewed', 'seen', 'consumed', 'streamed']
