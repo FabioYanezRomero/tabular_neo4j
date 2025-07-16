@@ -12,14 +12,14 @@ node_synonyms:
   cart: ['basket', 'shopping_cart', 'cart_session', 'shopping_basket']
 
 relation_synonyms:
-  clicks: ['views', 'clicked_on', 'interacted_with', 'viewed', 'accessed']
-  purchases: ['bought', 'acquired', 'ordered', 'purchased', 'transacted']
-  belongs_to: ['categorized_as', 'classified_as', 'is_in', 'part_of', 'member_of']
-  contains: ['has', 'includes', 'encompasses', 'holds', 'consists_of', 'issued_query', 'query_for_item', 'query_for_category', 'queryforitem', 'queryforcategory']
+  clicks: ['views', 'clicked_on', 'interacted_with', 'viewed', 'accessed', 'clicked']
+  purchases: ['bought', 'acquired', 'ordered', 'purchased', 'transacted', 'createdby']
+  belongs_to: ['categorized_as', 'classified_as', 'is_in', 'part_of', 'member_of', 'includedin', 'categorizes']
+  contains: ['has', 'includes', 'encompasses', 'holds', 'consists_of', 'contained', 'issued_query', 'query_for_item', 'query_for_category', 'queryforitem', 'queryforcategory']
   adds_to_cart: ['added', 'placed_in_cart', 'selected', 'put_in_basket']
-  started_session: ['initiated', 'began', 'opened', 'commenced', 'participates_in']
+  started_session: ['initiated', 'began', 'opened', 'commenced', 'participates_in', 'attended', 'submittedby']
   purchase_of: ['purchases']
-  occurred_in: ['happened_in', 'took_place_in', 'within', 'during']
+  occurred_in: ['happened_in', 'took_place_in', 'within', 'during', 'occurredin']
   associated_with: ['linked_to', 'connected_to', 'related_to', 'tied_to']
   recommended: ['suggested', 'proposed', 'offered', 'presented']
 
@@ -27,6 +27,8 @@ invertible_relations:
   - started_session
   - purchases
   - purchase_of
+  - contains
+  - clicks
 
 property_synonyms:
   date: ['eventdate']

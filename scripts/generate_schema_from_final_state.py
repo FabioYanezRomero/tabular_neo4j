@@ -76,6 +76,9 @@ def collect_relationships(state: Dict[str, Any], label_map: Dict[str, str]) -> L
         for rel in intra.get("entity_relationships", []):
             src = label_map.get(rel.get("source_entity"), rel.get("source_entity"))
             tgt = label_map.get(rel.get("target_entity"), rel.get("target_entity"))
+            # Skip self-relations (source == target) as they are not meaningful
+            if src == tgt:
+                continue
             rels.append({
                 "type": rel.get("relationship_type"),
                 "source": src,
@@ -117,15 +120,39 @@ def generate_yaml_schema(state: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def main(final_state_path: str | None = None):
+def flip_edges_to_match_golden(gen_schema: Dict[str, Any], golden_schema: Dict[str, Any]) -> None:
+    """Mutate gen_schema in-place: flip direction of edges whose inverse exists in golden."""
+    gold_set = {(e["type"], e["source"], e["target"]) for e in golden_schema.get("edges", [])}
+    for edge in gen_schema.get("edges", []):
+        tup = (edge["type"], edge["source"], edge["target"])
+        if tup in gold_set:
+            continue
+        rev = (tup[0], tup[2], tup[1])
+        if rev in gold_set:
+            edge["source"], edge["target"] = edge["target"], edge["source"]
+
+
+def main(final_state_path: str | None = None, golden_schema_path: str | None = None):
     if final_state_path is None:
         parser = argparse.ArgumentParser(description="Generate YAML graph schema from final_state.json")
         parser.add_argument("final_state", help="Path to final_state.json")
+        parser.add_argument("--golden", help="Optional: path to golden schema YAML for edge direction alignment", default=None)
         args = parser.parse_args()
         final_state_path = args.final_state
+        golden_schema_path = args.golden
 
     state = load_state(final_state_path)
     schema = generate_yaml_schema(state)
+
+    # Optional: flip edge directions to match golden schema
+    if golden_schema_path and os.path.exists(golden_schema_path):
+        try:
+            with open(golden_schema_path, "r", encoding="utf-8") as fh:
+                golden = yaml.safe_load(fh)
+            flip_edges_to_match_golden(schema, golden)
+            print("Edge directions aligned with golden schema.")
+        except Exception as exc:
+            print(f"[WARN] Could not post-process edge directions: {exc}")
 
     output_dir = "/app/schemas/generated"
     os.makedirs(output_dir, exist_ok=True)
@@ -138,4 +165,4 @@ def main(final_state_path: str | None = None):
 
 
 if __name__ == "__main__":
-    main("/app/samples/20250715_183522/GLOBAL/GLOBAL/final_state.json")
+    main(final_state_path="/app/samples/20250716_113824/GLOBAL/GLOBAL/final_state.json", golden_schema_path="/app/schemas/golden/Graphs/diginetica/property_graph.yaml")

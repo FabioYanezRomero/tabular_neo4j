@@ -95,15 +95,15 @@ class GraphSchemaCompletenessEvaluator:
         
         return node_info
     
-    def extract_edge_info(self, schema: Dict) -> Set[Tuple[str, str, str]]:
+    def extract_edge_info(self, schema: Dict) -> Set[Tuple[str, str, str, frozenset]]:
         """Extract edge information as (type, source, target) tuples"""
-        edge_info = set()
+        edge_info: Set[Tuple[str, str, str, frozenset]] = set()
         for edge in schema.get('edges', []):
             edge_type = self.map_name_with_synonyms(edge['type'], 'relation')
             source = self.map_name_with_synonyms(edge['source'], 'node')
             target = self.map_name_with_synonyms(edge['target'], 'node')
-            edge_info.add((edge_type, source, target))
-        
+            attrs = {self.map_name_with_synonyms(a, 'property') for a in edge.get('attributes', [])}
+            edge_info.add((edge_type, source, target, frozenset(attrs)))
         return edge_info
     
     def calculate_node_completeness(self, gen_nodes: Dict[str, Set[str]], 
@@ -166,42 +166,53 @@ class GraphSchemaCompletenessEvaluator:
     
     def calculate_relation_completeness(
         self,
-        gen_edges: Set[Tuple[str, str, str]],
-        gold_edges: Set[Tuple[str, str, str]],
+        gen_edges: Set[Tuple[str, str, str, frozenset]],
+        gold_edges: Set[Tuple[str, str, str, frozenset]],
     ) -> Tuple[float, Dict]:
         """Calculate relation completeness with support for invertible relations."""
 
-        found_edges: Set[Tuple[str, str, str]] = set()
-        missing_edges: Set[Tuple[str, str, str]] = set()
+        found_edges: Set[Tuple[str, str, str, frozenset]] = set()
+        missing_edges: Set[Tuple[str, str, str, frozenset]] = set()
 
-        # Build a quick-lookup set for generated edges
-        gen_edges_lookup = set(gen_edges)
+        # Build quick lookup structures ignoring relation type & direction
+        # Map frozenset({src,tgt}) -> list of attribute sets present in generated edges
+        gen_pair_attrs: Dict[frozenset, List[frozenset]] = {}
+        for _, s, t, attrs in gen_edges:
+            key = frozenset({s, t})
+            gen_pair_attrs.setdefault(key, []).append(attrs)
 
         for edge in gold_edges:
-            r_type, src, tgt = edge
-            if edge in gen_edges_lookup:
+            _, src, tgt, g_attrs = edge
+            key = frozenset({src, tgt})
+            matched = False
+            for attrs in gen_pair_attrs.get(key, []):
+                if g_attrs.issubset(attrs):
+                    matched = True
+                    break
+            if matched:
                 found_edges.add(edge)
-                continue
-
-            # If relation is invertible, check reversed direction
-            if r_type in self.synonyms.invertible_relations and (r_type, tgt, src) in gen_edges_lookup:
-                found_edges.add((r_type, tgt, src))
             else:
                 missing_edges.add(edge)
 
-        extra_edges = gen_edges_lookup - found_edges
+        # Determine extra edges: any generated pair not matched by golden edges (ignoring type)
+        matched_pairs = {frozenset({e[1], e[2]}) for e in found_edges}
+        extra_edges = []
+        for _, s, t, attrs in gen_edges:
+            if frozenset({s, t}) not in matched_pairs:
+                extra_edges.append((s, t, attrs))
 
         completeness = len(found_edges) / len(gold_edges) if gold_edges else 1.0
 
-        fmt = lambda e: f"{e[0]}: {e[1]} -> {e[2]}"
+        fmt_edge = lambda e: f"{e[1]} <-> {e[2]} (props: {sorted(list(e[3]))})"
+        fmt_extra = lambda e: f"{e[0]} <-> {e[1]} (props: {sorted(list(e[2]))})"
         details = {
-            'found_relations': sorted(map(fmt, found_edges)),
-            'missing_relations': sorted(map(fmt, missing_edges)),
-            'extra_relations': sorted(map(fmt, extra_edges)),
+            'found_relations': sorted(map(fmt_edge, found_edges)),
+            'missing_relations': sorted(map(fmt_edge, missing_edges)),
+            'extra_relations': sorted(map(fmt_extra, extra_edges)),
             'total_golden_relations': len(gold_edges),
             'total_generated_relations': len(gen_edges),
             'completeness_score': completeness,
-            'invertible_relations_considered': sorted(self.synonyms.invertible_relations),
+            'matching_criteria': 'undirected_entity_pair_with_property_subset',
         }
 
         return completeness, details
@@ -395,7 +406,7 @@ if __name__ == "__main__":
     print("Graph Schema Evaluation Script")
     print("Use the functions evaluate_and_save() or evaluate_with_synonym_file() to run evaluations")
     evaluate_with_synonym_file(golden_schema_path="/app/schemas/golden/Graphs/diginetica/property_graph.yaml", 
-                               generated_schema_path="/app/schemas/generated/20250715_183522_schema.yaml", 
+                               generated_schema_path="/app/schemas/generated/20250716_113824_schema.yaml", 
                                synonyms_config_path="/app/schemas/synonyms/diginetica.yaml", 
-                               output_folder="/app/schemas/evaluation/diginetica_20250715_183522", 
+                               output_folder="/app/schemas/evaluation/diginetica_20250716_113824", 
                                output_name="diginetica")

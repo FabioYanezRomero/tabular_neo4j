@@ -26,7 +26,8 @@ You are a Neo4j graph schema expert performing the final step in a multiagent pi
 **Entity Property Indicators:**
 - Descriptive attributes (names, descriptions, categories)
 - Intrinsic properties (age, size, color, status)
-- Metadata fields (created_at, updated_at, version)
+- Metadata fields (created_at, updated_at, eventdate, timestamp, version)
+- Date/timestamp columns that vary on a per-row basis and appear inside a table whose rows represent discrete events or transactions should be mapped as properties of that *same* entity rather than assigned to a separate session-style entity.
 - Identifier fields belonging to a specific entity
 - High cardinality with descriptive content
 

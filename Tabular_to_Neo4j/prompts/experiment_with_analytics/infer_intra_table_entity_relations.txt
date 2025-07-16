@@ -10,17 +10,30 @@ You are a data-modeling expert. Your task is to infer **intra-table** relationsh
 Each line is formatted as `column_name | <json_analytics>` where the JSON object contains all available statistics for the column (e.g., data_type, uniqueness_ratio, cardinality, missing_percentage, sample values, etc.).
 
 ### Instructions
-1. For every meaningful relationship that can be deduced between two *different* entities in this single table, identify:
- • `source_entity` – which entity the relation starts from.
- • `target_entity` – which entity it points to.
- • `relationship_type` – domain-specific lower-snake-case verb phrase that reflects the table's business context and column characteristics (e.g., `purchased_by`, `assigned_to`, `managed_by`, `belongs_to_category`).
- • `direction` – one of `source_to_target`, `target_to_source` or `undirected`.
- • `confidence` – number 0-1.
- • `reasoning` – Justification for the relationship.
-2. Use the **table name** and **column analytics** to infer domain-specific relationship semantics rather than generic ones.
-3. Consider column characteristics: high uniqueness suggests identifier/ownership relations, low cardinality suggests classification/grouping relations, missing percentages indicate optional relationships.
-4. If no clear relationship exists, return an empty array.
-5. Keep reasoning concise (≤ 60 words per relationship).
+1. **Forbidden relationship types**: Avoid overly vague verbs such as `related_to`, `is_a`, `has`, `associated_with`. Use precise verbs instead.
+
+2. **Preferred relationship patterns** (use whichever best matches the evidence):
+  - Containment / Composition: `contains`, `belongs_to`, `included_in`
+  - Transactional: `created_by`, `processed_by`, `assigned_to`, `managed_by`
+  - Behavioral: `interacted_with`, `accessed`, `clicked`, `viewed`
+  - Temporal / Sequence: `occurred_during`, `triggered_by`, `followed_by`
+
+3. For every meaningful relationship between two *different* entities, identify:
+ • `source_entity` – which entity the relation starts from
+ • `target_entity` – which entity it points to  
+ • `relationship_type` – pick the most specific verb from the patterns above, or create a domain-specific alternative that captures the business meaning
+ • `direction` – one of `source_to_target`, `target_to_source` or `undirected`
+ • `confidence` – number 0-1
+ • `reasoning` – Justification using column analytics and sample values
+
+4. **Heuristics for deciding verbs (apply across domains)**:
+  - When a row contains a foreign-key column `<other_entity>_id`, assume a relationship exists from the row’s entity to `<other_entity>`.
+  - By default, use the direction **row-entity → referenced-entity** (parent to child). Choose `contains` for that direction or `belongs_to` for the reverse.
+  - If one entity’s table contains a foreign-key column referencing another entity’s ID, prefer `contains` (from parent to child) or `belongs_to` (from child to parent).
+  - High uniqueness ratios (>0.8) suggest identifiers / ownership relations.
+  - Low cardinality columns imply classification / grouping relations.
+  - Sample rows revealing co-occurring IDs are strong evidence of a relationship.
+  - Missing percentages indicate optional vs required relationships.
 
 ### Output format
 Return **only** a valid JSON object of the form:
@@ -28,18 +41,17 @@ Return **only** a valid JSON object of the form:
 {
   "entity_relationships": [
     {
-      "source_entity": "Customer",
-      "target_entity": "Order",
-      "relationship_type": "placed_order",
+      "source_entity": "Employee",
+      "target_entity": "Department",
+      "relationship_type": "assigned_to",
       "direction": "source_to_target",
-      "confidence": 0.92,
-      "reasoning": "Brief justification (≤60 words)"
+      "confidence": 0.95,
+      "reasoning": "Employee_id has high uniqueness (0.98) while department_id has low cardinality (12), indicating employees are assigned to departments. Sample values confirm this pattern."
     }
     // repeat objects as needed
   ]
 }
 ```
-
 
 Constraints:
 - Do not include properties or any text outside the single JSON object.
