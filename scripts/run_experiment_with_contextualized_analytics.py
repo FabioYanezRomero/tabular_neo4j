@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--input_path",
-        default="/app/datasets/csvs/diginetica",
+        default="/app/datasets/csvs/movielens_100k",
         help="Root directory containing CSV datasets (may include sub-folders).",
     )
     parser.add_argument(
@@ -51,12 +51,12 @@ def main() -> None:  # noqa: D401
     input_path = Path(args.input_path).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()
 
-    run_pipeline(
-        input_path=str(input_path),
-        output_dir=str(output_dir),
-        pipeline="experiments_with_contextualized_analytics",
-    )
-
+    for i in range(10):
+        run_pipeline(
+            input_path=str(input_path),
+            output_dir=str(output_dir),
+            pipeline="experiments_with_contextualized_analytics",
+        )
 
 if __name__ == "__main__":
     main()

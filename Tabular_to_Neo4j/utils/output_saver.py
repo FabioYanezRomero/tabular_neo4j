@@ -20,7 +20,8 @@ class OutputSaver:
     """
     def __init__(self, base_dir: str = "samples"):
         self.base_dir = base_dir
-        self.timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Include microseconds to avoid collisions when multiple runs start within the same second
+        self.timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         self.output_dir = os.path.join(self.base_dir, self.timestamp)
         self.previous_state = {}
         self.node_order_map = {}  # node name -> index mapping for current pipeline

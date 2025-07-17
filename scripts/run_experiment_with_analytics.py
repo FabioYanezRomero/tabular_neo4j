@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--input_path",
-        default="/app/datasets/csvs/diginetica",
+        default="/app/datasets/csvs/movielens_100k",
         help="Root directory containing CSV datasets (can have multiple sub-folders).",
     )
     parser.add_argument(
@@ -54,11 +54,12 @@ def main() -> None:  # noqa: D401 (no imperative mood requirement)
     output_dir = Path(args.output_dir).expanduser().resolve()
 
     # Execute the pipeline via the shared `run` helper to ensure identical logic
-    run_pipeline(
-        input_path=str(input_path),
-        output_dir=str(output_dir),
-        pipeline="experiments_with_analytics",
-    )
+    for i in range(10):
+        run_pipeline(
+            input_path=str(input_path),
+            output_dir=str(output_dir),
+            pipeline="experiments_with_analytics",
+        )
 
 
 if __name__ == "__main__":

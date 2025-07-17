@@ -5,14 +5,14 @@ import json
 import os
 import pandas as pd
 import logging
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Sequence, Union, Literal
 from Tabular_to_Neo4j.utils.logging_config import get_logger
 from Tabular_to_Neo4j.config import CSV_ENCODING, CSV_DELIMITER
 
 # Configure logging
 logger = get_logger(__name__)
 
-def load_csv_safely(file_path: str, header=None) -> Tuple[Optional[pd.DataFrame], Optional[List], Optional[str]]:
+def load_csv_safely(file_path: str, header: Optional[Union[int, Sequence[int], Literal['infer']]] = None) -> Tuple[Optional[pd.DataFrame], Optional[List], Optional[str]]:
     """
     Safely load a CSV file with error handling.
     
@@ -176,7 +176,7 @@ def delimiter_detection(file_path: str) -> str:
     return best_delim
     
     
-def fallback_encoding(file_path: str, df: pd.DataFrame, encoding: str, confidence: float, delimiter: str, header: str) -> pd.DataFrame:
+def fallback_encoding(file_path: str, df: pd.DataFrame, encoding: str, confidence: float, delimiter: str, header: Optional[Union[int, Sequence[int], Literal['infer']]]) -> pd.DataFrame:
     """
     Try to load a DataFrame with a fallback encoding if the default fails.
     
@@ -191,7 +191,11 @@ def fallback_encoding(file_path: str, df: pd.DataFrame, encoding: str, confidenc
     Returns:
         The loaded DataFrame
     """
-    if confidence < 0.9:
+    # Retry with common encodings whenever the initial attempt failed (df is None)
+    # or when the detected encoding has low confidence. This covers cases where
+    # chardet claims high confidence for "ascii" but the file actually contains
+    # a few non-ASCII bytes further down the file (e.g. movie titles with accents).
+    if df is None or confidence < 0.9:
         fallback_encodings = ['utf-8', 'latin-1', 'cp1252']
         for fb_encoding in fallback_encodings:
             if fb_encoding != encoding:

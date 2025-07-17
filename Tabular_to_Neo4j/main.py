@@ -86,7 +86,10 @@ def run(
         try:
             from pathlib import Path
             
-            out_path = Path(table_folder) / "GLOBAL" / "final_state.json"
+            from pathlib import Path as _Path
+            # Use the timestamped directory managed by OutputSaver so that each run
+            # (even within the same Python process) stores its own artefacts.
+            out_path = _Path(output_saver.output_dir) / "final_state.json"
             out_path.parent.mkdir(parents=True, exist_ok=True)
             with open(out_path, "w", encoding="utf-8") as f:
                 json.dump(final_state, f, indent=2, default=json_default)
@@ -100,7 +103,10 @@ def run(
         try:
             from pathlib import Path
             
-            out_path = Path(table_folder) / "GLOBAL" / "final_state.json"
+            from pathlib import Path as _Path
+            # Use the timestamped directory managed by OutputSaver so that each run
+            # (even within the same Python process) stores its own artefacts.
+            out_path = _Path(output_saver.output_dir) / "final_state.json"
             out_path.parent.mkdir(parents=True, exist_ok=True)
             with open(out_path, "w", encoding="utf-8") as f:
                 json.dump(final_state, f, indent=2, default=json_default)
@@ -115,7 +121,10 @@ def run(
         try:
             from pathlib import Path
             
-            out_path = Path(table_folder) / "GLOBAL" / "final_state.json"
+            from pathlib import Path as _Path
+            # Use the timestamped directory managed by OutputSaver so that each run
+            # (even within the same Python process) stores its own artefacts.
+            out_path = _Path(output_saver.output_dir) / "final_state.json"
             out_path.parent.mkdir(parents=True, exist_ok=True)
             with open(out_path, "w", encoding="utf-8") as f:
                 json.dump(final_state, f, indent=2, default=json_default)
