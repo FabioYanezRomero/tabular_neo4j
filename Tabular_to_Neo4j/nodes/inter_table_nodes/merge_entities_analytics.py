@@ -108,6 +108,10 @@ def merge_entities_analytics_node(state: MultiTableGraphState, node_order: int, 
     # Explode merges so each entry has exactly one 'from' label and one 'to' label.
     exploded: List[Dict[str, Any]] = []
     for merge in proposed_merges:
+        # Skip malformed merge entries that are not dictionaries
+        if not isinstance(merge, dict):
+            logger.warning(f"Skipping malformed merge entry (expected dict but got {type(merge)}): {merge}")
+            continue
         from_field = merge.get("from")
         to_label = merge.get("to")
         if isinstance(from_field, list):

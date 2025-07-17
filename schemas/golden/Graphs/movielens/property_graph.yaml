@@ -1,51 +1,62 @@
-# Attributes on both, nodes and edges
-
 nodes:
   - type: user
     attributes:
-      - userId
-      - gender
-      - age
-      - occupation
-      - zipcode
+      - userId: integer (primary key)
+      - gender: string
+      - age: integer
+      - occupation: string
+      - zipcode: string
+      - registration_date: timestamp
 
   - type: movie
     attributes:
-      - movieId
-      - title
-      - genres
+      - movieId: integer (primary key)
+      - title: string
+      - release_year: integer
 
   - type: genre
     attributes:
-      - genre_name
+      - genre_id: integer (primary key)
+      - genre_name: string
 
   - type: tag
     attributes:
-      - tag
+      - tag_id: integer (primary key)
+      - tag_text: string
+      - creation_date: timestamp
 
   - type: external_link
     attributes:
-      - imdbId
-      - tmdbId
+      - link_id: integer (primary key)
+      - link_type: string  # 'imdb' or 'tmdb'
+      - external_id: string
+
 
 edges:
   - type: rated
     source: user
     target: movie
     attributes:
-      - rating
-      - timestamp
+      - rating: float (1.0-5.0)
+      - timestamp: timestamp
 
-  - type: tagged
+  - type: applied_tag
     source: user
+    target: tag
+    attributes:
+      - timestamp: timestamp
+
+  - type: describes
+    source: tag
     target: movie
     attributes:
-      - tag
-      - timestamp
+      - relevance_score: float (optional, 0.0-1.0)
 
   - type: has_genre
     source: movie
     target: genre
+    attributes:
+      - primary_genre: boolean (indicates main genre)
 
   - type: has_link
     source: movie

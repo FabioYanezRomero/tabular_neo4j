@@ -156,8 +156,8 @@ def main(final_state_path: str | None = None, golden_schema_path: str | None = N
 
     output_dir = "/app/schemas/generated"
     os.makedirs(output_dir, exist_ok=True)
-    # Use the *timestamp* folder (three levels up: samples/<timestamp>/GLOBAL/...) for the filename
-    timestamp_folder = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(final_state_path))))
+    # Use the name of the experiments folder one level up
+    timestamp_folder = os.path.basename(os.path.dirname(final_state_path))
     out_path = os.path.join(output_dir, f"{timestamp_folder}_schema.yaml")
     with open(out_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(schema, f, sort_keys=False, default_flow_style=False, allow_unicode=True)
@@ -168,4 +168,4 @@ if __name__ == "__main__":
     import os
     folders = os.listdir("/app/samples")
     for folder in folders:
-        main(final_state_path=f"/app/samples/{folder}/GLOBAL/GLOBAL/final_state.json", golden_schema_path="/app/schemas/golden/Graphs/movielens/property_graph.yaml")
+        main(final_state_path=f"/app/samples/{folder}/final_state.json", golden_schema_path="/app/schemas/golden/Graphs/movielens/property_graph.yaml")
