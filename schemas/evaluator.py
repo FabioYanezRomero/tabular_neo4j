@@ -87,7 +87,15 @@ class GraphSchemaCompletenessEvaluator:
         node_info = {}
         for node in schema.get('nodes', []):
             node_type = self.map_name_with_synonyms(node['type'], 'node')
-            attributes = {self.map_name_with_synonyms(attr, 'property') for attr in node.get('attributes', [])}
+            attributes = set()
+            for attr in node.get('attributes', []):
+                if isinstance(attr, dict):
+                    # support YAML mapping style: - attr_name: type
+                    attr_names = attr.keys()
+                else:
+                    attr_names = [attr]
+                for name in attr_names:
+                    attributes.add(self.map_name_with_synonyms(name, 'property'))
             
             if node_type not in node_info:
                 node_info[node_type] = set()
@@ -102,7 +110,14 @@ class GraphSchemaCompletenessEvaluator:
             edge_type = self.map_name_with_synonyms(edge['type'], 'relation')
             source = self.map_name_with_synonyms(edge['source'], 'node')
             target = self.map_name_with_synonyms(edge['target'], 'node')
-            attrs = {self.map_name_with_synonyms(a, 'property') for a in edge.get('attributes', [])}
+            attrs = set()
+            for a in edge.get('attributes', []):
+                if isinstance(a, dict):
+                    names = a.keys()
+                else:
+                    names = [a]
+                for name in names:
+                    attrs.add(self.map_name_with_synonyms(name, 'property'))
             edge_info.add((edge_type, source, target, frozenset(attrs)))
         return edge_info
     
@@ -404,10 +419,10 @@ def evaluate_with_synonym_file(golden_schema_path: str,
 if __name__ == "__main__":
     # Example usage
     import os
-    files = os.listdir("/app/schemas/generated")
+    files = os.listdir("/app/schemas/generated/movielens")
     for file in files:
-        evaluate_with_synonym_file(golden_schema_path="/app/schemas/golden/Graphs/diginetica/property_graph.yaml", 
-                               generated_schema_path=f"/app/schemas/generated/{file}", 
-                               synonyms_config_path="/app/schemas/synonyms/diginetica.yaml", 
-                               output_folder=f"/app/schemas/evaluation/{file}", 
-                               output_name="diginetica")
+        evaluate_with_synonym_file(golden_schema_path="/app/schemas/golden/Graphs/movielens/property_graph.yaml", 
+                               generated_schema_path=f"/app/schemas/generated/movielens/{file}", 
+                               synonyms_config_path="/app/schemas/synonyms/movielens.yaml", 
+                               output_folder=f"/app/schemas/evaluation/movielens_100k", 
+                               output_name=file)
